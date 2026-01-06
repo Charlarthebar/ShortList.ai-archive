@@ -47,21 +47,21 @@ The core hypothesis is this: **Users are willing to track jobs over time and eng
 ## Tooling Plan
 
 ### Backend & Data
-Python + FastAPI — API development
-PostgreSQL — jobs, users, skills
-pgvector or equivalent — basic skill similarity
-Lightweight LLM usage (API-based) for job and skill normalization
+- Python + FastAPI — API development
+- PostgreSQL — jobs, users, skills
+- pgvector or equivalent — basic skill similarity
+- Lightweight LLM usage (API-based) for job and skill normalization
 
 ### Frontend
-React + TypeScript
-Web-first, mobile-friendly UI
-Focus on clarity over visual polish
+- React + TypeScript
+- Web-first, mobile-friendly UI
+- Focus on clarity over visual polish
 
 ### Infrastructure
-GitHub — single source of truth
-Vercel / Render — deployment
-Supabase or Firebase — authentication (if needed)
+- GitHub — single source of truth
+- Vercel / Render — deployment
+- Supabase or Firebase — authentication (if needed)
 
 ### Product & Collaboration
-Slack / Discord — team communication
-In-person meetings/discussions - team communication
+- Slack / Discord — team communication
+- In-person meetings/discussions - team communication
