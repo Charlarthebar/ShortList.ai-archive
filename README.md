@@ -1,16 +1,15 @@
 # ShortList.ai
-## A two‑sided job marketplace that always works for you: a platform that collects every job—open or filled—and matches them with people whose skills and aspirations align. 
 
 ShortList.ai is a two-sided job marketplace that rethinks hiring as a continuous matching problem, not a one-time application event. Unlike traditional job boards that index only open roles and optimize for volume, ShortList.ai builds a continually updated view of all jobs (open and filled) and matches them to candidates based on skills, interests, and career trajectory.
 
 This repository serves as the system of record for the ShortList.ai project and contains all code, documentation, research, and MVP artifacts in accordance with course requirements
 
-### Team Members
+## Team Members
 - Charles Lai (Computer Science and Mathematics)
 - Joshua Tang (Computer Science, Economics, and Data Science)
 - Noah Hopkins (Computer Science and Finance)
 
-### Opportunity Summary
+## Opportunity Summary
 The modern job market is inefficient for both sides.
 
 Candidates face an arms race of automated applications, opaque filtering, and low response rates. Even strong applicants often have no insight into why they were rejected or how to improve their fit.
@@ -23,7 +22,7 @@ ShortList.ai addresses this structural mismatch by:
 - Capturing intent and interest signals (subscriptions, skill self-assessment, engagement)
 - Enabling employers to discover qualified passive candidates earlier in the hiring cycle
 
-### MVP Scope
+## MVP Scope
 The core hypothesis is that:
 **Users are willing to track jobs over time and engage with skill-based matching even when no immediate opening exists.**
 
