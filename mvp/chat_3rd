@@ -1,0 +1,231 @@
+import requests
+import pandas as pd
+import pgeocode
+from geopy.distance import geodesic
+from time import sleep
+
+# =========================================================
+# CONFIG — FILL THESE IN
+# =========================================================
+
+ADZUNA_APP_ID = "516145e7"
+ADZUNA_APP_KEY = "34e6f3959d58461538354d674d48b881"
+
+USAJOBS_API_KEY = "Y45Z7Gortr/kTzQhJgxHjDoY16NrzYFTY4IXgMbxs0o="
+USAJOBS_EMAIL = "charlielai3@gmail.com"
+
+ZIP_CODE = "05843"
+RADIUS_MILES = 50
+RESULTS_PER_PAGE = 50
+ADZUNA_PAGES = 2
+USAJOBS_PAGES = 3
+
+# =========================================================
+# GEO HELPERS
+# =========================================================
+
+geo = pgeocode.Nominatim("us")
+
+def zip_to_latlon(zip_code):
+    rec = geo.query_postal_code(zip_code)
+    return (rec.latitude, rec.longitude)
+
+def within_radius(center, point, miles):
+    return geodesic(center, point).miles <= miles
+
+# =========================================================
+# CONFIDENCE SCORING
+# =========================================================
+
+def confidence_score(job, center):
+    score = 0.0
+
+    if job.get("latitude") and job.get("longitude"):
+        dist = geodesic(center, (job["latitude"], job["longitude"])).miles
+        score += max(0, 1 - dist / RADIUS_MILES) * 0.6
+
+    if job.get("remote"):
+        score -= 0.2
+
+    if job["source"] == "usajobs":
+        score += 0.2
+    elif job["source"] == "adzuna":
+        score += 0.1
+
+    return round(max(0, min(score, 1)), 2)
+
+# =========================================================
+# ADZUNA FETCH
+# =========================================================
+
+def fetch_adzuna_jobs(zip_code):
+    jobs = []
+
+    for page in range(1, ADZUNA_PAGES + 1):
+        url = f"https://api.adzuna.com/v1/api/jobs/us/search/{page}"
+        params = {
+            "app_id": ADZUNA_APP_ID,
+            "app_key": ADZUNA_APP_KEY,
+            "where": zip_code,
+            "distance": RADIUS_MILES,
+            "results_per_page": RESULTS_PER_PAGE,
+            "content-type": "application/json"
+        }
+
+        r = requests.get(url, params=params)
+        data = r.json()
+
+        for j in data.get("results", []):
+            jobs.append({
+                "job_id": j.get("id"),
+                "title": j.get("title"),
+                "employer": j.get("company", {}).get("display_name"),
+                "sector": "private",
+                "source": "adzuna",
+                "salary_min": j.get("salary_min"),
+                "salary_max": j.get("salary_max"),
+                "location": j.get("location", {}).get("display_name"),
+                "latitude": j.get("latitude"),
+                "longitude": j.get("longitude"),
+                "remote": "remote" in j.get("title", "").lower(),
+                "posted_date": j.get("created"),
+                "url": j.get("redirect_url")
+            })
+
+        sleep(1)
+
+    return jobs
+
+# =========================================================
+# USAJOBS FETCH
+# =========================================================
+
+def fetch_usajobs(zip_code):
+    jobs = []
+    headers = {
+        "Authorization-Key": USAJOBS_API_KEY,
+        "User-Agent": USAJOBS_EMAIL
+    }
+
+    for page in range(1, USAJOBS_PAGES + 1):
+        params = {
+            "LocationName": zip_code,
+            "Radius": RADIUS_MILES,
+            "ResultsPerPage": RESULTS_PER_PAGE,
+            "Page": page
+        }
+
+        r = requests.get(
+            "https://data.usajobs.gov/api/search",
+            headers=headers,
+            params=params
+        )
+
+        items = r.json().get("SearchResult", {}).get("SearchResultItems", [])
+
+        for item in items:
+            job = item["MatchedObjectDescriptor"]
+
+            locations = []
+            for loc in job.get("PositionLocation", []):
+                if loc.get("Latitude") and loc.get("Longitude"):
+                    locations.append({
+                        "name": loc.get("LocationName"),
+                        "lat": float(loc.get("Latitude")),
+                        "lon": float(loc.get("Longitude"))
+                    })
+
+            jobs.append({
+                "job_id": job.get("PositionID"),
+                "title": job.get("PositionTitle"),
+                "employer": job.get("OrganizationName"),
+                "sector": "federal",
+                "source": "usajobs",
+                "salary_min": job.get("PositionRemuneration", [{}])[0].get("MinimumRange"),
+                "salary_max": job.get("PositionRemuneration", [{}])[0].get("MaximumRange"),
+                "locations": locations,
+                "remote": job.get("RemoteIndicator"),
+                "posted_date": job.get("PublicationStartDate"),
+                "url": job.get("PositionURI")
+            })
+
+        sleep(1)
+
+    return jobs
+
+# =========================================================
+# NORMALIZATION
+# =========================================================
+
+def normalize_adzuna(jobs, zip_code):
+    center = zip_to_latlon(zip_code)
+    cleaned = []
+
+    for j in jobs:
+        if not j["latitude"] or not j["longitude"]:
+            continue
+
+        if not within_radius(center, (j["latitude"], j["longitude"]), RADIUS_MILES):
+            continue
+
+        j["confidence"] = confidence_score(j, center)
+        j["zip"] = zip_code
+        cleaned.append(j)
+
+    return cleaned
+
+def normalize_usajobs(jobs, zip_code):
+    center = zip_to_latlon(zip_code)
+    cleaned = []
+
+    for job in jobs:
+        for loc in job.get("locations", []):
+            if within_radius(center, (loc["lat"], loc["lon"]), RADIUS_MILES):
+                new_job = {
+                    "job_id": job["job_id"],
+                    "title": job["title"],
+                    "employer": job["employer"],
+                    "sector": "federal",
+                    "source": "usajobs",
+                    "salary_min": job["salary_min"],
+                    "salary_max": job["salary_max"],
+                    "location": loc["name"],
+                    "latitude": loc["lat"],
+                    "longitude": loc["lon"],
+                    "remote": job["remote"],
+                    "posted_date": job["posted_date"],
+                    "url": job["url"],
+                    "zip": zip_code
+                }
+                new_job["confidence"] = confidence_score(new_job, center)
+                cleaned.append(new_job)
+
+    return cleaned
+
+# =========================================================
+# PIPELINE
+# =========================================================
+
+def run_pipeline(zip_code):
+    print("Fetching Adzuna jobs...")
+    adzuna_raw = fetch_adzuna_jobs(zip_code)
+
+    print("Fetching USAJOBS jobs...")
+    usajobs_raw = fetch_usajobs(zip_code)
+
+    print("Normalizing + filtering...")
+    adzuna_clean = normalize_adzuna(adzuna_raw, zip_code)
+    usajobs_clean = normalize_usajobs(usajobs_raw, zip_code)
+
+    all_jobs = adzuna_clean + usajobs_clean
+    return pd.DataFrame(all_jobs)
+
+# =========================================================
+# RUN
+# =========================================================
+
+if __name__ == "__main__":
+    df = run_pipeline(ZIP_CODE)
+    out = f"jobs_{ZIP_CODE}_clean.csv"
+    df.to_csv(out, index=False)
+    print(f"Saved {len(df)} jobs → {out}")

@@ -1,0 +1,596 @@
+"""
+jobs_pipeline_extended.py
+========================
+
+This script fetches job postings for a given U.S. ZIP code from both
+the Adzuna and USAJOBS APIs, normalizes the results, performs
+geo‑filtering to ensure that all returned postings are actually within
+the requested radius, deduplicates overlapping jobs, optionally
+generates inferred jobs using BLS employment counts by NAICS code, and
+stores the final dataset in both a CSV file and a SQLite database.
+
+Features implemented:
+
+1. **Pipeline refactor and normalization** – All functions are broken
+   into small, testable pieces.  Jobs from each source are fetched,
+   normalized into a common schema and geo‑filtered based on the
+   requested ZIP code and radius.
+2. **Deduplication across sources** – Jobs with the same title,
+   employer and location are deduplicated, keeping the posting with
+   the highest confidence score.
+3. **SQLite backend** – The cleaned and deduplicated dataset is
+   written into a SQLite database (`jobs.db`) as well as a CSV file.
+4. **BLS inference layer** – If a BLS employment file is provided (see
+   `BLS_FILE`), the script estimates how many additional jobs should
+   exist for each NAICS sector and creates synthetic “inferred” job
+   records to fill any shortfall.  This demonstrates how to extend
+   the dataset beyond posted openings using official employment
+   statistics.
+
+Dependencies:
+    requests, pandas, pgeocode, geopy
+
+Usage:
+    1. Install dependencies (see README instructions).
+    2. Fill in your Adzuna and USAJOBS API credentials below.
+    3. (Optional) Place a CSV file with BLS employment counts
+       (columns: ``naics_code``, ``employment_count``) in the same
+       directory and update ``BLS_FILE`` to its filename.  If you do
+       not have such a file, leave ``BLS_FILE`` as ``None``.
+    4. Run the script with ``python jobs_pipeline_extended.py``.  It
+       will write a CSV file named ``jobs_<ZIP>.csv`` and a SQLite
+       database ``jobs.db`` containing the consolidated data.
+
+Note:
+    This script illustrates how to integrate multiple job sources,
+    deduplicate them, persist the results into a relational database
+    and augment missing jobs using BLS statistics.  The inference
+    layer uses a very simple mapping from job titles to NAICS codes
+    and is intended as a template; it should be replaced with a more
+    sophisticated classifier in production.
+"""
+
+import os
+import sqlite3
+from typing import List, Dict, Any, Optional
+
+import requests
+import pandas as pd
+import pgeocode
+from geopy.distance import geodesic
+from time import sleep
+
+
+# =========================================================
+# CONFIGURATION
+# =========================================================
+
+# Insert your Adzuna API credentials.  You can obtain these from
+# https://developer.adzuna.com/ by creating an app.  Leave these as
+# empty strings until you have your own keys.
+ADZUNA_APP_ID: str = "516145e7"
+ADZUNA_APP_KEY: str = "34e6f3959d58461538354d674d48b881"
+
+# Insert your USAJOBS API credentials.  You can register at
+# https://developer.usajobs.gov/.  The API key must be accompanied
+# by the email address used for registration.
+USAJOBS_API_KEY: str = "Y45Z7Gortr/kTzQhJgxHjDoY16NrzYFTY4IXgMbxs0o="
+USAJOBS_EMAIL: str = "charlielai3@gmail.com"
+
+# Location and search parameters.  Adjust these values to target a
+# particular ZIP code and radius (in miles) around that ZIP.  Also
+# tune the number of pages to fetch from each API; the more pages,
+# the more data but the longer the runtime.  Each page typically
+# returns ``RESULTS_PER_PAGE`` results.
+ZIP_CODE: str = "02459"
+RADIUS_MILES: int = 50
+RESULTS_PER_PAGE: int = 50
+ADZUNA_PAGES: int = 2
+USAJOBS_PAGES: int = 3
+
+# Optional BLS employment file.  If provided, it should be a CSV
+# containing at least two columns: ``naics_code`` (string or int)
+# and ``employment_count`` (integer).  If you do not have such a
+# file, set ``BLS_FILE`` to ``None`` and the inference layer will
+# be skipped.  This allows the script to run without BLS data.
+BLS_FILE: Optional[str] = None  # e.g., "bls_naics_employment.csv"
+
+# Output filenames.  You can change these if you wish.  The CSV
+# filename will include the ZIP code for clarity.  The SQLite DB is
+# always written to ``jobs.db`` in the current directory.
+CSV_OUTPUT_TEMPLATE: str = f"jobs_{ZIP_CODE}_clean.csv"
+SQLITE_DB: str = "jobs.db"
+
+
+# =========================================================
+# GEO HELPERS
+# =========================================================
+
+# Instantiate a Nominatim geocoder from pgeocode for U.S. ZIP codes.
+geo = pgeocode.Nominatim("us")
+
+
+def zip_to_latlon(zip_code: str) -> Optional[tuple]:
+    """Return (lat, lon) for a given ZIP code using pgeocode.
+
+    If the ZIP code cannot be resolved, return None.  This helper
+    isolates the external dependency so it can be mocked or replaced.
+    """
+    rec = geo.query_postal_code(zip_code)
+    if pd.isna(rec.latitude) or pd.isna(rec.longitude):
+        return None
+    return float(rec.latitude), float(rec.longitude)
+
+
+def within_radius(center: tuple, point: tuple, miles: float) -> bool:
+    """Return True if ``point`` is within ``miles`` of ``center``.
+
+    Both ``center`` and ``point`` are (lat, lon) tuples.  Uses geopy
+    to compute great-circle distance.
+    """
+    return geodesic(center, point).miles <= miles
+
+
+# =========================================================
+# CONFIDENCE SCORING
+# =========================================================
+
+def confidence_score(job: Dict[str, Any], center: tuple) -> float:
+    """Assign a confidence score in [0, 1] to a job record.
+
+    The score rewards proximity (jobs closer to the ZIP centroid score
+    higher), penalises remote jobs and gives small source-based
+    bonuses (USAJOBS postings are considered more reliable than
+    Adzuna).  This heuristic can be tuned to better match your
+    preferences.
+    """
+    score = 0.0
+
+    lat = job.get("latitude")
+    lon = job.get("longitude")
+    if lat is not None and lon is not None:
+        dist = geodesic(center, (lat, lon)).miles
+        score += max(0.0, 1.0 - dist / max(1.0, float(RADIUS_MILES))) * 0.6
+
+    # Penalise remote jobs slightly.
+    if job.get("remote"):
+        score -= 0.2
+
+    source = job.get("source")
+    if source == "usajobs":
+        score += 0.2
+    elif source == "adzuna":
+        score += 0.1
+
+    # Bound the score to [0, 1].
+    return round(max(0.0, min(score, 1.0)), 2)
+
+
+# =========================================================
+# ADZUNA FETCH AND NORMALIZATION
+# =========================================================
+
+def fetch_adzuna_jobs(zip_code: str) -> List[Dict[str, Any]]:
+    """Fetch raw job data from the Adzuna API for a given ZIP.
+
+    Returns a list of dictionaries containing job fields.  If the
+    API key or app ID are missing, this function returns an empty
+    list.  Each request sleeps briefly to respect rate limits.
+    """
+    jobs: List[Dict[str, Any]] = []
+
+    if not ADZUNA_APP_ID or not ADZUNA_APP_KEY:
+        print("[WARN] Adzuna credentials missing; skipping Adzuna fetch.")
+        return jobs
+
+    for page in range(1, ADZUNA_PAGES + 1):
+        url = f"https://api.adzuna.com/v1/api/jobs/us/search/{page}"
+        params = {
+            "app_id": ADZUNA_APP_ID,
+            "app_key": ADZUNA_APP_KEY,
+            "where": zip_code,
+            "distance": RADIUS_MILES,
+            "results_per_page": RESULTS_PER_PAGE,
+            "content-type": "application/json",
+        }
+        try:
+            resp = requests.get(url, params=params)
+            data = resp.json()
+        except Exception as exc:
+            print(f"[ERROR] Adzuna fetch failed on page {page}: {exc}")
+            break
+
+        for entry in data.get("results", []):
+            jobs.append({
+                "job_id": entry.get("id"),
+                "title": entry.get("title"),
+                "employer": entry.get("company", {}).get("display_name"),
+                "sector": "private",
+                "source": "adzuna",
+                "salary_min": entry.get("salary_min"),
+                "salary_max": entry.get("salary_max"),
+                "location": entry.get("location", {}).get("display_name"),
+                "latitude": entry.get("latitude"),
+                "longitude": entry.get("longitude"),
+                "remote": bool(entry.get("title", "").lower().count("remote")),
+                "posted_date": entry.get("created"),
+                "url": entry.get("redirect_url"),
+            })
+        sleep(1)
+
+    return jobs
+
+
+def normalize_adzuna(jobs: List[Dict[str, Any]], zip_code: str) -> List[Dict[str, Any]]:
+    """Geo‑filter and add confidence scores to Adzuna jobs.
+
+    Only jobs with valid coordinates and within the specified radius
+    around the ZIP centroid are retained.  Each job is augmented with
+    the target ZIP and a computed confidence score.
+    """
+    center = zip_to_latlon(zip_code)
+    if center is None:
+        print(f"[ERROR] Invalid ZIP code {zip_code}; unable to compute centroid.")
+        return []
+
+    cleaned: List[Dict[str, Any]] = []
+    for job in jobs:
+        lat = job.get("latitude")
+        lon = job.get("longitude")
+        if lat is None or lon is None:
+            continue
+        if not within_radius(center, (lat, lon), RADIUS_MILES):
+            continue
+        job["zip"] = zip_code
+        job["confidence"] = confidence_score(job, center)
+        cleaned.append(job)
+    return cleaned
+
+
+# =========================================================
+# USAJOBS FETCH AND NORMALIZATION
+# =========================================================
+
+def fetch_usajobs(zip_code: str) -> List[Dict[str, Any]]:
+    """Fetch raw job data from the USAJOBS API for a given ZIP.
+
+    Returns a list of dictionaries.  The ``locations`` field for each
+    job is a list of dictionaries with ``name``, ``lat`` and ``lon``.
+    If credentials are missing, returns an empty list.
+    """
+    jobs: List[Dict[str, Any]] = []
+
+    if not USAJOBS_API_KEY or not USAJOBS_EMAIL:
+        print("[WARN] USAJOBS credentials missing; skipping USAJOBS fetch.")
+        return jobs
+
+    headers = {
+        "Authorization-Key": USAJOBS_API_KEY,
+        "User-Agent": USAJOBS_EMAIL,
+    }
+
+    for page in range(1, USAJOBS_PAGES + 1):
+        params = {
+            "LocationName": zip_code,
+            "Radius": RADIUS_MILES,
+            "ResultsPerPage": RESULTS_PER_PAGE,
+            "Page": page,
+        }
+        try:
+            resp = requests.get(
+                "https://data.usajobs.gov/api/search",
+                headers=headers,
+                params=params,
+            )
+            data = resp.json()
+        except Exception as exc:
+            print(f"[ERROR] USAJOBS fetch failed on page {page}: {exc}")
+            break
+
+        items = data.get("SearchResult", {}).get("SearchResultItems", [])
+        for item in items:
+            descriptor = item.get("MatchedObjectDescriptor", {})
+            # Collect all location entries with lat/lon
+            location_list: List[Dict[str, Any]] = []
+            for loc in descriptor.get("PositionLocation", []):
+                lat = loc.get("Latitude")
+                lon = loc.get("Longitude")
+                if lat is not None and lon is not None:
+                    try:
+                        lat_val = float(lat)
+                        lon_val = float(lon)
+                    except Exception:
+                        continue
+                    location_list.append({
+                        "name": loc.get("LocationName"),
+                        "lat": lat_val,
+                        "lon": lon_val,
+                    })
+
+            jobs.append({
+                "job_id": descriptor.get("PositionID"),
+                "title": descriptor.get("PositionTitle"),
+                "employer": descriptor.get("OrganizationName"),
+                "sector": "federal",
+                "source": "usajobs",
+                "salary_min": descriptor.get("PositionRemuneration", [{}])[0].get("MinimumRange"),
+                "salary_max": descriptor.get("PositionRemuneration", [{}])[0].get("MaximumRange"),
+                "locations": location_list,
+                "remote": descriptor.get("RemoteIndicator"),
+                "posted_date": descriptor.get("PublicationStartDate"),
+                "url": descriptor.get("PositionURI"),
+            })
+        sleep(1)
+    return jobs
+
+
+def normalize_usajobs(jobs: List[Dict[str, Any]], zip_code: str) -> List[Dict[str, Any]]:
+    """Geo‑filter, explode and score USAJOBS postings.
+
+    Multi‑location postings are exploded into one record per location.
+    Only those records whose coordinates lie within the requested
+    radius are retained.  Each record gets the ZIP and confidence.
+    """
+    center = zip_to_latlon(zip_code)
+    if center is None:
+        print(f"[ERROR] Invalid ZIP code {zip_code}; unable to compute centroid.")
+        return []
+
+    cleaned: List[Dict[str, Any]] = []
+    for job in jobs:
+        locations = job.get("locations", [])
+        for loc in locations:
+            lat = loc.get("lat")
+            lon = loc.get("lon")
+            if lat is None or lon is None:
+                continue
+            if not within_radius(center, (lat, lon), RADIUS_MILES):
+                continue
+            new_job = {
+                "job_id": job.get("job_id"),
+                "title": job.get("title"),
+                "employer": job.get("employer"),
+                "sector": job.get("sector"),
+                "source": job.get("source"),
+                "salary_min": job.get("salary_min"),
+                "salary_max": job.get("salary_max"),
+                "location": loc.get("name"),
+                "latitude": lat,
+                "longitude": lon,
+                "remote": job.get("remote"),
+                "posted_date": job.get("posted_date"),
+                "url": job.get("url"),
+                "zip": zip_code,
+            }
+            new_job["confidence"] = confidence_score(new_job, center)
+            cleaned.append(new_job)
+    return cleaned
+
+
+# =========================================================
+# DEDUPLICATION
+# =========================================================
+
+def deduplicate_jobs(df: pd.DataFrame) -> pd.DataFrame:
+    """Remove duplicate job postings across sources.
+
+    Jobs are considered duplicates if they share the same title,
+    employer and location (case‑insensitive).  Among duplicates, the
+    record with the highest confidence is kept.  This function
+    operates on a pandas DataFrame and returns a new DataFrame.
+    """
+    # Normalize comparison columns to lower case to avoid case
+    # sensitivity issues.
+    df["_title_norm"] = df["title"].str.lower().fillna("")
+    df["_employer_norm"] = df["employer"].str.lower().fillna("")
+    df["_location_norm"] = df["location"].str.lower().fillna("")
+
+    # Sort by confidence descending so that the drop_duplicates keeps
+    # the highest confidence record.
+    df_sorted = df.sort_values(by=["confidence"], ascending=False)
+    deduped = df_sorted.drop_duplicates(
+        subset=["_title_norm", "_employer_norm", "_location_norm"], keep="first"
+    )
+
+    # Remove helper columns.
+    return deduped.drop(columns=["_title_norm", "_employer_norm", "_location_norm"])
+
+
+# =========================================================
+# BLS INFERENCE LAYER
+# =========================================================
+
+def map_naics(title: str, sector: str) -> str:
+    """Very naive mapping from job title/sector to a NAICS two‑digit code.
+
+    This heuristic is designed only for demonstration purposes.  A
+    production system should replace this logic with a machine
+    learning classifier or a detailed ruleset.  Codes used here
+    correspond to high‑level NAICS sectors:
+
+    11 Agriculture, forestry, fishing and hunting
+    48 Transportation and warehousing
+    52 Finance and insurance
+    54 Professional, scientific, and technical services
+    61 Educational services
+    62 Health care and social assistance
+    92 Public administration (Government)
+    """
+    t = (title or "").lower()
+    if sector == "federal":
+        return "92"  # Government
+    if any(k in t for k in ["health", "nurse", "medical", "care"]):
+        return "62"
+    if any(k in t for k in ["teacher", "education", "school", "instructor"]):
+        return "61"
+    if any(k in t for k in ["driver", "delivery", "transport"]):
+        return "48"
+    if any(k in t for k in ["farm", "agric", "dairy"]):
+        return "11"
+    if any(k in t for k in ["finance", "bank", "credit", "loan"]):
+        return "52"
+    if any(k in t for k in ["software", "developer", "tech", "engineer"]):
+        return "54"
+    # Default: professional services
+    return "54"
+
+
+def infer_missing_jobs(df: pd.DataFrame, zip_code: str, bls_file: Optional[str]) -> pd.DataFrame:
+    """Create inferred jobs based on BLS employment counts.
+
+    ``df`` should be the deduplicated DataFrame of observed jobs.
+    ``bls_file`` is an optional CSV containing ``naics_code`` and
+    ``employment_count``.  For each NAICS code in the file, this
+    function computes the difference between the BLS employment count
+    and the number of jobs observed in the current DataFrame.  For
+    any positive shortfall, synthetic jobs are generated with a
+    generic title, employer and source ``inference``.  These jobs
+    include the target ZIP code and have confidence zero since they
+    are not real postings.
+
+    If no BLS file is provided or the file cannot be read, an empty
+    DataFrame is returned and the inference layer is skipped.
+    """
+    if not bls_file:
+        return pd.DataFrame()
+    if not os.path.exists(bls_file):
+        print(f"[WARN] BLS file {bls_file} not found; skipping inference.")
+        return pd.DataFrame()
+
+    try:
+        bls_df = pd.read_csv(bls_file, dtype={"naics_code": str})
+    except Exception as exc:
+        print(f"[ERROR] Failed to read BLS file {bls_file}: {exc}")
+        return pd.DataFrame()
+
+    # Map each job to a NAICS code using the heuristic.
+    df = df.copy()
+    df["naics_code"] = df.apply(lambda row: map_naics(row["title"], row["sector"]), axis=1)
+    counts = df["naics_code"].value_counts().to_dict()
+
+    center = zip_to_latlon(zip_code)
+    inferred_rows: List[Dict[str, Any]] = []
+    for _, bls_row in bls_df.iterrows():
+        code = str(bls_row["naics_code"])
+        try:
+            target = int(bls_row["employment_count"])
+        except Exception:
+            continue
+        current = counts.get(code, 0)
+        missing = max(0, target - current)
+        for i in range(missing):
+            inferred_rows.append({
+                "job_id": f"INF-{code}-{i+1}",
+                "title": f"NAICS {code} Inferred Job",
+                "employer": f"Inferred Employer {code}",
+                "sector": "inferred",
+                "source": "inference",
+                "salary_min": None,
+                "salary_max": None,
+                "location": f"{zip_code} Inferred",
+                "latitude": center[0] if center else None,
+                "longitude": center[1] if center else None,
+                "remote": False,
+                "posted_date": None,
+                "url": None,
+                "zip": zip_code,
+                "confidence": 0.0,
+                "naics_code": code,
+            })
+    if inferred_rows:
+        print(f"[INFO] Generated {len(inferred_rows)} inferred jobs from BLS data.")
+    return pd.DataFrame(inferred_rows)
+
+
+# =========================================================
+# DATABASE PERSISTENCE
+# =========================================================
+
+def save_to_sqlite(df: pd.DataFrame, db_path: str) -> None:
+    """Persist a DataFrame to a SQLite database.
+
+    The table ``jobs`` will be created (or replaced) in ``db_path``.
+    ``sqlite3`` is used directly instead of SQLAlchemy to keep
+    dependencies minimal.  If you wish to use Postgres instead,
+    replace this function with an appropriate connector (e.g.
+    ``psycopg2``) and adapt the schema.
+    """
+    conn = sqlite3.connect(db_path)
+    try:
+        df.to_sql("jobs", conn, if_exists="replace", index=False)
+    finally:
+        conn.close()
+
+
+# =========================================================
+# ORCHESTRATION
+# =========================================================
+
+def run_pipeline(zip_code: str, bls_file: Optional[str] = None) -> pd.DataFrame:
+    """Run the full job collection pipeline for a ZIP code.
+
+    This function fetches jobs from Adzuna and USAJOBS, normalizes
+    and geo‑filters them, deduplicates overlapping postings, and
+    optionally adds inferred jobs using BLS data.  It returns the
+    final DataFrame ready for analysis or persistence.
+    """
+    # 1. Fetch raw jobs
+    print("Fetching Adzuna jobs...")
+    adzuna_raw = fetch_adzuna_jobs(zip_code)
+    print(f"Fetched {len(adzuna_raw)} raw Adzuna jobs.")
+
+    print("Fetching USAJOBS jobs...")
+    usajobs_raw = fetch_usajobs(zip_code)
+    print(f"Fetched {len(usajobs_raw)} raw USAJOBS jobs.")
+
+    # 2. Normalize and geo‑filter
+    print("Normalizing Adzuna jobs...")
+    adzuna_clean = normalize_adzuna(adzuna_raw, zip_code)
+    print(f"{len(adzuna_clean)} Adzuna jobs remain after filtering.")
+
+    print("Normalizing USAJOBS jobs...")
+    usajobs_clean = normalize_usajobs(usajobs_raw, zip_code)
+    print(f"{len(usajobs_clean)} USAJOBS jobs remain after filtering.")
+
+    # 3. Consolidate into a DataFrame
+    all_jobs = adzuna_clean + usajobs_clean
+    df = pd.DataFrame(all_jobs)
+    if df.empty:
+        print("[WARN] No jobs were found after normalization.")
+    else:
+        print(f"Consolidated {len(df)} jobs from both sources.")
+
+    # 4. Deduplicate
+    if not df.empty:
+        df_dedup = deduplicate_jobs(df)
+        print(f"{len(df_dedup)} jobs remain after deduplication.")
+    else:
+        df_dedup = df
+
+    # 5. Inference layer
+    inferred_df = infer_missing_jobs(df_dedup, zip_code, bls_file)
+    if not inferred_df.empty:
+        # Combine observed and inferred jobs
+        df_final = pd.concat([df_dedup, inferred_df], ignore_index=True, sort=False)
+    else:
+        df_final = df_dedup
+
+    return df_final
+
+
+def main() -> None:
+    """Entry point for command line execution."""
+    df_final = run_pipeline(ZIP_CODE, BLS_FILE)
+    if not df_final.empty:
+        # Write CSV
+        df_final.to_csv(CSV_OUTPUT_TEMPLATE, index=False)
+        print(f"Saved {len(df_final)} jobs to {CSV_OUTPUT_TEMPLATE}")
+        # Persist to SQLite
+        save_to_sqlite(df_final, SQLITE_DB)
+        print(f"Persisted dataset to SQLite database {SQLITE_DB}")
+    else:
+        print("No job data to save.")
+
+
+if __name__ == "__main__":
+    main()
