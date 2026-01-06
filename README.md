@@ -5,9 +5,9 @@ ShortList.ai is a two-sided job marketplace that rethinks hiring as a continuous
 This repository serves as the system of record for the ShortList.ai project and contains all code, documentation, research, and MVP artifacts in accordance with course requirements
 
 ## Team Members
-- Charles Lai (Computer Science and Mathematics)
-- Joshua Tang (Computer Science, Economics, and Data Science)
-- Noah Hopkins (Computer Science and Finance)
+- Charles Lai (Massachusetts Institute of Technology - Computer Science and Mathematics)
+- Joshua Tang (Massachusetts Institute of Technology - Computer Science, Economics, and Data Science)
+- Noah Hopkins (Massachusetts Institute of Technology - Computer Science and Finance)
 
 ## Opportunity Summary
 The modern job market is inefficient for both sides.
