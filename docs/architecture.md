@@ -35,7 +35,7 @@ The architecture prioritizes:
 ### Matching Logic
 - Rule-based skill overlap scoring (MVP)
 - Match score = overlap between user skills and job-required skills
-- Designed to be replaced with learned models later
+- Designed to be AI learned models later, possibly from other AI companies who have tackled this job-skills matching problem
 
 ## External Services (Optional for MVP)
 - Email service for notifications
@@ -52,3 +52,4 @@ The architecture prioritizes:
 - Everything runnable locally
 - No hard dependency on third-party APIs
 - Clear upgrade path without rewrite
+
