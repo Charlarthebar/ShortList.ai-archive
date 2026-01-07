@@ -1,0 +1,58 @@
+2026-01-07 11:52:47,094 - __main__ - ERROR - Failed to connect to database: connection to server at "localhost" (::1), port 5432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+connection to server at "localhost" (127.0.0.1), port 5432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+
+2026-01-07 11:56:42,421 - __main__ - ERROR - Failed to connect to database: connection to server at "localhost" (::1), port 5432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+connection to server at "localhost" (127.0.0.1), port 5432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+
+2026-01-07 12:17:12,029 - __main__ - ERROR - Failed to connect to database: connection to server at "localhost" (::1), port 5432 failed: fe_sendauth: no password supplied
+
+2026-01-07 12:21:13,698 - __main__ - ERROR - Failed to connect to database: connection to server at "localhost" (::1), port 5432 failed: FATAL:  database "jobs_db" does not exist
+
+2026-01-07 12:32:20,198 - __main__ - INFO - Connected to PostgreSQL database
+2026-01-07 12:33:23,700 - __main__ - INFO - Connected to PostgreSQL database
+2026-01-07 12:33:23,721 - __main__ - WARNING - PostGIS extension not available, skipping geographic extensions
+2026-01-07 12:33:23,721 - __main__ - INFO - Database schema created/verified
+2026-01-07 12:33:23,721 - __main__ - INFO - Processing adzuna for 10001
+2026-01-07 12:33:23,721 - __main__ - WARNING - Adzuna credentials missing
+2026-01-07 12:33:23,721 - __main__ - ERROR - Error processing adzuna for 10001: cannot access local variable 'inserted' where it is not associated with a value
+2026-01-07 12:33:23,721 - __main__ - INFO - Database connection closed
+2026-01-07 12:34:05,606 - __main__ - INFO - Connected to PostgreSQL database
+2026-01-07 12:34:05,627 - __main__ - WARNING - PostGIS extension not available, skipping geographic extensions
+2026-01-07 12:34:05,627 - __main__ - INFO - Database schema created/verified
+2026-01-07 12:34:05,627 - __main__ - INFO - Processing adzuna for 10001
+2026-01-07 12:34:05,627 - __main__ - WARNING - Adzuna credentials missing
+2026-01-07 12:34:05,627 - __main__ - ERROR - Error processing adzuna for 10001: cannot access local variable 'inserted' where it is not associated with a value
+2026-01-07 12:34:05,628 - __main__ - INFO - Database connection closed
+2026-01-07 12:41:05,534 - __main__ - INFO - Connected to PostgreSQL database
+2026-01-07 12:41:05,556 - __main__ - WARNING - PostGIS extension not available, skipping geographic extensions
+2026-01-07 12:41:05,556 - __main__ - INFO - Database schema created/verified
+2026-01-07 12:41:05,556 - __main__ - INFO - Processing adzuna for 10001
+2026-01-07 12:41:05,556 - __main__ - WARNING - Adzuna credentials missing
+2026-01-07 12:41:05,556 - __main__ - ERROR - Error processing adzuna for 10001: cannot access local variable 'inserted' where it is not associated with a value
+2026-01-07 12:41:05,556 - __main__ - INFO - Database connection closed
+2026-01-07 12:44:08,999 - job_database_builder - ERROR - Failed to connect to database: connection to server at "localhost" (::1), port 5432 failed: fe_sendauth: no password supplied
+
+2026-01-07 12:45:18,492 - __main__ - INFO - Connected to PostgreSQL database
+2026-01-07 12:45:18,507 - __main__ - WARNING - PostGIS extension not available, skipping geographic extensions
+2026-01-07 12:45:18,507 - __main__ - INFO - Database schema created/verified
+2026-01-07 12:45:18,507 - __main__ - INFO - Processing adzuna for 10001
+2026-01-07 12:45:18,507 - __main__ - WARNING - Adzuna credentials missing
+2026-01-07 12:45:18,507 - __main__ - ERROR - Error processing adzuna for 10001: cannot access local variable 'inserted' where it is not associated with a value
+2026-01-07 12:45:18,508 - __main__ - INFO - Database connection closed
+2026-01-07 12:45:26,262 - __main__ - ERROR - Failed to connect to database: connection to server at "localhost" (::1), port 5432 failed: fe_sendauth: no password supplied
+
+2026-01-07 12:45:48,639 - __main__ - ERROR - Failed to connect to database: connection to server at "localhost" (::1), port 5432 failed: fe_sendauth: no password supplied
+
+2026-01-07 12:55:07,121 - __main__ - ERROR - Failed to connect to database: connection to server at "localhost" (::1), port 5432 failed: fe_sendauth: no password supplied
+
+2026-01-07 12:56:14,308 - __main__ - INFO - Connected to PostgreSQL database
+2026-01-07 12:56:14,328 - __main__ - WARNING - PostGIS extension not available, skipping geographic extensions
+2026-01-07 12:56:14,329 - __main__ - INFO - Database schema created/verified
+2026-01-07 12:56:14,329 - __main__ - INFO - Processing adzuna for 10001
+2026-01-07 12:56:14,329 - __main__ - WARNING - Adzuna credentials missing
+2026-01-07 12:56:14,329 - __main__ - ERROR - Error processing adzuna for 10001: cannot access local variable 'inserted' where it is not associated with a value
+2026-01-07 12:56:14,329 - __main__ - INFO - Database connection closed
