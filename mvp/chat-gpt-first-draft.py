@@ -73,7 +73,8 @@ def get_env_or_default(name: str, default: Optional[str]) -> Optional[str]:
 def create_tables(conn: sqlite3.Connection) -> None:
     """Create businesses and jobs tables if they do not already exist."""
     cur = conn.cursor()
-    # Businesses table holds metadata about each business discovered via Yelp.
+    # Businesses table holds me
+    # tadata about each business discovered via Yelp.
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS businesses (
