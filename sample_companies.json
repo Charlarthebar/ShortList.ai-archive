@@ -1,0 +1,125 @@
+{
+  "description": "Sample companies for testing the comprehensive job database. Add local businesses to discover unlisted jobs.",
+  "companies": [
+    {
+      "name": "MIT",
+      "website": "https://www.mit.edu",
+      "career_page_url": "https://careers.mit.edu",
+      "industry": "Education",
+      "company_size": "large",
+      "headquarters_city": "Cambridge",
+      "headquarters_state": "MA",
+      "headquarters_zip": "02139",
+      "has_career_page": true,
+      "source": "manual"
+    },
+    {
+      "name": "Harvard University",
+      "website": "https://www.harvard.edu",
+      "career_page_url": "https://hr.harvard.edu/jobs",
+      "industry": "Education",
+      "company_size": "enterprise",
+      "headquarters_city": "Cambridge",
+      "headquarters_state": "MA",
+      "headquarters_zip": "02138",
+      "has_career_page": true,
+      "source": "manual"
+    },
+    {
+      "name": "Boston Children's Hospital",
+      "website": "https://www.childrenshospital.org",
+      "career_page_url": "https://careers.childrenshospital.org",
+      "industry": "Healthcare",
+      "company_size": "enterprise",
+      "headquarters_city": "Boston",
+      "headquarters_state": "MA",
+      "headquarters_zip": "02115",
+      "has_career_page": true,
+      "source": "manual"
+    },
+    {
+      "name": "Mass General Brigham",
+      "website": "https://www.massgeneralbrigham.org",
+      "career_page_url": "https://careers.massgeneralbrigham.org",
+      "industry": "Healthcare",
+      "company_size": "enterprise",
+      "headquarters_city": "Boston",
+      "headquarters_state": "MA",
+      "headquarters_zip": "02114",
+      "has_career_page": true,
+      "source": "manual"
+    },
+    {
+      "name": "HubSpot",
+      "website": "https://www.hubspot.com",
+      "career_page_url": "https://www.hubspot.com/careers",
+      "industry": "Technology",
+      "company_size": "large",
+      "headquarters_city": "Cambridge",
+      "headquarters_state": "MA",
+      "headquarters_zip": "02141",
+      "has_career_page": true,
+      "source": "manual"
+    },
+    {
+      "name": "Wayfair",
+      "website": "https://www.wayfair.com",
+      "career_page_url": "https://www.wayfair.com/careers",
+      "industry": "E-commerce",
+      "company_size": "enterprise",
+      "headquarters_city": "Boston",
+      "headquarters_state": "MA",
+      "headquarters_zip": "02116",
+      "has_career_page": true,
+      "source": "manual"
+    },
+    {
+      "name": "Toast",
+      "website": "https://www.toasttab.com",
+      "career_page_url": "https://careers.toasttab.com",
+      "industry": "Technology",
+      "company_size": "large",
+      "headquarters_city": "Boston",
+      "headquarters_state": "MA",
+      "headquarters_zip": "02118",
+      "has_career_page": true,
+      "source": "manual"
+    },
+    {
+      "name": "Fidelity Investments",
+      "website": "https://www.fidelity.com",
+      "career_page_url": "https://jobs.fidelity.com",
+      "industry": "Finance",
+      "company_size": "enterprise",
+      "headquarters_city": "Boston",
+      "headquarters_state": "MA",
+      "headquarters_zip": "02109",
+      "has_career_page": true,
+      "source": "manual"
+    },
+    {
+      "name": "State Street Corporation",
+      "website": "https://www.statestreet.com",
+      "career_page_url": "https://careers.statestreet.com",
+      "industry": "Finance",
+      "company_size": "enterprise",
+      "headquarters_city": "Boston",
+      "headquarters_state": "MA",
+      "headquarters_zip": "02111",
+      "has_career_page": true,
+      "source": "manual"
+    },
+    {
+      "name": "DraftKings",
+      "website": "https://www.draftkings.com",
+      "career_page_url": "https://careers.draftkings.com",
+      "industry": "Technology",
+      "company_size": "large",
+      "headquarters_city": "Boston",
+      "headquarters_state": "MA",
+      "headquarters_zip": "02116",
+      "has_career_page": true,
+      "source": "manual"
+    }
+  ]
+}
