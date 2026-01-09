@@ -1,0 +1,10 @@
+=== Daily Scraper Run: 2026-01-09 16:55:20.694402 ===
+
+STDOUT:
+
+
+STDERR:
+Traceback (most recent call last):
+  File "/Users/charleslai/Library/CloudStorage/OneDrive-MassachusettsInstituteofTechnology/ShortList.ai/test_cambridge.py", line 39, in <module>
+    import pgeocode
+ModuleNotFoundError: No module named 'pgeocode'

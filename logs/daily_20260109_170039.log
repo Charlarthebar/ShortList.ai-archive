@@ -1,0 +1,72 @@
+=== Daily Scraper Run: 2026-01-09 17:00:51.233810 ===
+
+STDOUT:
+
+============================================================
+        Job Database Test - Cambridge, MA (02139)
+============================================================
+    
+Target: Cambridge, MA (02139)
+Radius: 10 miles
+
+Getting coordinates for target location...
+  Center: 42.3647, -71.1042
+
+API Key Status:
+  Adzuna: Configured
+  USAJOBS: Configured
+
+Initializing database...
+Connected to database: cambridge_jobs.db
+
+Fetching from Adzuna...
+  Fetched 500 jobs from Adzuna
+  After filtering to 10 mile radius: 225 jobs
+Fetching from USAJOBS...
+  Found 100 jobs from USAJOBS
+
+Inserting 325 jobs into database...
+  Inserted: 0
+  Updated: 325
+  Skipped: 0
+
+Database Statistics:
+  Total Jobs: 840
+  Active Jobs: 840
+  Unique Employers: 185
+  By Source: {'adzuna': 733, 'usajobs': 107}
+
+Sample Jobs (most recent):
+------------------------------------------------------------
+  Part Time Licensed Talk Therapist - Fee For S
+    Thriveworks (adzuna) | $99,771-$99,771
+  Master's Level Clinician (Seeking LICSW) - Fe
+    Thriveworks (adzuna) | $110,978-$110,978
+  Master's Level Clinician (Seeking LMHC) - Fee
+    Thriveworks (adzuna) | $108,108-$108,108
+  Part Time Licensed Talk Therapist - Fee For S
+    Thriveworks (adzuna) | $124,302-$124,302
+  Part Time Licensed Talk Therapist - Fee For S
+    Thriveworks (adzuna) | $119,971-$119,971
+  Master's Level Clinician (Seeking LICSW) - Fe
+    Thriveworks (adzuna) | $95,511-$95,511
+  Licensed Talk Therapist - Fee For Service
+    Thriveworks (adzuna) | $134,670-$134,670
+  Licensed Talk Therapist - Fee For Service
+    Thriveworks (adzuna) | $169,963-$169,963
+  Licensed Talk Therapist - Fee For Service
+    Thriveworks (adzuna) | $112,447-$112,447
+  Licensed Talk Therapist - Fee For Service
+    Thriveworks (adzuna) | $134,636-$134,636
+
+------------------------------------------------------------
+Exported 840 jobs to: cambridge_jobs.csv
+Database saved to: cambridge_jobs.db
+
+Next steps:
+  1. Run again to update/refresh jobs
+  2. Open the CSV in Excel/Google Sheets
+  3. Expand to more ZIP codes
+
+
+STDERR:
