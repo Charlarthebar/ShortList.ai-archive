@@ -69,6 +69,23 @@
   - Whether the role may reopen in the future.
 
 ---
+### Data Source #5: Major Cambridge Employers (Estimated)
+- 
+
+
+
+
+---
+### Data Source #6: Cambridge City Payroll
+- 
+
+---
+### Data Source #7: Could have users input data when registering
+- 
+
+---
+### Data Source #8: Could have partnerships with companies in an exchange sort of deal
+- In exchange for your company data (open roles, filled roles, titles, etc.), we can provide you access to search for candidates who already have interest in your company, location, etc.
 
 # What We Can Do With the Job Database
 
@@ -112,3 +129,4 @@ Answers questions such as:
 ---
 
 ## Referral System
+
