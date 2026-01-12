@@ -46,12 +46,15 @@ Build a comprehensive database of ALL jobs in the US - not just open positions, 
 - [x] Quality metrics (title mapping, salary accuracy)
 - [x] Honesty metric (inferred properly labeled)
 
-### Phase 2: Source Acquisition Layer ⏳ PARTIAL
-**Files:** pipeline.py (sample), database.py
+### Phase 2: Source Acquisition Layer ✅ H-1B DONE, Others Partial
+**Files:** pipeline.py (sample), database.py, sources/h1b_visa.py, ingest_h1b.py
 - [x] Source registry with reliability tiers (A/B/C/D)
 - [x] Raw data ingestion envelope
 - [x] Sample payroll connector (MIT/Harvard example)
-- [ ] Real connectors (H-1B visa, state payroll, job boards)
+- [x] **H-1B visa connector (COMPLETE - ~500k records/year)**
+- [x] **H-1B ingestion pipeline (COMPLETE - loads into database)**
+- [ ] State payroll connectors (MA, other states)
+- [ ] Job board scrapers (Indeed, LinkedIn)
 - [ ] Job posting lifecycle tracker
 
 ### Phase 3: Identity Graph ✅ DONE
@@ -61,13 +64,15 @@ Build a comprehensive database of ALL jobs in the US - not just open positions, 
 - [x] Metro areas (CBSA-based)
 - [x] Location normalization
 
-### Phase 4: Title Normalization ✅ DONE
+### Phase 4: Title Normalization ✅ DONE & EXPANDED (Jan 12, 2026)
 **Files:** title_normalizer.py
 - [x] Canonical role ontology (SOC/O*NET aligned)
 - [x] Seniority detection (intern/entry/mid/senior/lead/manager/director/exec)
 - [x] Confidence scoring
 - [x] Human review queue for low-confidence
-- [x] Seed data for common roles
+- [x] **45 canonical roles (expanded from 7 → 30 → 45)**
+- [x] **70% match rate on H-1B data (up from 32%)**
+- [x] Data-driven role expansion based on 110k H-1B records
 
 ### Phase 5: Evidence Model ✅ DONE (Schema)
 **Files:** schema.sql, database.py
@@ -154,9 +159,23 @@ Build a comprehensive database of ALL jobs in the US - not just open positions, 
    - Quality metrics
    - ~450 lines of Python
 
-5. **Documentation**
+5. **H-1B Data Connector** (sources/h1b_visa.py) ✨ NEW!
+   - Downloads official DOL H-1B visa data
+   - ~500,000 records per year
+   - Tier A source (0.85 reliability)
+   - ~400 lines of Python
+
+6. **H-1B Ingestion Pipeline** (ingest_h1b.py) ✨ NEW!
+   - Loads H-1B data into database
+   - Creates observed jobs + compensation observations
+   - Full integration with title normalization
+   - ~250 lines of Python
+
+7. **Documentation**
    - README.md (comprehensive guide)
    - QUICKSTART.md (10-minute setup)
+   - H1B_CONNECTOR_GUIDE.md (H-1B quick guide) ✨ NEW!
+   - sources/README.md (connector documentation) ✨ NEW!
    - example_usage.py (working examples)
    - config.example.json (configuration template)
 

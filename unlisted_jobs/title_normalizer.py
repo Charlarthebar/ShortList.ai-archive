@@ -78,32 +78,156 @@ class TitleNormalizer:
 
     # Common role patterns (high-precision patterns)
     ROLE_PATTERNS = {
+        # Software & Engineering
         'Software Engineer': [
             r'\bsoftware engineer\b',
             r'\bsoftware developer\b',
             r'\bsde\b',
             r'\bapplication developer\b',
+            r'\bcomputer programmer\b',
+            r'\bprogrammer\b',
+            r'\bjava developer\b',
+            r'\bdot ?net developer\b',
+            r'\bsalesforce developer\b',
+            r'\bsenior software associate\b',
+            r'\bsoftware development\b(?!.*manager)',
         ],
+        'Systems Engineer': [
+            r'\bsystems? engineer\b',
+            r'\bcomputer systems engineer\b',
+            r'\bsystems? architect\b',
+        ],
+        'Network Engineer': [
+            r'\bnetwork engineer\b',
+            r'\bnetworking engineer\b',
+        ],
+        'Hardware Engineer': [
+            r'\bhardware engineer\b',
+            r'\belectrical engineer\b',
+            r'\belectronics engineer\b',
+        ],
+        'Design Engineer': [
+            r'\bdesign engineer\b',
+            r'\bproduct design engineer\b',
+            r'\bmechanical engineer\b',
+        ],
+        'Technical Operations Engineer': [
+            r'\btechnical operations engineer\b',
+            r'\boperations engineer\b',
+            r'\bsite reliability engineer\b',
+            r'\bsre\b',
+        ],
+        'DevOps Engineer': [
+            r'\bdevops engineer\b',
+            r'\bdev ops\b',
+        ],
+        'QA Engineer': [
+            r'\bqa engineer\b',
+            r'\bquality assurance engineer\b',
+            r'\bsoftware quality assurance\b',
+            r'\btest engineer\b',
+            r'\btesting engineer\b',
+        ],
+        'Database Administrator': [
+            r'\bdatabase administrator\b',
+            r'\bdba\b',
+        ],
+        'Systems Analyst': [
+            r'\bsystems? analyst\b',
+            r'\bcomputer systems analyst\b',
+        ],
+        'Process Engineer': [
+            r'\bprocess engineer\b',
+        ],
+        'Validation Engineer': [
+            r'\bvalidation engineer\b',
+        ],
+        'Quality Engineer': [
+            r'\bquality engineer\b',
+        ],
+        'Civil Engineer': [
+            r'\bcivil engineer\b',
+        ],
+
+        # Data & Analytics
         'Data Scientist': [
             r'\bdata scientist\b',
             r'\bml engineer\b',
             r'\bmachine learning engineer\b',
         ],
+        'Data Engineer': [
+            r'\bdata engineer\b',
+        ],
+        'Data Analyst': [
+            r'\bdata analyst\b',
+            r'\bbusiness intelligence engineer\b',
+            r'\bbi engineer\b',
+            r'\banalytics engineer\b',
+        ],
+
+        # Product & Management
         'Product Manager': [
             r'\bproduct manager\b',
             r'\bpm\b(?!.*project)',  # PM but not project manager
         ],
         'Project Manager': [
             r'\bproject manager\b',
+            r'\bproject lead\b',
         ],
+        'Program Manager': [
+            r'\bprogram manager\b',
+        ],
+        'Development Manager': [
+            r'\bdevelopment manager\b',
+            r'\bdev manager\b',
+        ],
+        'Engineering Manager': [
+            r'\bengineering manager\b',
+        ],
+        'Technical Lead': [
+            r'\btechnical lead\b',
+            r'\btech lead\b',
+        ],
+
+        # Design & UX
+        'Designer': [
+            r'\bdesigner\b',
+            r'\bux designer\b',
+            r'\bui designer\b',
+            r'\bdesign strategist\b',
+            r'\bproduct designer\b',
+            r'\bgraphic designer\b',
+        ],
+        'Architect': [
+            r'\barchitect\b(?!.*system)',  # Physical architects, not systems
+            r'\bvdc engineer\b',
+        ],
+
+        # Research & Science
+        'Research Scientist': [
+            r'\bresearch scientist\b',
+            r'\bresearcher\b',
+            r'\bresearch fellow\b',
+        ],
+        'Economist': [
+            r'\beconomist\b',
+        ],
+
+        # Business & Finance
         'Financial Analyst': [
             r'\bfinancial analyst\b',
             r'\bfinance analyst\b',
         ],
         'Accountant': [
             r'\baccountant\b',
+            r'\bauditor\b',
             r'\bcpa\b',
         ],
+        'Business Analyst': [
+            r'\bbusiness analyst\b',
+        ],
+
+        # Healthcare
         'Registered Nurse': [
             r'\bregistered nurse\b',
             r'\brn\b',
@@ -112,30 +236,370 @@ class TitleNormalizer:
             r'\bphysician\b',
             r'\bdoctor\b',
             r'\bmd\b',
+            r'\bpsychiatrist\b',
+            r'\bhospitalist\b',
         ],
-        'Teacher': [
-            r'\bteacher\b',
-            r'\beducator\b',
+        'Medical Technologist': [
+            r'\bmedical technologist\b',
+            r'\bmedical laboratory technician\b',
         ],
+        'Physical Therapist': [
+            r'\bphysical therapist\b',
+            r'\bpt\b(?=.*therapist)',
+        ],
+        'Postdoctoral Researcher': [
+            r'\bpostdoc(toral)?\b',
+            r'\bpost-doc(toral)?\b',
+        ],
+
+        # Operations & Regulatory
+        'Operations Manager': [
+            r'\boperations manager\b',
+            r'\bops manager\b',
+        ],
+        'Regulatory Affairs Specialist': [
+            r'\bregulatory (affairs|operations)\b',
+        ],
+
+        # Sales & Marketing
         'Sales Representative': [
             r'\bsales (representative|rep)\b',
             r'\baccount executive\b',
         ],
-        'Customer Service Representative': [
-            r'\bcustomer service\b',
-            r'\bcsr\b',
+        'Marketing Manager': [
+            r'\bmarketing manager\b',
         ],
+
+        # Administrative & Support
         'Administrative Assistant': [
             r'\badministrative assistant\b',
             r'\bexecutive assistant\b',
             r'\boffice (assistant|admin)\b',
         ],
-        'Marketing Manager': [
-            r'\bmarketing manager\b',
+        'Customer Service Representative': [
+            r'\bcustomer service\b',
+            r'\bcsr\b',
         ],
         'Human Resources Specialist': [
             r'\bhr (specialist|generalist)\b',
             r'\bhuman resources\b',
+        ],
+
+        # Consulting
+        'Consultant': [
+            r'\bconsultant\b',
+        ],
+
+        # Education & Academic
+        'Teacher': [
+            r'\bteacher\b',
+            r'\beducator\b',
+        ],
+        'Professor': [
+            r'\bprofessor\b',
+            r'\binstructor\b',
+            r'\blecturer\b',
+        ],
+
+        # Government & Public Service (Top 10 additions - Phase 1)
+        'Social Worker': [
+            r'\bsocial worker\b',
+            r'\bclinical social worker\b',
+            r'\bcsw\b',
+        ],
+        'Correction Officer': [
+            r'\bcorrection officer\b',
+            r'\bcorrections officer\b',
+            r'\bcorrectional officer\b',
+        ],
+        'Police Officer': [
+            r'\bpolice officer\b',
+            r'\bstate police trooper\b',
+            r'\bprobation officer\b',
+            r'\blaw enforcement\b',
+            r'\bsheriff\b',
+            r'\btrooper\b',
+        ],
+        'Licensed Practical Nurse': [
+            r'\blicensed practical nurse\b',
+            r'\blpn\b',
+            r'\bpractical nurse\b',
+        ],
+        'Program Coordinator': [
+            r'\bprogram coordinator\b',
+            r'\bprogram assistant\b',
+        ],
+        'Environmental Analyst': [
+            r'\benvironmental analyst\b',
+            r'\benvironmental specialist\b',
+        ],
+        'Human Services Coordinator': [
+            r'\bhuman services coordinator\b',
+            r'\bsocial services coordinator\b',
+        ],
+        'Mental Health Worker': [
+            r'\bmental health worker\b',
+            r'\bmental health counselor\b',
+            r'\bbehavioral health\b',
+        ],
+
+        # Tech/Engineering (Top 10 additions - Phase 1)
+        'Technical Program Manager': [
+            r'\btechnical program manager\b',
+            r'\btpm\b',
+            r'\btechnical program management\b',
+            r'\btechnical program specialist\b',
+        ],
+        'Staff Engineer': [
+            r'\bstaff engineer\b',
+            r'\bprincipal engineer\b',
+            r'\bstaff scientist\b',
+        ],
+
+        # Phase 2 Expansion (Roles 11-20)
+        'Applied Scientist': [
+            r'\bapplied scientist\b',
+            r'\bapplied research scientist\b',
+        ],
+        'Site Reliability Engineer': [
+            r'\bsite reliability engineer\b',
+            r'\bsre\b',
+            r'\breliability engineer\b',
+        ],
+        'Nursing Assistant': [
+            r'\bnursing assistant\b',
+            r'\bnursing aide\b',
+            r'\bcna\b',
+            r'\bcertified nursing assistant\b',
+        ],
+        'Occupational Therapist': [
+            r'\boccupational therapist\b',
+            r'\bot\b(?=.*therapist)',
+            r'\botr\b',
+        ],
+        'Market Research Analyst': [
+            r'\bmarket research analyst\b',
+            r'\bmarket analyst\b',
+            r'\bmarketing research\b',
+        ],
+        'Quantitative Analyst': [
+            r'\bquantitative analyst\b',
+            r'\bquant analyst\b',
+            r'\bquantitative researcher\b',
+        ],
+        'Tax Specialist': [
+            r'\btax specialist\b',
+            r'\btax senior\b',
+            r'\btax accountant\b',
+            r'\btax analyst\b',
+        ],
+        'Attorney': [
+            r'\battorney\b',
+            r'\blawyer\b',
+            r'\bcounsel\b(?!.*mental)',
+            r'\blegal counsel\b',
+        ],
+        'Clerk': [
+            r'\bclerk\b',
+            r'\boffice clerk\b',
+            r'\badministrative clerk\b',
+        ],
+        'Technical Specialist': [
+            r'\btechnical specialist\b',
+            r'\bsolution specialist\b',
+            r'\btechnical support\b',
+            r'\bapplication support\b',
+            r'\boffice support specialist\b',
+        ],
+
+        # Phase 3 Expansion (Roles 21-35) - Government & Business Focus
+        'Management Analyst': [
+            r'\bmanagement analyst\b',
+            r'\bbusiness management specialist\b',
+        ],
+        'Environmental Engineer': [
+            r'\benvironmental engineer\b',
+        ],
+        'Paralegal': [
+            r'\bparalegal\b',
+            r'\blegal assistant\b',
+        ],
+        'Vocational Rehabilitation Counselor': [
+            r'\bvocational rehabilitation counselor\b',
+            r'\bvocational rehab counselor\b',
+            r'\brehab counselor\b',
+            r'\bqual voc rehab counselor\b',
+        ],
+        'Supervisor': [
+            r'\bresidential supervisor\b',
+            r'\bcash supervisor\b',
+            r'\bsupervisor\b(?!.*correction)',
+        ],
+        'Highway Maintenance Worker': [
+            r'\bhighway maint(enance)? worker\b',
+            r'\bhighway maint(enance)? foreman\b',
+        ],
+        'Lieutenant': [
+            r'\blieutenant\b',
+            r'\bdetective lieutenant\b',
+        ],
+        'Sergeant': [
+            r'\bsergeant\b',
+            r'\bstate police sergeant\b',
+        ],
+        'Research Associate': [
+            r'\bresearch associate\b',
+        ],
+        'Solutions Architect': [
+            r'\bsolutions? architect\b',
+            r'\bcloud solution architect\b',
+            r'\benterprise architect\b',
+        ],
+        'Librarian': [
+            r'\blibrarian\b',
+        ],
+        'Firefighter': [
+            r'\bfirefighter\b',
+            r'\bfire fighter\b',
+        ],
+        'Compliance Officer': [
+            r'\bcompliance officer\b',
+        ],
+        'Tax Examiner': [
+            r'\btax examiner\b',
+        ],
+        'Mechanic': [
+            r'\bmechanic\b',
+            r'\bmotor equipment mechanic\b',
+        ],
+
+        # Phase 4 Expansion (Roles 36-45) - Final Round
+        'Developmental Services Worker': [
+            r'\bdevelopmental services w(or)?k(er)?\b',
+        ],
+        'Child Support Enforcement Specialist': [
+            r'\bchild supp(ort)? enforce(ment)? spec(ialist)?\b',
+        ],
+        'Captain': [
+            r'\bcaptain\b',
+        ],
+        'Caseworker': [
+            r'\bcaseworker\b',
+            r'\bcase worker\b',
+            r'\byouth services caseworker\b',
+        ],
+        'Inspector': [
+            r'\binspector\b',
+            r'\bconstruction inspector\b',
+            r'\bbus inspector\b',
+        ],
+        'System Administrator': [
+            r'\bsystem administrator\b',
+            r'\bsystems administrator\b',
+            r'\bsysadmin\b',
+        ],
+        'Administrative Secretary': [
+            r'\badministrative secretary\b',
+        ],
+        'Recreational Therapist': [
+            r'\brecreational therapist\b',
+        ],
+        'Nurse Practitioner': [
+            r'\bnurse practitioner\b',
+            r'\bnp\b(?=.*nurse)',
+        ],
+        'Statistician': [
+            r'\bstatistician\b',
+        ],
+
+        # Phase 5 Expansion (Roles 91-105) - Blue-Collar & Service Roles
+        'Truck Driver': [
+            r'\btruck driver\b',
+            r'\bcommercial driver\b',
+            r'\bcdl driver\b',
+            r'\bdelivery driver\b',
+            r'\btractor trailer driver\b',
+        ],
+        'Warehouse Worker': [
+            r'\bwarehouse worker\b',
+            r'\bwarehouse associate\b',
+            r'\bwarehouse oper(ator)?\b',
+            r'\bmaterial handler\b',
+        ],
+        'Housekeeper': [
+            r'\bhousekeep(er|ing)\b',
+            r'\bhotel housekeep(er|ing)\b',
+            r'\broom attendant\b',
+        ],
+        'Cook': [
+            r'\bcook\b',
+            r'\bprep cook\b',
+            r'\bline cook\b',
+            r'\bchef\b',
+        ],
+        'Caregiver': [
+            r'\bcaregiv(er|ing)\b',
+            r'\bcare giv(er|ing)\b',
+            r'\bhome care (aide|worker)\b',
+        ],
+        'General Laborer': [
+            r'\bgeneral labor(er)?\b',
+            r'\bfactory worker\b',
+            r'\bplant labor(er)?\b',
+            r'\bproduction helper\b',
+            r'\bmanufacturing labor(er)?\b',
+        ],
+        'Landscape Laborer': [
+            r'\blandscap(e|ing) labor(er)?\b',
+            r'\bgrounds(keeper|worker)\b',
+            r'\blandscap(e|ing) crew\b',
+        ],
+        'Janitor': [
+            r'\bjanitor\b',
+            r'\bcustodian\b',
+            r'\bcleaning (worker|technician)\b',
+            r'\bsanitation (worker|technician)\b',
+        ],
+        'Server': [
+            r'\bserver\b',
+            r'\bwaitress\b',
+            r'\bwaiter\b',
+            r'\bwaitstaff\b',
+        ],
+        'Food Service Worker': [
+            r'\bfood service (worker|aide)\b',
+            r'\bfoodservice worker\b',
+            r'\bcafeteria worker\b',
+            r'\bkitchen (helper|assistant)\b',
+        ],
+        'Production Worker': [
+            r'\bproduction worker\b',
+            r'\bassembly worker\b',
+            r'\bmanufacturing (associate|worker)\b',
+            r'\bproduction oper(ator)?\b',
+        ],
+        'Poultry Worker': [
+            r'\bpoultry (cutter|trimmer|processor|worker)\b',
+            r'\bmeat cutter\b',
+            r'\bfish cutter\b',
+            r'\bbutcher\b',
+        ],
+        'Nanny': [
+            r'\bnanny\b',
+            r'\bchildcare provider\b',
+            r'\bchild care provider\b',
+        ],
+        'Animal Caretaker': [
+            r'\banimal care(taker|giver)?\b',
+            r'\banimal breeder\b',
+            r'\bstable attendant\b',
+            r'\bkennel (attendant|worker)\b',
+        ],
+        'Sewing Machine Operator': [
+            r'\bsewing (machine )?oper(ator)?\b',
+            r'\bsewing helper\b',
+            r'\bsewing (worker|technician)\b',
+            r'\btextile worker\b',
         ],
     }
 
@@ -341,9 +805,11 @@ def seed_canonical_roles(database_manager):
     """
     Seed database with common canonical roles based on SOC/O*NET.
 
-    This is a starter set - in production you'd load the full SOC taxonomy.
+    Expanded set covering common H-1B positions across tech, engineering,
+    healthcare, business, and other fields.
     """
     roles = [
+        # Software & Technology
         {
             'name': 'Software Engineer',
             'soc_code': '15-1252',
@@ -354,6 +820,53 @@ def seed_canonical_roles(database_manager):
             'typical_skills': ['Programming', 'Problem Solving', 'Software Development', 'Testing']
         },
         {
+            'name': 'Systems Engineer',
+            'soc_code': '15-1252',
+            'onet_code': '15-1252.00',
+            'role_family': 'Engineering',
+            'category': 'Computer and Mathematical',
+            'description': 'Design and develop solutions for complex computer systems and networks.',
+            'typical_skills': ['Systems Architecture', 'Infrastructure', 'Integration', 'Troubleshooting']
+        },
+        {
+            'name': 'Network Engineer',
+            'soc_code': '15-1244',
+            'onet_code': '15-1244.00',
+            'role_family': 'Engineering',
+            'category': 'Computer and Mathematical',
+            'description': 'Design, implement, and maintain network infrastructure.',
+            'typical_skills': ['Networking', 'TCP/IP', 'Routing', 'Security']
+        },
+        {
+            'name': 'Hardware Engineer',
+            'soc_code': '17-2061',
+            'onet_code': '17-2061.00',
+            'role_family': 'Engineering',
+            'category': 'Architecture and Engineering',
+            'description': 'Research, design, develop, test, and oversee the manufacturing of computer hardware.',
+            'typical_skills': ['Electronics', 'Circuit Design', 'CAD', 'Testing']
+        },
+        {
+            'name': 'Design Engineer',
+            'soc_code': '17-2141',
+            'onet_code': '17-2141.00',
+            'role_family': 'Engineering',
+            'category': 'Architecture and Engineering',
+            'description': 'Design and develop products, systems, or structures.',
+            'typical_skills': ['CAD', 'Product Design', 'Prototyping', 'Analysis']
+        },
+        {
+            'name': 'Technical Operations Engineer',
+            'soc_code': '15-1252',
+            'onet_code': '15-1252.00',
+            'role_family': 'Engineering',
+            'category': 'Computer and Mathematical',
+            'description': 'Ensure reliability and performance of technical systems and infrastructure.',
+            'typical_skills': ['DevOps', 'Automation', 'Monitoring', 'Incident Response']
+        },
+
+        # Data & Analytics
+        {
             'name': 'Data Scientist',
             'soc_code': '15-2051',
             'onet_code': '15-2051.00',
@@ -362,6 +875,26 @@ def seed_canonical_roles(database_manager):
             'description': 'Develop and implement a set of techniques or analytics applications to transform raw data into meaningful information.',
             'typical_skills': ['Statistics', 'Machine Learning', 'Python', 'SQL', 'Data Analysis']
         },
+        {
+            'name': 'Data Engineer',
+            'soc_code': '15-1243',
+            'onet_code': '15-1243.00',
+            'role_family': 'Data & Analytics',
+            'category': 'Computer and Mathematical',
+            'description': 'Build and maintain data pipelines and infrastructure.',
+            'typical_skills': ['ETL', 'SQL', 'Data Warehousing', 'Pipeline Development']
+        },
+        {
+            'name': 'Data Analyst',
+            'soc_code': '15-2051',
+            'onet_code': '15-2051.01',
+            'role_family': 'Data & Analytics',
+            'category': 'Computer and Mathematical',
+            'description': 'Analyze data to help organizations make better business decisions.',
+            'typical_skills': ['SQL', 'Excel', 'Data Visualization', 'Business Intelligence']
+        },
+
+        # Product & Management
         {
             'name': 'Product Manager',
             'soc_code': '11-2032',
@@ -372,6 +905,75 @@ def seed_canonical_roles(database_manager):
             'typical_skills': ['Product Strategy', 'Requirements Gathering', 'Stakeholder Management', 'Analytics']
         },
         {
+            'name': 'Project Manager',
+            'soc_code': '11-9199',
+            'onet_code': '11-9199.00',
+            'role_family': 'Management',
+            'category': 'Management',
+            'description': 'Plan, direct, or coordinate activities of a project to ensure goals are accomplished.',
+            'typical_skills': ['Project Planning', 'Coordination', 'Risk Management', 'Communication']
+        },
+        {
+            'name': 'Program Manager',
+            'soc_code': '11-9199',
+            'onet_code': '11-9199.00',
+            'role_family': 'Management',
+            'category': 'Management',
+            'description': 'Manage multiple related projects and coordinate resources across them.',
+            'typical_skills': ['Program Management', 'Strategy', 'Leadership', 'Resource Planning']
+        },
+        {
+            'name': 'Development Manager',
+            'soc_code': '11-3021',
+            'onet_code': '11-3021.00',
+            'role_family': 'Management',
+            'category': 'Management',
+            'description': 'Plan, direct, or coordinate activities of software development teams.',
+            'typical_skills': ['Team Leadership', 'Technical Planning', 'Agile', 'People Management']
+        },
+
+        # Design & Creative
+        {
+            'name': 'Designer',
+            'soc_code': '27-1021',
+            'onet_code': '27-1021.00',
+            'role_family': 'Design',
+            'category': 'Arts and Design',
+            'description': 'Design or create graphics to meet specific commercial or promotional needs.',
+            'typical_skills': ['Design', 'Creative Thinking', 'User Experience', 'Visual Communication']
+        },
+        {
+            'name': 'Architect',
+            'soc_code': '17-1011',
+            'onet_code': '17-1011.00',
+            'role_family': 'Architecture',
+            'category': 'Architecture and Engineering',
+            'description': 'Plan and design structures and spaces.',
+            'typical_skills': ['Architecture', 'CAD', 'Design', 'Building Codes']
+        },
+
+        # Research & Science
+        {
+            'name': 'Research Scientist',
+            'soc_code': '19-1029',
+            'onet_code': '19-1029.00',
+            'role_family': 'Research',
+            'category': 'Life, Physical, and Social Science',
+            'description': 'Conduct research to advance knowledge in a specific field.',
+            'typical_skills': ['Research Methods', 'Data Analysis', 'Scientific Writing', 'Experimentation']
+        },
+        {
+            'name': 'Economist',
+            'soc_code': '19-3011',
+            'onet_code': '19-3011.00',
+            'role_family': 'Research',
+            'category': 'Life, Physical, and Social Science',
+            'description': 'Conduct research, prepare reports, or formulate plans to address economic problems.',
+            'typical_skills': ['Economic Analysis', 'Statistics', 'Research', 'Forecasting']
+        },
+
+        # Business & Finance
+        {
             'name': 'Financial Analyst',
             'soc_code': '13-2051',
             'onet_code': '13-2051.00',
@@ -380,6 +982,26 @@ def seed_canonical_roles(database_manager):
             'description': 'Conduct quantitative analyses of information affecting investment programs of public or private institutions.',
             'typical_skills': ['Financial Modeling', 'Excel', 'Accounting', 'Analysis']
         },
+        {
+            'name': 'Accountant',
+            'soc_code': '13-2011',
+            'onet_code': '13-2011.00',
+            'role_family': 'Finance',
+            'category': 'Business and Financial Operations',
+            'description': 'Examine, analyze, and interpret accounting records to prepare financial statements.',
+            'typical_skills': ['Accounting', 'Financial Reporting', 'Auditing', 'Tax']
+        },
+        {
+            'name': 'Business Analyst',
+            'soc_code': '13-1111',
+            'onet_code': '13-1111.00',
+            'role_family': 'Business',
+            'category': 'Business and Financial Operations',
+            'description': 'Analyze business operations and recommend improvements.',
+            'typical_skills': ['Business Analysis', 'Requirements Gathering', 'Process Improvement', 'Documentation']
+        },
+
+        # Healthcare
         {
             'name': 'Registered Nurse',
             'soc_code': '29-1141',
@@ -390,6 +1012,37 @@ def seed_canonical_roles(database_manager):
             'typical_skills': ['Patient Care', 'Medical Knowledge', 'Communication', 'Critical Thinking']
         },
         {
+            'name': 'Physician',
+            'soc_code': '29-1216',
+            'onet_code': '29-1216.00',
+            'role_family': 'Healthcare',
+            'category': 'Healthcare Practitioners',
+            'description': 'Diagnose and treat mental, emotional, and behavioral disorders.',
+            'typical_skills': ['Medical Diagnosis', 'Patient Care', 'Treatment Planning', 'Medical Knowledge']
+        },
+
+        # Operations & Regulatory
+        {
+            'name': 'Operations Manager',
+            'soc_code': '11-1021',
+            'onet_code': '11-1021.00',
+            'role_family': 'Operations',
+            'category': 'Management',
+            'description': 'Plan, direct, or coordinate the operations of organizations.',
+            'typical_skills': ['Operations Management', 'Process Optimization', 'Leadership', 'Strategy']
+        },
+        {
+            'name': 'Regulatory Affairs Specialist',
+            'soc_code': '13-1041',
+            'onet_code': '13-1041.00',
+            'role_family': 'Regulatory',
+            'category': 'Business and Financial Operations',
+            'description': 'Ensure compliance with regulations and manage regulatory submissions.',
+            'typical_skills': ['Regulatory Compliance', 'Documentation', 'Policy', 'Risk Management']
+        },
+
+        # Sales & Marketing
+        {
             'name': 'Sales Representative',
             'soc_code': '41-4011',
             'onet_code': '41-4011.00',
@@ -399,6 +1052,17 @@ def seed_canonical_roles(database_manager):
             'typical_skills': ['Sales', 'Communication', 'Negotiation', 'Customer Relationship']
         },
         {
+            'name': 'Marketing Manager',
+            'soc_code': '11-2021',
+            'onet_code': '11-2021.00',
+            'role_family': 'Marketing',
+            'category': 'Management',
+            'description': 'Plan, direct, or coordinate marketing policies and programs.',
+            'typical_skills': ['Marketing Strategy', 'Campaign Management', 'Analytics', 'Brand Management']
+        },
+
+        # Administrative & Support
+        {
             'name': 'Administrative Assistant',
             'soc_code': '43-6014',
             'onet_code': '43-6014.00',
@@ -406,6 +1070,722 @@ def seed_canonical_roles(database_manager):
             'category': 'Office and Administrative Support',
             'description': 'Perform routine administrative functions such as drafting correspondence, scheduling appointments, organizing and maintaining paper and electronic files.',
             'typical_skills': ['Organization', 'Communication', 'Microsoft Office', 'Scheduling']
+        },
+        {
+            'name': 'Customer Service Representative',
+            'soc_code': '43-4051',
+            'onet_code': '43-4051.00',
+            'role_family': 'Customer Service',
+            'category': 'Office and Administrative Support',
+            'description': 'Interact with customers to provide information and resolve problems.',
+            'typical_skills': ['Customer Service', 'Communication', 'Problem Solving', 'Product Knowledge']
+        },
+        {
+            'name': 'Human Resources Specialist',
+            'soc_code': '13-1071',
+            'onet_code': '13-1071.00',
+            'role_family': 'Human Resources',
+            'category': 'Business and Financial Operations',
+            'description': 'Recruit, screen, interview, or place individuals for employment.',
+            'typical_skills': ['Recruiting', 'HR Policy', 'Employee Relations', 'Compliance']
+        },
+
+        # Education
+        {
+            'name': 'Teacher',
+            'soc_code': '25-2031',
+            'onet_code': '25-2031.00',
+            'role_family': 'Education',
+            'category': 'Educational Instruction',
+            'description': 'Instruct students in academic subjects.',
+            'typical_skills': ['Teaching', 'Curriculum Development', 'Communication', 'Assessment']
+        },
+        {
+            'name': 'Professor',
+            'soc_code': '25-1199',
+            'onet_code': '25-1199.00',
+            'role_family': 'Education',
+            'category': 'Educational Instruction',
+            'description': 'Teach courses in their field of specialization at the college or university level.',
+            'typical_skills': ['Research', 'Teaching', 'Academic Writing', 'Expertise in Field']
+        },
+
+        # New High-Impact Roles (January 2026)
+        {
+            'name': 'DevOps Engineer',
+            'soc_code': '15-1252',
+            'onet_code': '15-1252.02',
+            'role_family': 'Engineering',
+            'category': 'Computer and Mathematical',
+            'description': 'Build and maintain tools for deployment, monitoring, and operations.',
+            'typical_skills': ['CI/CD', 'Docker', 'Kubernetes', 'Automation', 'Infrastructure']
+        },
+        {
+            'name': 'QA Engineer',
+            'soc_code': '15-1253',
+            'onet_code': '15-1253.00',
+            'role_family': 'Engineering',
+            'category': 'Computer and Mathematical',
+            'description': 'Test software applications and systems to ensure quality.',
+            'typical_skills': ['Testing', 'QA Methodologies', 'Automation', 'Bug Tracking']
+        },
+        {
+            'name': 'Database Administrator',
+            'soc_code': '15-1242',
+            'onet_code': '15-1242.00',
+            'role_family': 'Data & Analytics',
+            'category': 'Computer and Mathematical',
+            'description': 'Administer, test, and implement computer databases.',
+            'typical_skills': ['SQL', 'Database Design', 'Backup & Recovery', 'Performance Tuning']
+        },
+        {
+            'name': 'Systems Analyst',
+            'soc_code': '15-1211',
+            'onet_code': '15-1211.00',
+            'role_family': 'Engineering',
+            'category': 'Computer and Mathematical',
+            'description': 'Analyze data processing problems to improve computer systems.',
+            'typical_skills': ['Systems Analysis', 'Requirements Gathering', 'Technical Documentation', 'Problem Solving']
+        },
+        {
+            'name': 'Process Engineer',
+            'soc_code': '17-2112',
+            'onet_code': '17-2112.00',
+            'role_family': 'Engineering',
+            'category': 'Architecture and Engineering',
+            'description': 'Design and optimize manufacturing and industrial processes.',
+            'typical_skills': ['Process Improvement', 'Manufacturing', 'Lean/Six Sigma', 'Technical Analysis']
+        },
+        {
+            'name': 'Validation Engineer',
+            'soc_code': '17-2199',
+            'onet_code': '17-2199.08',
+            'role_family': 'Engineering',
+            'category': 'Architecture and Engineering',
+            'description': 'Validate that systems and processes meet specifications and regulations.',
+            'typical_skills': ['Validation', 'Testing', 'Compliance', 'Documentation']
+        },
+        {
+            'name': 'Quality Engineer',
+            'soc_code': '17-2112',
+            'onet_code': '17-2112.01',
+            'role_family': 'Engineering',
+            'category': 'Architecture and Engineering',
+            'description': 'Ensure quality standards are met in manufacturing and development.',
+            'typical_skills': ['Quality Control', 'Statistical Analysis', 'Process Improvement', 'ISO Standards']
+        },
+        {
+            'name': 'Civil Engineer',
+            'soc_code': '17-2051',
+            'onet_code': '17-2051.00',
+            'role_family': 'Engineering',
+            'category': 'Architecture and Engineering',
+            'description': 'Design and oversee construction of infrastructure projects.',
+            'typical_skills': ['Civil Engineering', 'AutoCAD', 'Project Management', 'Construction']
+        },
+        {
+            'name': 'Engineering Manager',
+            'soc_code': '11-9041',
+            'onet_code': '11-9041.00',
+            'role_family': 'Management',
+            'category': 'Management',
+            'description': 'Plan, direct, or coordinate activities in engineering or technical fields.',
+            'typical_skills': ['Engineering Management', 'Team Leadership', 'Technical Strategy', 'Budget Management']
+        },
+        {
+            'name': 'Technical Lead',
+            'soc_code': '15-1299',
+            'onet_code': '15-1299.09',
+            'role_family': 'Management',
+            'category': 'Computer and Mathematical',
+            'description': 'Lead technical teams and make architectural decisions.',
+            'typical_skills': ['Technical Leadership', 'Architecture', 'Mentoring', 'Code Review']
+        },
+        {
+            'name': 'Consultant',
+            'soc_code': '13-1111',
+            'onet_code': '13-1111.00',
+            'role_family': 'Consulting',
+            'category': 'Business and Financial Operations',
+            'description': 'Provide expert advice and solutions to organizations.',
+            'typical_skills': ['Consulting', 'Problem Solving', 'Communication', 'Industry Expertise']
+        },
+        {
+            'name': 'Medical Technologist',
+            'soc_code': '29-2011',
+            'onet_code': '29-2011.00',
+            'role_family': 'Healthcare',
+            'category': 'Healthcare Practitioners',
+            'description': 'Perform medical laboratory tests for diagnosis and treatment.',
+            'typical_skills': ['Laboratory Testing', 'Medical Equipment', 'Quality Control', 'Data Analysis']
+        },
+        {
+            'name': 'Physical Therapist',
+            'soc_code': '29-1123',
+            'onet_code': '29-1123.00',
+            'role_family': 'Healthcare',
+            'category': 'Healthcare Practitioners',
+            'description': 'Help patients recover from injuries and improve movement.',
+            'typical_skills': ['Physical Therapy', 'Patient Care', 'Exercise Prescription', 'Rehabilitation']
+        },
+        {
+            'name': 'Postdoctoral Researcher',
+            'soc_code': '19-1099',
+            'onet_code': '19-1099.01',
+            'role_family': 'Research',
+            'category': 'Life, Physical, and Social Science',
+            'description': 'Conduct advanced research in academic or scientific settings.',
+            'typical_skills': ['Research', 'Academic Writing', 'Laboratory Skills', 'Grant Writing']
+        },
+
+        # Top 10 New Roles (January 2026 - Phase 1 Expansion)
+        {
+            'name': 'Social Worker',
+            'soc_code': '21-1021',
+            'onet_code': '21-1021.00',
+            'role_family': 'Healthcare & Social Service',
+            'category': 'Community and Social Service',
+            'description': 'Help people solve and cope with problems in everyday lives.',
+            'typical_skills': ['Case Management', 'Counseling', 'Social Services', 'Crisis Intervention']
+        },
+        {
+            'name': 'Correction Officer',
+            'soc_code': '33-3012',
+            'onet_code': '33-3012.00',
+            'role_family': 'Protective Service',
+            'category': 'Protective Service',
+            'description': 'Guard inmates in correctional facilities.',
+            'typical_skills': ['Security', 'Surveillance', 'Crisis Management', 'Law Enforcement']
+        },
+        {
+            'name': 'Police Officer',
+            'soc_code': '33-3051',
+            'onet_code': '33-3051.00',
+            'role_family': 'Protective Service',
+            'category': 'Protective Service',
+            'description': 'Maintain law and order, protect people and property.',
+            'typical_skills': ['Law Enforcement', 'Investigation', 'Public Safety', 'Emergency Response']
+        },
+        {
+            'name': 'Licensed Practical Nurse',
+            'soc_code': '29-2061',
+            'onet_code': '29-2061.00',
+            'role_family': 'Healthcare',
+            'category': 'Healthcare Practitioners',
+            'description': 'Provide basic nursing care under supervision of registered nurses and doctors.',
+            'typical_skills': ['Patient Care', 'Medical Procedures', 'Vital Signs', 'Documentation']
+        },
+        {
+            'name': 'Program Coordinator',
+            'soc_code': '13-1199',
+            'onet_code': '13-1199.00',
+            'role_family': 'Administrative',
+            'category': 'Business and Financial Operations',
+            'description': 'Coordinate and oversee programs and projects.',
+            'typical_skills': ['Program Management', 'Coordination', 'Communication', 'Scheduling']
+        },
+        {
+            'name': 'Environmental Analyst',
+            'soc_code': '19-2041',
+            'onet_code': '19-2041.00',
+            'role_family': 'Science',
+            'category': 'Life, Physical, and Social Science',
+            'description': 'Analyze environmental data and assess environmental conditions.',
+            'typical_skills': ['Environmental Science', 'Data Analysis', 'Compliance', 'Field Work']
+        },
+        {
+            'name': 'Human Services Coordinator',
+            'soc_code': '21-1093',
+            'onet_code': '21-1093.00',
+            'role_family': 'Social Service',
+            'category': 'Community and Social Service',
+            'description': 'Coordinate social service programs and assist clients.',
+            'typical_skills': ['Case Management', 'Social Services', 'Client Advocacy', 'Program Coordination']
+        },
+        {
+            'name': 'Mental Health Worker',
+            'soc_code': '21-1014',
+            'onet_code': '21-1014.00',
+            'role_family': 'Healthcare & Social Service',
+            'category': 'Community and Social Service',
+            'description': 'Provide mental health services and support to clients.',
+            'typical_skills': ['Mental Health', 'Counseling', 'Crisis Intervention', 'Patient Care']
+        },
+        {
+            'name': 'Technical Program Manager',
+            'soc_code': '11-9199',
+            'onet_code': '11-9199.00',
+            'role_family': 'Management',
+            'category': 'Management',
+            'description': 'Manage technical programs and coordinate engineering teams.',
+            'typical_skills': ['Program Management', 'Technical Leadership', 'Cross-functional Coordination', 'Agile']
+        },
+        {
+            'name': 'Staff Engineer',
+            'soc_code': '15-1252',
+            'onet_code': '15-1252.00',
+            'role_family': 'Engineering',
+            'category': 'Computer and Mathematical',
+            'description': 'Senior individual contributor engineer role with technical leadership.',
+            'typical_skills': ['Software Engineering', 'Technical Leadership', 'System Design', 'Mentorship']
+        },
+
+        # Phase 2 Expansion (January 2026 - Roles 11-20)
+        {
+            'name': 'Applied Scientist',
+            'soc_code': '15-2099',
+            'onet_code': '15-2099.01',
+            'role_family': 'Data Science & Research',
+            'category': 'Computer and Mathematical',
+            'description': 'Apply machine learning and AI to solve business problems.',
+            'typical_skills': ['Machine Learning', 'Research', 'Statistics', 'Python']
+        },
+        {
+            'name': 'Site Reliability Engineer',
+            'soc_code': '15-1252',
+            'onet_code': '15-1252.02',
+            'role_family': 'Engineering',
+            'category': 'Computer and Mathematical',
+            'description': 'Ensure reliability and uptime of production systems.',
+            'typical_skills': ['SRE', 'Monitoring', 'Incident Response', 'Automation']
+        },
+        {
+            'name': 'Nursing Assistant',
+            'soc_code': '31-1131',
+            'onet_code': '31-1131.00',
+            'role_family': 'Healthcare',
+            'category': 'Healthcare Support',
+            'description': 'Provide basic patient care under supervision.',
+            'typical_skills': ['Patient Care', 'Vital Signs', 'Hygiene', 'Mobility Assistance']
+        },
+        {
+            'name': 'Occupational Therapist',
+            'soc_code': '29-1122',
+            'onet_code': '29-1122.00',
+            'role_family': 'Healthcare',
+            'category': 'Healthcare Practitioners',
+            'description': 'Help patients develop, recover, or maintain daily living skills.',
+            'typical_skills': ['Occupational Therapy', 'Patient Assessment', 'Treatment Planning', 'Rehabilitation']
+        },
+        {
+            'name': 'Market Research Analyst',
+            'soc_code': '13-1161',
+            'onet_code': '13-1161.00',
+            'role_family': 'Business & Marketing',
+            'category': 'Business and Financial Operations',
+            'description': 'Research market conditions to examine potential sales of products or services.',
+            'typical_skills': ['Market Research', 'Data Analysis', 'Survey Design', 'Reporting']
+        },
+        {
+            'name': 'Quantitative Analyst',
+            'soc_code': '15-2099',
+            'onet_code': '15-2099.01',
+            'role_family': 'Finance & Analysis',
+            'category': 'Computer and Mathematical',
+            'description': 'Develop and implement complex mathematical models for financial analysis.',
+            'typical_skills': ['Quantitative Analysis', 'Financial Modeling', 'Statistics', 'Programming']
+        },
+        {
+            'name': 'Tax Specialist',
+            'soc_code': '13-2082',
+            'onet_code': '13-2082.00',
+            'role_family': 'Accounting & Finance',
+            'category': 'Business and Financial Operations',
+            'description': 'Prepare tax returns and advise on tax matters.',
+            'typical_skills': ['Tax Preparation', 'Tax Law', 'Compliance', 'Financial Analysis']
+        },
+        {
+            'name': 'Attorney',
+            'soc_code': '23-1011',
+            'onet_code': '23-1011.00',
+            'role_family': 'Legal',
+            'category': 'Legal',
+            'description': 'Represent clients in criminal and civil litigation and other legal matters.',
+            'typical_skills': ['Legal Research', 'Litigation', 'Contract Law', 'Legal Writing']
+        },
+        {
+            'name': 'Clerk',
+            'soc_code': '43-9061',
+            'onet_code': '43-9061.00',
+            'role_family': 'Administrative',
+            'category': 'Office and Administrative Support',
+            'description': 'Perform general office duties such as filing, typing, and data entry.',
+            'typical_skills': ['Filing', 'Data Entry', 'Office Administration', 'Record Keeping']
+        },
+        {
+            'name': 'Technical Specialist',
+            'soc_code': '15-1299',
+            'onet_code': '15-1299.09',
+            'role_family': 'Technical Support',
+            'category': 'Computer and Mathematical',
+            'description': 'Provide technical support and expertise in specific technical areas.',
+            'typical_skills': ['Technical Support', 'Problem Solving', 'Customer Service', 'Product Knowledge']
+        },
+
+        # Phase 3 Expansion (January 2026 - Roles 21-35)
+        {
+            'name': 'Management Analyst',
+            'soc_code': '13-1111',
+            'onet_code': '13-1111.00',
+            'role_family': 'Business & Management',
+            'category': 'Business and Financial Operations',
+            'description': 'Analyze and propose improvements to organizational operations.',
+            'typical_skills': ['Business Analysis', 'Process Improvement', 'Data Analysis', 'Reporting']
+        },
+        {
+            'name': 'Environmental Engineer',
+            'soc_code': '17-2081',
+            'onet_code': '17-2081.00',
+            'role_family': 'Engineering',
+            'category': 'Architecture and Engineering',
+            'description': 'Design and oversee environmental protection projects.',
+            'typical_skills': ['Environmental Engineering', 'Compliance', 'Project Management', 'Technical Design']
+        },
+        {
+            'name': 'Paralegal',
+            'soc_code': '23-2011',
+            'onet_code': '23-2011.00',
+            'role_family': 'Legal',
+            'category': 'Legal',
+            'description': 'Assist lawyers by investigating facts, preparing legal documents, and researching legal precedent.',
+            'typical_skills': ['Legal Research', 'Document Preparation', 'Case Management', 'Legal Writing']
+        },
+        {
+            'name': 'Vocational Rehabilitation Counselor',
+            'soc_code': '21-1015',
+            'onet_code': '21-1015.00',
+            'role_family': 'Social Service',
+            'category': 'Community and Social Service',
+            'description': 'Help people with disabilities develop skills and find employment.',
+            'typical_skills': ['Counseling', 'Case Management', 'Vocational Assessment', 'Job Placement']
+        },
+        {
+            'name': 'Supervisor',
+            'soc_code': '43-1011',
+            'onet_code': '43-1011.00',
+            'role_family': 'Management',
+            'category': 'Management',
+            'description': 'Supervise and coordinate activities of workers.',
+            'typical_skills': ['Supervision', 'Team Management', 'Scheduling', 'Performance Management']
+        },
+        {
+            'name': 'Highway Maintenance Worker',
+            'soc_code': '47-4051',
+            'onet_code': '47-4051.00',
+            'role_family': 'Construction & Maintenance',
+            'category': 'Construction and Extraction',
+            'description': 'Maintain highways, roads, and runways.',
+            'typical_skills': ['Road Maintenance', 'Equipment Operation', 'Safety', 'Manual Labor']
+        },
+        {
+            'name': 'Lieutenant',
+            'soc_code': '33-1012',
+            'onet_code': '33-1012.00',
+            'role_family': 'Protective Service',
+            'category': 'Protective Service',
+            'description': 'Supervise and coordinate activities of police officers or firefighters.',
+            'typical_skills': ['Law Enforcement', 'Leadership', 'Emergency Response', 'Investigation']
+        },
+        {
+            'name': 'Sergeant',
+            'soc_code': '33-1012',
+            'onet_code': '33-1012.00',
+            'role_family': 'Protective Service',
+            'category': 'Protective Service',
+            'description': 'Supervise and coordinate activities of police officers.',
+            'typical_skills': ['Law Enforcement', 'Supervision', 'Investigation', 'Public Safety']
+        },
+        {
+            'name': 'Research Associate',
+            'soc_code': '19-4061',
+            'onet_code': '19-4061.00',
+            'role_family': 'Research',
+            'category': 'Life, Physical, and Social Science',
+            'description': 'Assist scientists and engineers in research and development.',
+            'typical_skills': ['Research', 'Data Collection', 'Laboratory Skills', 'Technical Analysis']
+        },
+        {
+            'name': 'Solutions Architect',
+            'soc_code': '15-1199',
+            'onet_code': '15-1199.09',
+            'role_family': 'Engineering',
+            'category': 'Computer and Mathematical',
+            'description': 'Design and oversee implementation of complex technical solutions.',
+            'typical_skills': ['Solution Architecture', 'Cloud Computing', 'System Design', 'Technical Leadership']
+        },
+        {
+            'name': 'Librarian',
+            'soc_code': '25-4021',
+            'onet_code': '25-4021.00',
+            'role_family': 'Education & Library',
+            'category': 'Education, Training, and Library',
+            'description': 'Administer and maintain library collections and assist users.',
+            'typical_skills': ['Library Science', 'Information Management', 'Research Assistance', 'Cataloging']
+        },
+        {
+            'name': 'Firefighter',
+            'soc_code': '33-2011',
+            'onet_code': '33-2011.00',
+            'role_family': 'Protective Service',
+            'category': 'Protective Service',
+            'description': 'Control and extinguish fires and respond to emergencies.',
+            'typical_skills': ['Firefighting', 'Emergency Medical', 'Equipment Operation', 'Physical Fitness']
+        },
+        {
+            'name': 'Compliance Officer',
+            'soc_code': '13-1041',
+            'onet_code': '13-1041.07',
+            'role_family': 'Business & Compliance',
+            'category': 'Business and Financial Operations',
+            'description': 'Ensure organization complies with laws and regulations.',
+            'typical_skills': ['Compliance', 'Auditing', 'Policy Development', 'Risk Management']
+        },
+        {
+            'name': 'Tax Examiner',
+            'soc_code': '13-2081',
+            'onet_code': '13-2081.00',
+            'role_family': 'Accounting & Finance',
+            'category': 'Business and Financial Operations',
+            'description': 'Determine tax liability and collect taxes from individuals or businesses.',
+            'typical_skills': ['Tax Law', 'Auditing', 'Financial Analysis', 'Compliance']
+        },
+        {
+            'name': 'Mechanic',
+            'soc_code': '49-3023',
+            'onet_code': '49-3023.00',
+            'role_family': 'Maintenance & Repair',
+            'category': 'Installation, Maintenance, and Repair',
+            'description': 'Diagnose and repair mechanical issues in vehicles and equipment.',
+            'typical_skills': ['Mechanical Repair', 'Diagnostics', 'Equipment Maintenance', 'Problem Solving']
+        },
+
+        # Phase 4 Expansion (January 2026 - Roles 36-45)
+        {
+            'name': 'Developmental Services Worker',
+            'soc_code': '21-1093',
+            'onet_code': '21-1093.00',
+            'role_family': 'Social Service',
+            'category': 'Community and Social Service',
+            'description': 'Assist individuals with developmental disabilities in daily activities.',
+            'typical_skills': ['Direct Care', 'Behavioral Support', 'Daily Living Assistance', 'Documentation']
+        },
+        {
+            'name': 'Child Support Enforcement Specialist',
+            'soc_code': '23-1099',
+            'onet_code': '23-1099.00',
+            'role_family': 'Legal Support',
+            'category': 'Legal',
+            'description': 'Enforce child support orders and investigate cases.',
+            'typical_skills': ['Case Management', 'Legal Procedures', 'Investigation', 'Enforcement']
+        },
+        {
+            'name': 'Captain',
+            'soc_code': '33-1011',
+            'onet_code': '33-1011.00',
+            'role_family': 'Protective Service',
+            'category': 'Protective Service',
+            'description': 'Command and supervise police, fire, or correctional officers.',
+            'typical_skills': ['Leadership', 'Emergency Management', 'Operations', 'Personnel Management']
+        },
+        {
+            'name': 'Caseworker',
+            'soc_code': '21-1099',
+            'onet_code': '21-1099.00',
+            'role_family': 'Social Service',
+            'category': 'Community and Social Service',
+            'description': 'Assess and provide services to individuals and families in need.',
+            'typical_skills': ['Case Management', 'Assessment', 'Resource Coordination', 'Documentation']
+        },
+        {
+            'name': 'Inspector',
+            'soc_code': '47-4011',
+            'onet_code': '47-4011.00',
+            'role_family': 'Construction & Inspection',
+            'category': 'Construction and Extraction',
+            'description': 'Inspect buildings, vehicles, or equipment for compliance and safety.',
+            'typical_skills': ['Inspection', 'Building Codes', 'Safety Standards', 'Documentation']
+        },
+        {
+            'name': 'System Administrator',
+            'soc_code': '15-1244',
+            'onet_code': '15-1244.00',
+            'role_family': 'IT Operations',
+            'category': 'Computer and Mathematical',
+            'description': 'Install, configure, and maintain computer systems and networks.',
+            'typical_skills': ['System Administration', 'Linux/Windows', 'Networking', 'Troubleshooting']
+        },
+        {
+            'name': 'Administrative Secretary',
+            'soc_code': '43-6014',
+            'onet_code': '43-6014.00',
+            'role_family': 'Administrative',
+            'category': 'Office and Administrative Support',
+            'description': 'Provide high-level administrative support to executives or departments.',
+            'typical_skills': ['Executive Support', 'Scheduling', 'Communication', 'Office Management']
+        },
+        {
+            'name': 'Recreational Therapist',
+            'soc_code': '29-1125',
+            'onet_code': '29-1125.00',
+            'role_family': 'Healthcare',
+            'category': 'Healthcare Practitioners',
+            'description': 'Use recreation and leisure activities to help patients improve health.',
+            'typical_skills': ['Recreational Therapy', 'Activity Planning', 'Patient Assessment', 'Treatment Goals']
+        },
+        {
+            'name': 'Nurse Practitioner',
+            'soc_code': '29-1171',
+            'onet_code': '29-1171.00',
+            'role_family': 'Healthcare',
+            'category': 'Healthcare Practitioners',
+            'description': 'Provide advanced nursing care and can prescribe medication.',
+            'typical_skills': ['Advanced Practice Nursing', 'Diagnosis', 'Prescribing', 'Patient Care']
+        },
+        {
+            'name': 'Statistician',
+            'soc_code': '15-2041',
+            'onet_code': '15-2041.00',
+            'role_family': 'Data Science & Research',
+            'category': 'Computer and Mathematical',
+            'description': 'Apply statistical methods to collect, analyze, and interpret data.',
+            'typical_skills': ['Statistical Analysis', 'Data Modeling', 'R/Python', 'Research Design']
+        },
+
+        # Phase 5 Expansion (January 2026 - Roles 46-60) - Blue-Collar & Service Roles
+        {
+            'name': 'Truck Driver',
+            'soc_code': '53-3032',
+            'onet_code': '53-3032.00',
+            'role_family': 'Transportation',
+            'category': 'Transportation and Material Moving',
+            'description': 'Drive truck to transport goods and materials over long or short distances.',
+            'typical_skills': ['Commercial Driving', 'CDL License', 'Route Planning', 'Vehicle Maintenance']
+        },
+        {
+            'name': 'Warehouse Worker',
+            'soc_code': '53-7065',
+            'onet_code': '53-7065.00',
+            'role_family': 'Material Handling',
+            'category': 'Transportation and Material Moving',
+            'description': 'Receive, store, and distribute materials, tools, and products.',
+            'typical_skills': ['Inventory Management', 'Forklift Operation', 'Material Handling', 'Shipping & Receiving']
+        },
+        {
+            'name': 'Housekeeper',
+            'soc_code': '37-2012',
+            'onet_code': '37-2012.00',
+            'role_family': 'Cleaning & Maintenance',
+            'category': 'Building and Grounds Cleaning and Maintenance',
+            'description': 'Clean and maintain hotels, homes, hospitals, and other facilities.',
+            'typical_skills': ['Cleaning', 'Sanitization', 'Attention to Detail', 'Time Management']
+        },
+        {
+            'name': 'Cook',
+            'soc_code': '35-2014',
+            'onet_code': '35-2014.00',
+            'role_family': 'Food Preparation',
+            'category': 'Food Preparation and Serving',
+            'description': 'Prepare and cook food in restaurants, cafeterias, and other facilities.',
+            'typical_skills': ['Food Preparation', 'Cooking', 'Food Safety', 'Kitchen Equipment']
+        },
+        {
+            'name': 'Caregiver',
+            'soc_code': '39-9021',
+            'onet_code': '39-9021.00',
+            'role_family': 'Personal Care',
+            'category': 'Personal Care and Service',
+            'description': 'Provide personal care and assistance to elderly, disabled, or ill individuals.',
+            'typical_skills': ['Personal Care', 'Patient Support', 'Companionship', 'Daily Living Assistance']
+        },
+        {
+            'name': 'General Laborer',
+            'soc_code': '51-9199',
+            'onet_code': '51-9199.00',
+            'role_family': 'Production',
+            'category': 'Production Occupations',
+            'description': 'Perform various physical tasks in manufacturing, construction, or other settings.',
+            'typical_skills': ['Physical Labor', 'Equipment Operation', 'Safety Procedures', 'Teamwork']
+        },
+        {
+            'name': 'Landscape Laborer',
+            'soc_code': '37-3011',
+            'onet_code': '37-3011.00',
+            'role_family': 'Grounds Maintenance',
+            'category': 'Building and Grounds Cleaning and Maintenance',
+            'description': 'Maintain lawns, gardens, and grounds using hand and power tools.',
+            'typical_skills': ['Landscaping', 'Equipment Operation', 'Plant Care', 'Outdoor Work']
+        },
+        {
+            'name': 'Janitor',
+            'soc_code': '37-2011',
+            'onet_code': '37-2011.00',
+            'role_family': 'Cleaning & Maintenance',
+            'category': 'Building and Grounds Cleaning and Maintenance',
+            'description': 'Clean and maintain buildings, offices, and other facilities.',
+            'typical_skills': ['Cleaning', 'Maintenance', 'Custodial Work', 'Facility Operations']
+        },
+        {
+            'name': 'Server',
+            'soc_code': '35-3031',
+            'onet_code': '35-3031.00',
+            'role_family': 'Food Service',
+            'category': 'Food Preparation and Serving',
+            'description': 'Serve food and beverages to customers in restaurants and dining facilities.',
+            'typical_skills': ['Customer Service', 'Food Service', 'Menu Knowledge', 'Order Taking']
+        },
+        {
+            'name': 'Food Service Worker',
+            'soc_code': '35-3023',
+            'onet_code': '35-3023.00',
+            'role_family': 'Food Service',
+            'category': 'Food Preparation and Serving',
+            'description': 'Perform various food preparation and service tasks in cafeterias and institutions.',
+            'typical_skills': ['Food Service', 'Food Prep', 'Cleaning', 'Customer Service']
+        },
+        {
+            'name': 'Production Worker',
+            'soc_code': '51-2090',
+            'onet_code': '51-2090.00',
+            'role_family': 'Manufacturing',
+            'category': 'Production Occupations',
+            'description': 'Assemble or produce goods in manufacturing facilities.',
+            'typical_skills': ['Assembly', 'Manufacturing', 'Quality Control', 'Equipment Operation']
+        },
+        {
+            'name': 'Poultry Worker',
+            'soc_code': '51-3022',
+            'onet_code': '51-3022.00',
+            'role_family': 'Food Processing',
+            'category': 'Production Occupations',
+            'description': 'Process, trim, and cut poultry, meat, or fish products.',
+            'typical_skills': ['Meat Processing', 'Knife Skills', 'Food Safety', 'Production Line Work']
+        },
+        {
+            'name': 'Nanny',
+            'soc_code': '39-9011',
+            'onet_code': '39-9011.00',
+            'role_family': 'Childcare',
+            'category': 'Personal Care and Service',
+            'description': 'Provide childcare in private households.',
+            'typical_skills': ['Childcare', 'Early Childhood Development', 'Safety', 'Activity Planning']
+        },
+        {
+            'name': 'Animal Caretaker',
+            'soc_code': '39-2021',
+            'onet_code': '39-2021.00',
+            'role_family': 'Animal Care',
+            'category': 'Personal Care and Service',
+            'description': 'Care for animals in kennels, animal shelters, zoos, or breeding facilities.',
+            'typical_skills': ['Animal Care', 'Feeding', 'Cleaning', 'Animal Handling']
+        },
+        {
+            'name': 'Sewing Machine Operator',
+            'soc_code': '51-6031',
+            'onet_code': '51-6031.00',
+            'role_family': 'Textile Production',
+            'category': 'Production Occupations',
+            'description': 'Operate sewing machines to produce garments and textile products.',
+            'typical_skills': ['Sewing', 'Machine Operation', 'Pattern Reading', 'Quality Control']
         },
     ]
 

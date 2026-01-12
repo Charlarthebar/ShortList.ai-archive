@@ -1,0 +1,217 @@
+======================================================================
+PHASE 8: ARCHETYPE INFERENCE MODEL
+======================================================================
+
+Step 1: Extracting archetype data from database...
+----------------------------------------------------------------------
+Database pool initialized: jobs_comprehensive
+
+Executing query...
+All database connections closed
+✓ Extracted 64,851 observed company × archetype combinations
+  Companies: 24,968
+  Roles: 105
+  Seniority levels: 8
+  States: 114
+
+Step 2: Analyzing archetype patterns...
+----------------------------------------------------------------------
+
+📊 Archetype Statistics:
+  Unique archetypes: 7,911
+  Unique companies: 24,968
+  Total observations: 64,851
+
+🏢 Archetypes per Company:
+  Min:           1
+  25th:          1
+  Median:        1
+  75th:          2
+  Max:         870
+
+🎯 Companies per Archetype:
+  Min:           1
+  25th:          1
+  Median:        2
+  75th:          5
+  Max:       2,111
+
+🔥 Top 10 Most Common Archetypes:
+   1. Software Engineer | mid | TX                                           2,111 companies
+   2. Software Engineer | mid | CA                                           1,049 companies
+   3. Software Engineer | senior | TX                                          578 companies
+   4. Software Engineer | mid | CALIFORNIA                                     565 companies
+   5. Software Engineer | senior | CA                                          537 companies
+   6. Software Engineer | mid | NJ                                             524 companies
+   7. Software Engineer | mid | GA                                             461 companies
+   8. Software Engineer | mid | NC                                             449 companies
+   9. Software Engineer | mid | VA                                             412 companies
+  10. Architect | lead | TX                                                    408 companies
+
+Step 3: Building archetype co-occurrence patterns...
+----------------------------------------------------------------------
+
+📊 Co-occurrence Matrix:
+  Shape: 24,968 companies × 7,911 archetypes
+  Total cells: 197,521,848
+  Observed (1s): 57,102 (0.03%)
+  Unobserved (0s): 197,464,746
+
+Computing archetype co-occurrence patterns...
+✓ Built 7911 × 7911 co-occurrence matrix
+
+Step 4: Engineering features for archetype prediction...
+----------------------------------------------------------------------
+
+Target matrix dimensions:
+  Companies: 24,968
+  Archetypes: 7,911
+  Total cells: 197,521,848
+
+Building training dataset...
+  Positive examples: 64,851
+  Sampling negative examples (this may take a moment)...
+  Negative examples: 129,702
+
+✓ Created training dataset: 194,553 examples
+  Positive class: 64,851 (33.3%)
+  Negative class: 129,702 (66.7%)
+✓ Merged company features
+
+Step 5: Encoding categorical features...
+----------------------------------------------------------------------
+  ✓ Encoded canonical_role: 7911 unique values
+  ✓ Encoded seniority_level: 2 unique values
+  ✓ Encoded state: 2 unique values
+  ✓ Encoded industry: 2 unique values
+  ✓ Encoded size_category: 1 unique values
+
+Step 6: Creating additional predictive features...
+----------------------------------------------------------------------
+  ✓ Created archetype_frequency
+  ✓ Created company_archetype_count
+  ✓ Created role_industry_pct
+  ✓ Created seniority_role_pct
+
+Step 7: Creating train/validation/test splits...
+----------------------------------------------------------------------
+
+Features: 10
+   1. canonical_role_encoded
+   2. seniority_level_encoded
+   3. state_encoded
+   4. industry_encoded
+   5. size_category_encoded
+   6. is_public_int
+   7. archetype_frequency
+   8. company_archetype_count
+   9. role_industry_pct
+  10. seniority_role_pct
+
+Target: exists (binary)
+Samples: 194,553
+
+✓ Train: 136,264 samples ( 70.0%)
+✓ Val:   29,106 samples ( 15.0%)
+✓ Test:  29,183 samples ( 15.0%)
+
+Step 8: Training baseline model (predict by frequency)...
+----------------------------------------------------------------------
+
+Baseline Model Performance (Validation Set):
+  Accuracy:      0.7218
+  Precision:     0.9652
+  Recall:        0.1716
+  F1 Score:      0.2914
+
+Step 9: Training Gradient Boosting classifier...
+----------------------------------------------------------------------
+
+Training model (this may take 5-10 minutes)...
+
+✓ Model training complete!
+
+Step 10: Evaluating model performance...
+----------------------------------------------------------------------
+
+Training Set Performance:
+  Accuracy:      0.8682
+  Precision:     0.8481
+  Recall:        0.7366
+  F1 Score:      0.7884
+  AUC-ROC:       0.9218
+
+Validation Set Performance:
+  Accuracy:      0.8635
+  Precision:     0.8430
+  Recall:        0.7255
+  F1 Score:      0.7799
+  AUC-ROC:       0.9191
+
+Test Set Performance:
+  Accuracy:      0.8651
+  Precision:     0.8410
+  Recall:        0.7342
+  F1 Score:      0.7840
+  AUC-ROC:       0.9212
+
+======================================================================
+Confusion Matrix (Test Set):
+======================================================================
+
+                 Predicted: 0    Predicted: 1
+Actual: 0 (No)       18,105         1,350
+Actual: 1 (Yes)       2,586         7,142
+
+Step 11: Analyzing feature importance...
+----------------------------------------------------------------------
+
+Feature Importances:
+  archetype_frequency                   0.7159
+  company_archetype_count               0.2560
+  canonical_role_encoded                0.0282
+  seniority_level_encoded               0.0000
+  state_encoded                         0.0000
+  industry_encoded                      0.0000
+  size_category_encoded                 0.0000
+  is_public_int                         0.0000
+  role_industry_pct                     0.0000
+  seniority_role_pct                    0.0000
+
+✓ Saved archetype_feature_importance.png
+
+Step 12: Saving models and results...
+----------------------------------------------------------------------
+✓ Saved archetype_inference_model.pkl
+✓ Saved archetype_encoders.pkl
+✓ Saved archetype_metrics.pkl
+✓ Saved archetype_test_predictions.csv
+
+======================================================================
+PHASE 8 COMPLETE!
+======================================================================
+
+📊 Final Model Performance (Test Set):
+  Accuracy:      0.8651  ✓ Excellent
+  Precision:     0.8410  (How many predicted 'exists' are correct)
+  Recall:        0.7342  (How many actual 'exists' we found)
+  F1 Score:      0.7840
+  AUC-ROC:       0.9212  ✓ Excellent
+
+🎯 Improvement over Baseline:
+  Accuracy improvement:   19.9%
+
+📁 Files Created:
+  - archetype_inference_model.pkl (trained model)
+  - archetype_encoders.pkl (feature encoders)
+  - archetype_metrics.pkl (all metrics)
+  - archetype_test_predictions.csv (test set predictions)
+  - archetype_feature_importance.png (visualization)
+
+🚀 Next Steps:
+  1. Run inference on all company × archetype pairs
+  2. Generate complete labor market matrix
+  3. Analyze prediction patterns and confidence
+  4. Integrate with headcount estimates from Phase 7
+
+======================================================================

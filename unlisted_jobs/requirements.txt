@@ -8,6 +8,7 @@ scipy>=1.7.0
 requests>=2.26.0
 beautifulsoup4>=4.10.0
 lxml>=4.6.0
+openpyxl>=3.0.0  # For reading Excel files (H-1B data)
 
 # Geographic data
 pgeocode>=0.4.0

@@ -1,0 +1,162 @@
+======================================================================
+PHASE 6: MODEL TRAINING & EVALUATION
+======================================================================
+
+Step 1: Loading prepared data...
+----------------------------------------------------------------------
+✓ Loaded 195,907 samples
+✓ Loaded 8 encoders
+✓ Train: 137,212 samples
+✓ Val:   29,308 samples
+✓ Test:  29,387 samples
+
+Step 2: Training baseline model (median by role)...
+----------------------------------------------------------------------
+
+Baseline Model Performance (Validation Set):
+  MAE:   $      34,472
+  RMSE:  $      49,537
+  R²:          0.4082
+  MAPE:        2804.6%
+
+Step 3: Training Gradient Boosting model...
+----------------------------------------------------------------------
+
+Training model (this may take 5-10 minutes)...
+      Iter       Train Loss      OOB Improve   Remaining Time 
+         1  3477458629.9064   536515624.3325           22.54s
+         2  3033707266.6647   440456350.9039           21.72s
+         3  2685490580.6468   397985828.3868           21.60s
+         4  2389787728.5663   284954492.9394           21.41s
+         5  2170671194.7257   313715542.2601           21.40s
+         6  1942681965.8737    57683848.8535           21.28s
+         7  1810161436.4694   263444827.8484           21.07s
+         8  1662955503.3639    66964031.9721           20.92s
+         9  1559439825.3362   112189660.2964           20.73s
+        10  1476392413.5538   108088045.4185           20.56s
+        20  1112994208.1605    33406689.6213           19.52s
+        30  1049198629.3164     3392664.0861           18.36s
+        40  1020944496.4305   -30343574.2208           17.25s
+        50  1014880760.2187   -69375820.0524           16.27s
+        60   996616189.4396   -79709055.6200           15.27s
+        70  1008934838.8456    25602016.4771           14.26s
+        80   988614235.2025   -11065770.3683           13.21s
+        90   984621212.1535    -8418072.6090           12.13s
+       100   981689691.8562    48081010.0083           11.06s
+       200   971146220.1529    52145922.6364            0.00s
+
+✓ Model training complete!
+
+Step 4: Evaluating model performance...
+----------------------------------------------------------------------
+
+Training Set Performance:
+  MAE:   $      20,420
+  RMSE:  $      30,959
+  R²:          0.7621
+  MAPE:        3000.7%
+
+Validation Set Performance:
+  MAE:   $      21,001
+  RMSE:  $      33,047
+  R²:          0.7366
+  MAPE:         608.1%
+
+Test Set Performance:
+  MAE:   $      20,714
+  RMSE:  $      31,472
+  R²:          0.7536
+  MAPE:         723.9%
+
+======================================================================
+Overfitting Check:
+======================================================================
+✓ No significant overfitting (MAE diff: $581)
+
+Step 5: Analyzing feature importance...
+----------------------------------------------------------------------
+
+Top 10 Most Important Features:
+  company_median_salary            0.9012
+  role_median_salary               0.0400
+  metro_median_salary              0.0248
+  seniority_level_encoded          0.0147
+  canonical_role_encoded           0.0078
+  role_family_encoded              0.0035
+  role_category_encoded            0.0034
+  state_encoded                    0.0028
+  source_encoded                   0.0018
+  is_public_int                    0.0000
+
+✓ Saved feature_importance.png
+
+Step 6: Analyzing predictions...
+----------------------------------------------------------------------
+
+Prediction Accuracy by Role (Top 10 roles by count):
+   1. Software Engineer                        MAE: $    15,276, MAPE:  229.0%, n=7,266
+   2. Professor                                MAE: $    42,665, MAPE: 1810.4%, n=2,920
+   3. Correction Officer                       MAE: $    21,387, MAPE:  625.7%, n=  910
+   4. Architect                                MAE: $    17,178, MAPE:   95.5%, n=  783
+   5. Police Officer                           MAE: $    31,150, MAPE:  292.3%, n=  727
+   6. Consultant                               MAE: $    17,168, MAPE:  278.2%, n=  695
+   7. Social Worker                            MAE: $    25,186, MAPE: 1304.8%, n=  663
+   8. Systems Analyst                          MAE: $    15,704, MAPE:  391.2%, n=  645
+   9. Clerk                                    MAE: $    28,896, MAPE: 1745.2%, n=  580
+  10. Project Manager                          MAE: $    17,974, MAPE:   69.5%, n=  513
+
+Step 7: Generating confidence intervals...
+----------------------------------------------------------------------
+
+Training quantile regressors for confidence intervals...
+✓ Trained lower bound model (10th percentile)
+✓ Trained upper bound model (90th percentile)
+
+Confidence Interval Performance:
+  Coverage:                79.8% (target: 80%)
+  Avg interval width:    $    69,432
+
+Step 8: Creating visualizations...
+----------------------------------------------------------------------
+✓ Saved predicted_vs_actual.png
+✓ Saved residuals.png
+✓ Saved error_distribution.png
+
+Step 9: Saving models and results...
+----------------------------------------------------------------------
+✓ Saved salary_model_main.pkl
+✓ Saved salary_model_lower.pkl
+✓ Saved salary_model_upper.pkl
+✓ Saved model_metrics.pkl
+✓ Saved test_predictions.csv
+
+======================================================================
+MODEL TRAINING COMPLETE!
+======================================================================
+
+📊 Final Model Performance (Test Set):
+  MAE:   $      20,714  ✓ Good
+  RMSE:  $      31,472
+  R²:          0.7536  ✓ Good
+  MAPE:         723.9%  ⚠ Acceptable
+
+🎯 Improvement over Baseline:
+  MAE reduction:   39.9%
+
+📁 Files Created:
+  - salary_model_main.pkl (main prediction model)
+  - salary_model_lower.pkl (lower bound)
+  - salary_model_upper.pkl (upper bound)
+  - model_metrics.pkl (all metrics)
+  - test_predictions.csv (test set predictions)
+  - feature_importance.png
+  - predicted_vs_actual.png
+  - residuals.png
+  - error_distribution.png
+
+🚀 Next Steps:
+  1. Review visualizations to understand model behavior
+  2. Run inference on all archetypes (phase6_inference.py)
+  3. Generate salary predictions for unobserved job combinations
+
+======================================================================

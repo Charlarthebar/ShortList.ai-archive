@@ -1,0 +1,177 @@
+======================================================================
+PHASE 7: HEADCOUNT DISTRIBUTION MODEL
+======================================================================
+
+Step 1: Extracting observed job counts...
+----------------------------------------------------------------------
+Executing query...
+✓ Extracted 39,103 company × role combinations
+✓ Covering 24,968 companies
+✓ Across 105 roles
+
+Step 2: Analyzing job density patterns...
+----------------------------------------------------------------------
+
+📊 Overall Statistics:
+  Companies with observations: 24,968
+  Unique roles observed: 105
+  Total job observations: 196,776
+  Avg jobs per company: 7.9
+  Avg roles per company: 1.6
+
+🏢 Top 10 Companies by Job Count:
+   1. Commonwealth of Massachusetts                      69,683 jobs,  84 roles
+   2. AMAZON.COM SERVICES LLC                             4,872 jobs,  29 roles
+   3. Google LLC                                          2,662 jobs,  32 roles
+   4. Microsoft Corporation                               2,153 jobs,   7 roles
+   5. MICROSOFT CORPORATION                               1,374 jobs,  23 roles
+   6. Meta Platforms, Inc                                 1,341 jobs,  28 roles
+   7. WAL-MART ASSOCIATES, INC.                           1,330 jobs,  18 roles
+   8. TATA CONSULTANCY SERVICES LIMITED                   1,320 jobs,  11 roles
+   9. COGNIZANT TECHNOLOGY SOLUTIONS US CORPORATION       1,235 jobs,   2 roles
+  10. APPLE INC.                                            981 jobs,  30 roles
+
+🎯 Top 10 Most Common Roles:
+   1. Software Engineer                         48,463 jobs at 8,334 companies
+   2. Professor                                 20,019 jobs at   896 companies
+   3. Correction Officer                         6,107 jobs at     1 companies
+   4. Architect                                  5,246 jobs at 1,742 companies
+   5. Police Officer                             4,858 jobs at     1 companies
+   6. Consultant                                 4,649 jobs at 1,254 companies
+   7. Social Worker                              4,593 jobs at    18 companies
+   8. Systems Analyst                            4,154 jobs at   924 companies
+   9. Clerk                                      3,819 jobs at   357 companies
+  10. Project Manager                            3,323 jobs at 1,463 companies
+
+📈 Role Distribution Patterns:
+  Min roles per company:          1
+  25th percentile:                1
+  Median:                         1
+  75th percentile:                1
+  Max roles per company:         84
+
+Step 3: Computing role density metrics...
+----------------------------------------------------------------------
+
+🔍 Role Concentration Analysis:
+  (What % of a company's workforce is typically in each role?)
+
+Top 10 Roles by Median Workforce %:
+   1. Accountant                               100.00% (± 31.45%), n=  749
+   2. Medical Technologist                     100.00% (± 26.12%), n=  159
+   3. Operations Manager                       100.00% (± 39.16%), n=  293
+   4. Occupational Therapist                   100.00% (± 38.84%), n=   43
+   5. Nursing Assistant                        100.00% (± 18.61%), n=   69
+   6. Nurse Practitioner                       100.00% (± 40.26%), n=   19
+   7. Nanny                                    100.00% (±  0.00%), n=  265
+   8. Administrative Assistant                 100.00% (± 15.47%), n=  261
+   9. Mechanic                                 100.00% (± 22.67%), n=   93
+  10. Physical Therapist                       100.00% (± 23.65%), n=  146
+
+Step 4: Analyzing industry and size patterns...
+----------------------------------------------------------------------
+
+🏭 Industries Represented:
+  Total industries: 2
+   1. Unknown                                  24,966 companies (100.0%)
+   2. Education                                     2 companies (  0.0%)
+
+🎯 Role Distribution by Industry:
+  (Top role in each major industry)
+  Unknown                                  → Software Engineer              ( 24.6%)
+  Education                                → Research Scientist             ( 43.6%)
+
+Step 5: Building role distribution templates...
+----------------------------------------------------------------------
+
+Computing industry-specific role distributions...
+✓ Built 1 industry templates
+✓ Built default template with 105 roles
+
+Step 6: Inferring headcount for unobserved archetypes...
+----------------------------------------------------------------------
+
+Strategy:
+  1. For each company, identify observed roles
+  2. Use industry template to infer missing roles
+  3. Scale by company's total observed jobs
+  4. Generate headcount estimates
+
+Matrix dimensions:
+  Companies: 24,968
+  Roles: 105
+  Total cells: 2,621,640
+
+Coverage:
+  Observed:   39,103 (  1.5%)
+  Missing:  2,582,537 ( 98.5%)
+
+Inferring headcount for missing cells...
+
+✓ Generated 50,350 headcount estimates
+  Observed:   39,103
+  Inferred:   11,247
+
+Step 7: Analyzing inference results...
+----------------------------------------------------------------------
+
+📊 Total Workforce Estimates:
+  Observed headcount:        196,776
+  Inferred headcount:         57,398
+  Total headcount:           254,174
+  Inferred %:                  22.6%
+
+🎯 Top 10 Roles by Total Headcount:
+   1. Software Engineer                          48,570 ( 19.1%), obs=8,334
+   2. Professor                                  20,707 (  8.1%), obs=  896
+   3. Correction Officer                          6,127 (  2.4%), obs=    1
+   4. Social Worker                               5,295 (  2.1%), obs=   18
+   5. Architect                                   5,285 (  2.1%), obs=1,742
+   6. Police Officer                              4,873 (  1.9%), obs=    1
+   7. Consultant                                  4,816 (  1.9%), obs=1,254
+   8. Clerk                                       4,521 (  1.8%), obs=  357
+   9. Systems Analyst                             4,251 (  1.7%), obs=  924
+  10. Attorney                                    3,858 (  1.5%), obs=  280
+
+🏢 Top 10 Companies by Total Estimated Workforce:
+   1. Commonwealth of Massachusetts                        88,193,  84 roles obs
+   2. AMAZON.COM SERVICES LLC                               8,585,  29 roles obs
+   3. Google LLC                                            4,615,  32 roles obs
+   4. Microsoft Corporation                                 4,173,   7 roles obs
+   5. TATA CONSULTANCY SERVICES LIMITED                     2,500,  11 roles obs
+   6. WAL-MART ASSOCIATES, INC.                             2,481,  18 roles obs
+   7. MICROSOFT CORPORATION                                 2,452,  23 roles obs
+   8. COGNIZANT TECHNOLOGY SOLUTIONS US CORPORATION         2,398,   2 roles obs
+   9. Meta Platforms, Inc                                   2,395,  28 roles obs
+  10. INTEL CORPORATION                                     1,725,  16 roles obs
+
+Step 8: Saving results...
+----------------------------------------------------------------------
+✓ Saved headcount_estimates.csv
+✓ Saved industry_role_templates.pkl
+✓ Saved default_role_template.pkl
+✓ Saved headcount_summary.pkl
+
+======================================================================
+PHASE 7 COMPLETE!
+======================================================================
+
+📊 Headcount Modeling Results:
+  Companies analyzed:         24,968
+  Roles covered:                 105
+  Observed job counts:        39,103
+  Inferred job counts:        11,247
+  Total headcount estimate:  254,174
+
+📁 Files Created:
+  - headcount_estimates.csv (50,350 rows)
+  - industry_role_templates.pkl (1 templates)
+  - default_role_template.pkl
+  - headcount_summary.pkl
+
+🚀 Next Steps:
+  1. Review headcount_estimates.csv for workforce compositions
+  2. Use estimates for market sizing and benchmarking
+  3. Proceed to Phase 8: Archetype Inference
+
+======================================================================

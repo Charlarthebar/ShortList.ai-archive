@@ -1,0 +1,180 @@
+======================================================================
+PHASE 6: SALARY ESTIMATION MODEL (Gradient Boosting)
+======================================================================
+
+Step 1: Extracting data from database...
+----------------------------------------------------------------------
+Executing query...
+✓ Extracted 195,907 observed jobs with salaries
+  Columns: ['id', 'salary', 'raw_title', 'seniority_level', 'canonical_role', 'role_family', 'soc_code', 'role_category', 'company_name', 'company_size', 'industry', 'is_public', 'metro_name', 'state', 'source']
+
+Step 2: Exploratory Data Analysis
+----------------------------------------------------------------------
+
+📊 Dataset Overview:
+<class 'pandas.core.frame.DataFrame'>
+RangeIndex: 195907 entries, 0 to 195906
+Data columns (total 15 columns):
+ #   Column           Non-Null Count   Dtype  
+---  ------           --------------   -----  
+ 0   id               195907 non-null  int64  
+ 1   salary           195907 non-null  float64
+ 2   raw_title        195907 non-null  object 
+ 3   seniority_level  195907 non-null  object 
+ 4   canonical_role   195907 non-null  object 
+ 5   role_family      195907 non-null  object 
+ 6   soc_code         195907 non-null  object 
+ 7   role_category    195907 non-null  object 
+ 8   company_name     195907 non-null  object 
+ 9   company_size     0 non-null       object 
+ 10  industry         109 non-null     object 
+ 11  is_public        195907 non-null  bool   
+ 12  metro_name       195907 non-null  object 
+ 13  state            195907 non-null  object 
+ 14  source           195907 non-null  object 
+dtypes: bool(1), float64(1), int64(1), object(12)
+memory usage: 21.1+ MB
+None
+
+💰 Salary Statistics:
+count    195907.000000
+mean     105817.047652
+std       63607.181447
+min           0.040000
+25%       64304.790000
+50%      101462.000000
+75%      144029.280000
+max      996000.000000
+Name: salary, dtype: float64
+
+📈 Salary Distribution:
+  Min:     $           0
+  25th:    $      64,305
+  Median:  $     101,462
+  75th:    $     144,029
+  Max:     $     996,000
+
+🔍 Missing Data:
+              Missing  Percentage
+company_size   195907      100.00
+industry       195798       99.94
+
+🎯 Top 10 Roles by Count:
+   1. Software Engineer                        48,390 ( 24.7%)
+   2. Professor                                19,773 ( 10.1%)
+   3. Correction Officer                        6,030 (  3.1%)
+   4. Architect                                 5,238 (  2.7%)
+   5. Police Officer                            4,831 (  2.5%)
+   6. Consultant                                4,636 (  2.4%)
+   7. Social Worker                             4,552 (  2.3%)
+   8. Systems Analyst                           4,148 (  2.1%)
+   9. Clerk                                     3,801 (  1.9%)
+  10. Project Manager                           3,315 (  1.7%)
+
+🌎 Top 10 Metros by Count:
+   1. Boston, MA                               69,663 ( 35.6%)
+   2. New York, NEW YORK                        2,696 (  1.4%)
+   3. New York, NY                              2,571 (  1.3%)
+   4. Seattle, WA                               2,324 (  1.2%)
+   5. Seattle, WASHINGTON                       2,267 (  1.2%)
+   6. Austin, TX                                1,724 (  0.9%)
+   7. Redmond, WA                               1,686 (  0.9%)
+   8. Sunnyvale, CA                             1,472 (  0.8%)
+   9. Mountain View, CALIFORNIA                 1,429 (  0.7%)
+  10. San Francisco, CALIFORNIA                 1,365 (  0.7%)
+
+🏢 Top 10 Companies by Count:
+   1. Commonwealth of Massachusetts            69,041 ( 35.2%)
+   2. AMAZON.COM SERVICES LLC                   4,871 (  2.5%)
+   3. Google LLC                                2,660 (  1.4%)
+   4. Microsoft Corporation                     2,153 (  1.1%)
+   5. MICROSOFT CORPORATION                     1,374 (  0.7%)
+   6. Meta Platforms, Inc                       1,340 (  0.7%)
+   7. WAL-MART ASSOCIATES, INC.                 1,330 (  0.7%)
+   8. TATA CONSULTANCY SERVICES LIMITED         1,320 (  0.7%)
+   9. COGNIZANT TECHNOLOGY SOLUTIONS US CORPORATION  1,235 (  0.6%)
+  10. APPLE INC.                                  981 (  0.5%)
+
+📚 Data Source Distribution:
+  h1b_visa            : 71,126 jobs ( 36.3%), avg salary: $   137,308
+  ma_state_payroll    : 69,041 jobs ( 35.2%), avg salary: $    65,210
+  perm_visa           : 55,738 jobs ( 28.5%), avg salary: $   115,929
+  sample_payroll      :      2 jobs (  0.0%), avg salary: $   135,000
+
+💼 Seniority Distribution:
+  mid                 : 115,406 jobs ( 58.9%), avg salary: $    97,348
+  senior              : 25,839 jobs ( 13.2%), avg salary: $   126,699
+  entry               : 24,000 jobs ( 12.3%), avg salary: $    75,346
+  manager             : 14,514 jobs (  7.4%), avg salary: $   135,582
+  lead                : 14,480 jobs (  7.4%), avg salary: $   150,361
+  exec                :  1,096 jobs (  0.6%), avg salary: $   148,937
+  director            :    558 jobs (  0.3%), avg salary: $   187,924
+  intern              :     14 jobs (  0.0%), avg salary: $    36,153
+
+Step 3: Feature Engineering
+----------------------------------------------------------------------
+
+1. Handling missing values...
+  ✓ Imputed 195,907 missing company_size with mode: Unknown
+  ✓ Imputed 195,798 missing industry with mode: Education
+
+2. Creating numerical features...
+  ✓ Created is_public_int
+  ✓ Created role_median_salary
+  ✓ Created metro_median_salary
+  ✓ Created company_median_salary
+
+3. Encoding categorical features...
+  ✓ Encoded canonical_role: 105 unique values
+  ✓ Encoded role_family: 54 unique values
+  ✓ Encoded seniority_level: 8 unique values
+  ✓ Encoded industry: 1 unique values
+  ✓ Encoded state: 114 unique values
+  ✓ Encoded source: 4 unique values
+  ✓ Encoded company_size: 1 unique values
+  ✓ Encoded role_category: 23 unique values
+
+Step 4: Creating train/validation/test splits
+----------------------------------------------------------------------
+
+Features: 12
+   1. is_public_int
+   2. role_median_salary
+   3. metro_median_salary
+   4. company_median_salary
+   5. canonical_role_encoded
+   6. role_family_encoded
+   7. seniority_level_encoded
+   8. industry_encoded
+   9. state_encoded
+  10. source_encoded
+  11. company_size_encoded
+  12. role_category_encoded
+
+Target: salary
+Samples: 195,907
+
+Splitting data (70/15/15) stratified by role...
+Traceback (most recent call last):
+  File "/Users/noahhopkins/ShortList.ai/unlisted_jobs/phase6_salary_model.py", line 279, in <module>
+    X_temp, X_test, y_temp, y_test = train_test_split(
+                                     ~~~~~~~~~~~~~~~~^
+        X, y, test_size=0.15, random_state=42,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        stratify=df_model['canonical_role']
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/sklearn/utils/_param_validation.py", line 218, in wrapper
+    return func(*args, **kwargs)
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/sklearn/model_selection/_split.py", line 2940, in train_test_split
+    train, test = next(cv.split(X=arrays[0], y=stratify))
+                  ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/sklearn/model_selection/_split.py", line 1927, in split
+    for train, test in self._iter_indices(X, y, groups):
+                       ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/sklearn/model_selection/_split.py", line 2342, in _iter_indices
+    raise ValueError(
+    ...<4 lines>...
+    )
+ValueError: The least populated class in y has only 1 member, which is too few. The minimum number of groups for any class cannot be less than 2.
