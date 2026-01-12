@@ -1,0 +1,63 @@
+{
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "name": "jobs_comprehensive",
+    "user": "postgres",
+    "password": "",
+    "min_connections": 1,
+    "max_connections": 10
+  },
+  "sources": {
+    "enable_payroll": true,
+    "enable_h1b_visa": true,
+    "enable_job_boards": true,
+    "enable_oews": true,
+    "enable_990": true
+  },
+  "api_keys": {
+    "bls_api_key": "",
+    "usajobs_api_key": "",
+    "usajobs_email": "",
+    "socrata_app_token": ""
+  },
+  "pipeline": {
+    "batch_size": 1000,
+    "max_workers": 10,
+    "request_delay": 1.0,
+    "request_timeout": 30
+  },
+  "quality": {
+    "title_confidence_threshold": 0.7,
+    "seniority_confidence_threshold": 0.7,
+    "salary_mae_threshold": 15000,
+    "min_evidence_for_inference": 1
+  },
+  "modeling": {
+    "salary_model_type": "hierarchical_bayesian",
+    "headcount_model_type": "share_of_evidence",
+    "description_model_type": "template_plus_flavor",
+    "use_ml_title_classifier": false
+  },
+  "geographic": {
+    "primary_metros": [
+      "71650",
+      "31080",
+      "41860",
+      "16980",
+      "19100"
+    ],
+    "cost_of_living_index_source": "bls"
+  },
+  "review_queue": {
+    "enable_auto_queue": true,
+    "low_confidence_threshold": 0.5,
+    "max_queue_size": 1000
+  },
+  "logging": {
+    "level": "INFO",
+    "file": "pipeline.log",
+    "max_bytes": 10485760,
+    "backup_count": 5
+  }
+}

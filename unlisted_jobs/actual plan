@@ -1,0 +1,375 @@
+# Unlisted Jobs Database - Implementation Plan & Progress
+
+## THE GOAL
+Build a comprehensive database of ALL jobs in the US - not just open positions, but also filled/existing positions that aren't actively listed. This gives us a complete view of the labor market.
+
+## THE PROBLEM WE'RE SOLVING
+- Job boards only show 5% of jobs (the ones currently hiring)
+- 95% of jobs are filled and not listed anywhere
+- Companies want to know the full picture: who employs what roles, at what salaries
+- Candidates want to follow jobs even when they're not open
+
+---
+
+## THE BIG IDEA: Observed vs. Inferred
+
+### OBSERVED = Real, verified data
+- Actual payroll records from government
+- Visa applications (H-1B data)
+- Job postings we actually saw
+- **HIGH CONFIDENCE** (we have proof)
+
+### INFERRED = Smart guesses based on data
+- "If Boston has 72,000 software engineers total (from BLS data), and Google is a big tech company there, they probably employ some"
+- Fill in gaps where we don't have direct evidence
+- **LOWER CONFIDENCE** (educated guess)
+
+### CRITICAL RULE: Always label which is which
+- Never pretend a guess is real data
+- Every record tagged as "observed" or "inferred"
+- Builds trust and allows auditing
+
+---
+
+## THE 12-PHASE PLAN (From Your Original Document)
+
+### Phase 0: Operating Rules ✅ DONE
+- [x] Observed vs. inferred is first-class
+- [x] Archetypes (Company × City × Role × Seniority) not individual seats
+- [x] Confidence scoring built into data model
+- [x] Provenance tracking for every inference
+
+### Phase 1: Define Database Spec ✅ DONE
+**Files:** schema.sql, README.md
+- [x] Canonical output schema (job archetype table)
+- [x] Coverage metrics (by source, metro, industry)
+- [x] Quality metrics (title mapping, salary accuracy)
+- [x] Honesty metric (inferred properly labeled)
+
+### Phase 2: Source Acquisition Layer ⏳ PARTIAL
+**Files:** pipeline.py (sample), database.py
+- [x] Source registry with reliability tiers (A/B/C/D)
+- [x] Raw data ingestion envelope
+- [x] Sample payroll connector (MIT/Harvard example)
+- [ ] Real connectors (H-1B visa, state payroll, job boards)
+- [ ] Job posting lifecycle tracker
+
+### Phase 3: Identity Graph ✅ DONE
+**Files:** database.py, schema.sql
+- [x] Companies table with normalization
+- [x] Company aliases for matching
+- [x] Metro areas (CBSA-based)
+- [x] Location normalization
+
+### Phase 4: Title Normalization ✅ DONE
+**Files:** title_normalizer.py
+- [x] Canonical role ontology (SOC/O*NET aligned)
+- [x] Seniority detection (intern/entry/mid/senior/lead/manager/director/exec)
+- [x] Confidence scoring
+- [x] Human review queue for low-confidence
+- [x] Seed data for common roles
+
+### Phase 5: Evidence Model ✅ DONE (Schema)
+**Files:** schema.sql, database.py
+- [x] Evidence types and weights
+- [x] Posting lifecycle table
+- [ ] Filled vs closed classifier (not implemented yet)
+- [x] Archetype evidence tracking
+
+### Phase 6: Salary Estimation ⏳ SCHEMA READY
+**Files:** schema.sql (ready), models/salary_model.py (NOT CREATED YET)
+- [x] Compensation observations table
+- [x] OEWS macro priors table
+- [ ] Hierarchical Bayesian model (NEEDS IMPLEMENTATION)
+- [ ] Calibration on holdout data
+
+### Phase 7: Description Generation ⏳ SCHEMA READY
+**Files:** schema.sql (ready), models/description_gen.py (NOT CREATED YET)
+- [x] Role description templates table
+- [x] Industry phrase banks table
+- [ ] Template + flavor generation engine (NEEDS IMPLEMENTATION)
+
+### Phase 8: Headcount Estimation ⏳ SCHEMA READY
+**Files:** schema.sql (ready), models/headcount_model.py (NOT CREATED YET)
+- [x] OEWS employment estimates table
+- [ ] Share-of-evidence allocation model (NEEDS IMPLEMENTATION)
+- [ ] Bayesian allocation approach
+
+### Phase 9: Archetype Synthesis ✅ DONE (Basic)
+**Files:** pipeline.py, database.py
+- [x] Job archetypes table (Company × Metro × Role × Seniority)
+- [x] Observed archetype creation
+- [x] Inferred archetype creation
+- [x] Confidence scoring framework
+- [ ] Full modeling pipeline (needs Phase 6-8)
+
+### Phase 10: Confidence & Provenance ✅ DONE
+**Files:** schema.sql, database.py
+- [x] Composite confidence scores
+- [x] Confidence components (salary/headcount/existence)
+- [x] Evidence links (archetype → sources)
+- [x] Provenance tracking
+
+### Phase 11: Product Integration 📋 PLANNED
+**Status:** Not started
+- [ ] REST API for querying
+- [ ] CSV/JSON export
+- [ ] User-facing "verified" vs "estimated" labels
+
+### Phase 12: Operations ⏳ PARTIAL
+**Files:** pipeline.py, schema.sql
+- [x] Pipeline run logging
+- [x] Quality metrics schema
+- [ ] Weekly iteration cadence
+- [ ] Monitoring dashboards
+- [ ] Human review queue UI
+
+---
+
+## WHAT'S BEEN BUILT (Current Status)
+
+### ✅ COMPLETE (Production Ready)
+
+1. **Database Schema** (schema.sql)
+   - All tables defined
+   - Proper indexes
+   - Views for common queries
+   - ~800 lines of SQL
+
+2. **Database Manager** (database.py)
+   - Connection pooling
+   - Insert/update methods for all tables
+   - Company normalization
+   - ~500 lines of Python
+
+3. **Title Normalizer** (title_normalizer.py)
+   - Regex-based role detection
+   - Seniority parsing
+   - Confidence scoring
+   - ~400 lines of Python
+
+4. **Main Pipeline** (pipeline.py)
+   - End-to-end orchestrator
+   - Sample data processing
+   - Quality metrics
+   - ~450 lines of Python
+
+5. **Documentation**
+   - README.md (comprehensive guide)
+   - QUICKSTART.md (10-minute setup)
+   - example_usage.py (working examples)
+   - config.example.json (configuration template)
+
+### ⏳ NEEDS WORK (Phase 2 Development)
+
+1. **Real Data Connectors**
+   - H-1B visa API scraper
+   - State payroll downloaders
+   - Job board scrapers (Indeed, LinkedIn)
+   - ATS feeds (Greenhouse, Lever)
+
+2. **ML Models**
+   - Salary estimation (hierarchical Bayesian)
+   - Headcount allocation
+   - Description generation
+   - Filled-job classifier
+
+3. **Web Dashboard**
+   - Coverage explorer
+   - Archetype viewer
+   - Quality metrics display
+   - Human review queue interface
+
+---
+
+## DATA FLOW (How It Works)
+
+```
+Step 1: INGEST
+┌─────────────┐
+│ Raw Sources │ → Payroll files, visa data, job postings
+└─────────────┘
+       ↓
+Step 2: NORMALIZE
+┌─────────────┐
+│ Clean Data  │ → Fix company names, standardize locations,
+└─────────────┘   map titles to canonical roles
+       ↓
+Step 3: OBSERVED JOBS
+┌─────────────┐
+│  Real Data  │ → Create rows in "observed_jobs" table
+└─────────────┘   (These are VERIFIED - we saw proof)
+       ↓
+Step 4: MODEL & INFER
+┌─────────────┐
+│  Run Math   │ → Salary model, headcount model
+└─────────────┘   Fill in gaps where no direct data
+       ↓
+Step 5: ARCHETYPES
+┌─────────────┐
+│   Output    │ → Company × Metro × Role × Seniority
+└─────────────┘   Both "observed" and "inferred" types
+```
+
+---
+
+## KEY DESIGN DECISIONS
+
+### 1. Archetypes Over Individual Jobs
+**Instead of:** "John Doe, Senior Engineer at Google, $150k"
+**We store:** "Google has 10-15 Senior Engineers in Boston, median salary $150k"
+
+**Why?**
+- More privacy-friendly
+- More useful for market intelligence
+- Less data storage
+
+### 2. Distributions Not Point Estimates
+**Instead of:** "Salary: $150,000"
+**We store:** "Salary P25: $130k, P50: $150k, P75: $175k"
+
+**Why?**
+- Honest about uncertainty
+- Better risk analysis
+- Shows salary ranges
+
+### 3. Evidence-Based Confidence
+**Tier A sources** (payroll, visa) → 0.85-0.95 confidence
+**Tier B sources** (job postings) → 0.60-0.75 confidence
+**Tier C sources** (macro data) → 0.30-0.50 confidence
+
+**Why?**
+- Transparent about data quality
+- Users can filter by confidence
+- Enables auditing
+
+---
+
+## FILES IN THIS FOLDER
+
+```
+unlisted_jobs/
+├── actual plan                 ← YOU ARE HERE (this file)
+├── schema.sql                  ← Database structure (800 lines)
+├── database.py                 ← Database manager (500 lines)
+├── title_normalizer.py         ← Title → Role mapper (400 lines)
+├── pipeline.py                 ← Main orchestrator (450 lines)
+├── README.md                   ← Full documentation
+├── QUICKSTART.md               ← 10-minute setup guide
+├── IMPLEMENTATION_SUMMARY.md   ← Technical summary
+├── example_usage.py            ← Working code examples
+├── requirements.txt            ← Python packages needed
+├── config.example.json         ← Configuration template
+└── claude_creation             ← Empty (was for Claude's work)
+```
+
+---
+
+## NEXT STEPS (Priority Order)
+
+### Week 1: Real Data (HIGH PRIORITY)
+- [ ] Build H-1B visa connector
+- [ ] Build MA state payroll connector
+- [ ] Build Cambridge city payroll connector
+- [ ] Ingest 10,000+ real job records
+
+### Week 2: Salary Model (HIGH PRIORITY)
+- [ ] Implement hierarchical Bayesian model
+- [ ] Train on real compensation data
+- [ ] Validate accuracy (MAE < $15k)
+- [ ] Generate salary distributions for archetypes
+
+### Week 3: Headcount Model (MEDIUM PRIORITY)
+- [ ] Load BLS OEWS employment data
+- [ ] Implement allocation algorithm
+- [ ] Validate totals sum correctly
+- [ ] Generate headcount distributions
+
+### Week 4: Descriptions (MEDIUM PRIORITY)
+- [ ] Load O*NET job descriptions
+- [ ] Extract industry phrases from postings
+- [ ] Generate descriptions for archetypes
+- [ ] Score quality
+
+### Week 5: Dashboard (NICE TO HAVE)
+- [ ] Build web UI for browsing
+- [ ] Show observed vs inferred clearly
+- [ ] Display confidence scores
+- [ ] Enable filtering and search
+
+### Week 6: Production Deploy (FINAL)
+- [ ] Set up cloud database (AWS RDS)
+- [ ] Deploy pipeline as scheduled job
+- [ ] Set up monitoring
+- [ ] Integrate with ShortList.ai MVP
+
+---
+
+## SUCCESS METRICS
+
+### Coverage
+- **Target:** 1M+ jobs in database
+- **Current:** ~100 (sample data only)
+
+### Quality (Title Mapping)
+- **Target:** >90% mapped with confidence >0.7
+- **Current:** 100% (on tiny sample)
+
+### Quality (Salary)
+- **Target:** MAE < $15,000 on holdout
+- **Current:** Not measured (no model yet)
+
+### Honesty
+- **Target:** 100% of inferred records labeled
+- **Current:** ✅ 100% (enforced by schema)
+
+---
+
+## TECHNICAL NOTES
+
+### Database: PostgreSQL
+- Connection pooling for performance
+- Proper indexes on all foreign keys
+- JSONB columns for flexible metadata
+- Views for common queries
+
+### Python: 3.9+
+- psycopg2 for database
+- pandas for data processing
+- scipy/sklearn for ML (when implemented)
+
+### Deployment: TBD
+- Could use Docker + Kubernetes
+- Or AWS Lambda + RDS
+- Or simple cron job + EC2
+
+---
+
+## QUESTIONS & ANSWERS
+
+**Q: Why separate observed_jobs and job_archetypes tables?**
+A: Observed jobs = individual rows of evidence. Archetypes = aggregated or inferred. Keeping them separate ensures we always know what's real vs modeled.
+
+**Q: Can I mix observed and inferred in queries?**
+A: Yes! Use the `all_jobs` view or query `job_archetypes` which has both record_type='observed' and record_type='inferred'.
+
+**Q: What if I have no observed data for a company?**
+A: The archetype will be inferred from macro priors (OEWS) and industry patterns. Confidence will be low (~0.3-0.5) and provenance will show "oews_prior" as main source.
+
+**Q: How do I add a new data source?**
+A: 1) Add to `sources` table, 2) Create connector in Python, 3) Insert into `source_data_raw`, 4) Process into `observed_jobs`.
+
+---
+
+## CONTACT & HELP
+
+- Noah Hopkins (noahhopkins@mit.edu)
+- ShortList.ai Team
+- Check README.md for detailed docs
+- Check QUICKSTART.md for setup
+
+---
+
+**Last Updated:** January 12, 2026
+**Version:** 1.0 (Initial Implementation)
+**Status:** Core infrastructure complete, data connectors needed
