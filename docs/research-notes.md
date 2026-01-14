@@ -130,3 +130,17 @@ Answers questions such as:
 
 ## Referral System
 
+
+
+
+## Charlie's MA Jobs Database
+
+Has ~14% of all MA employment (517K out of ~3.7M total jobs) from public records!
+
+  This includes:
+  - Every doctor, nurse, therapist, pharmacist in MA (NPI)
+  - Every state government employee
+  - Every Boston and Cambridge city employee
+  - Federal employees in MA
+  - Nonprofit executives (MIT, Harvard, hospitals)
+
