@@ -482,7 +482,7 @@ db.insert_title_mapping_rule(
 ## Contact
 
 For questions or issues:
-- Noah Hopkins (noahhopkins@mit.edu)
+- Noah Hopkins (noahrhop@mit.edu)
 - ShortList.ai Team
 
 GitHub Issues: https://github.com/yourrepo/issues
