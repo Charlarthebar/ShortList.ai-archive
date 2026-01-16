@@ -27,3 +27,15 @@ data/ma_jobs/all_ma_jobs.json
 unlisted_jobs/data/npi_ma_healthcare.csv
 unlisted_jobs/data/npi_bulk_national.csv
 unlisted_jobs/data/*.csv
+
+# Virtual environments
+venv/
+.venv/
+
+# Model/data files
+*.pkl
+*.db
+
+# API keys
+apikeys.txt
+**/apikeys.txt

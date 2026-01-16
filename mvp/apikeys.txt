@@ -1,4 +1,0 @@
-ailUSAJOBS: Y45Z7Gortr/kTzQhJgxHjDoY16NrzYFTY4IXgMbxs0o= email: charlielai3@gmail.com
-Yelp: 
-Adunza: ADZUNA_APP_ID: str = "516145e7"
-ADZUNA_APP_KEY: str = "34e6f3959d58461538354d674d48b881"
