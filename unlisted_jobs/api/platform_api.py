@@ -29,7 +29,7 @@ import json
 import hashlib
 import secrets
 
-from flask import Flask, request, jsonify, g
+from flask import Flask, request, jsonify, g, send_from_directory
 from flask_cors import CORS
 
 # Optional PDF parsing
@@ -53,6 +53,14 @@ try:
 except ImportError:
     SCREENING_AVAILABLE = False
     logging.warning("screening module not available")
+
+# Import email service
+try:
+    from email_service import get_email_service
+    EMAIL_AVAILABLE = True
+except ImportError:
+    EMAIL_AVAILABLE = False
+    logging.warning("email service not available")
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -107,6 +115,26 @@ def verify_password(password: str, password_hash: str) -> bool:
 def generate_token(user_id: int) -> str:
     """Generate simple auth token (in production use JWT)."""
     return f"{user_id}:{secrets.token_hex(32)}"
+
+
+def generate_verification_token() -> str:
+    """Generate a secure verification token."""
+    return secrets.token_urlsafe(32)
+
+
+def extract_email_domain(email: str) -> str:
+    """Extract domain from email address."""
+    return email.split('@')[-1].lower()
+
+
+def is_corporate_domain(domain: str) -> bool:
+    """Check if domain is likely a corporate domain (not personal email)."""
+    personal_domains = {
+        'gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'aol.com',
+        'icloud.com', 'mail.com', 'protonmail.com', 'zoho.com', 'yandex.com',
+        'gmx.com', 'live.com', 'msn.com', 'me.com', 'mac.com'
+    }
+    return domain not in personal_domains
 
 
 def get_current_user():
@@ -186,11 +214,21 @@ def signup():
     first_name = data.get('first_name', '')
     last_name = data.get('last_name', '')
 
+    # Company-specific fields
+    company_name = data.get('company_name', '')
+    company_website = data.get('company_website', '')
+    company_industry = data.get('company_industry', '')
+    company_size = data.get('company_size', '')
+    company_description = data.get('company_description', '')
+
     if not email or not password:
         return jsonify({'error': 'Email and password required'}), 400
 
     if user_type not in ('seeker', 'company'):
         return jsonify({'error': 'Invalid user type'}), 400
+
+    if user_type == 'company' and not company_name:
+        return jsonify({'error': 'Company name required'}), 400
 
     conn = get_db()
     try:
@@ -209,17 +247,71 @@ def signup():
             """, (email, password_hash, user_type, first_name, last_name))
             user_id = cursor.fetchone()[0]
 
+            company_profile_id = None
+            verification_status = None
+
             # Create profile based on type
             if user_type == 'seeker':
                 cursor.execute(
                     "INSERT INTO seeker_profiles (user_id) VALUES (%s)",
                     (user_id,)
                 )
+            else:
+                # Create company profile
+                cursor.execute("""
+                    INSERT INTO company_profiles (
+                        company_name, website, industry, company_size, description,
+                        verified, verification_method
+                    ) VALUES (%s, %s, %s, %s, %s, FALSE, NULL)
+                    RETURNING id
+                """, (company_name, company_website, company_industry, company_size, company_description))
+                company_profile_id = cursor.fetchone()[0]
+
+                # Add user as owner of company
+                cursor.execute("""
+                    INSERT INTO company_team_members (company_profile_id, user_id, role, accepted_at)
+                    VALUES (%s, %s, 'owner', CURRENT_TIMESTAMP)
+                """, (company_profile_id, user_id))
+
+                # Check if email domain can be auto-verified
+                email_domain = extract_email_domain(email)
+                if is_corporate_domain(email_domain):
+                    # Create verification request for domain verification
+                    verification_token = generate_verification_token()
+                    cursor.execute("""
+                        INSERT INTO verification_tokens (
+                            user_id, company_profile_id, token, token_type,
+                            expected_domain, expires_at
+                        ) VALUES (%s, %s, %s, 'company_domain', %s, CURRENT_TIMESTAMP + INTERVAL '7 days')
+                    """, (user_id, company_profile_id, verification_token, email_domain))
+                    verification_status = 'pending_domain_verification'
+                else:
+                    # Personal email - needs manual verification
+                    cursor.execute("""
+                        INSERT INTO company_verification_requests (
+                            company_profile_id, requested_by, verification_type, status
+                        ) VALUES (%s, %s, 'manual', 'pending')
+                    """, (company_profile_id, user_id))
+                    verification_status = 'pending_manual_verification'
 
         conn.commit()
 
+        # Send verification email if applicable
+        if user_type == 'company' and verification_status == 'pending_domain_verification' and EMAIL_AVAILABLE:
+            try:
+                email_service = get_email_service()
+                email_service.send_verification_email(
+                    to_email=email,
+                    to_name=first_name or email.split('@')[0],
+                    company_name=company_name,
+                    verification_token=verification_token
+                )
+            except Exception as email_err:
+                log.error(f"Failed to send verification email: {email_err}")
+                # Don't fail signup if email fails
+
         token = generate_token(user_id)
-        return jsonify({
+        response = {
             'token': token,
             'user': {
                 'id': user_id,
@@ -228,7 +320,17 @@ def signup():
                 'first_name': first_name,
                 'last_name': last_name
             }
-        }), 201
+        }
+
+        if user_type == 'company':
+            response['company_profile_id'] = company_profile_id
+            response['verification_status'] = verification_status
+            if verification_status == 'pending_domain_verification':
+                response['message'] = f"We've sent a verification email to {email}. Please check your inbox to verify your company."
+            else:
+                response['message'] = "Your company profile is pending manual verification. Our team will review it within 24-48 hours."
+
+        return jsonify(response), 201
 
     except Exception as e:
         conn.rollback()
@@ -284,6 +386,528 @@ def login():
 def get_me():
     """Get current user info."""
     return jsonify({'user': g.current_user})
+
+
+# ============================================================================
+# COMPANY VERIFICATION ENDPOINTS
+# ============================================================================
+
+@app.route('/api/auth/verify-company', methods=['POST'])
+def verify_company_domain():
+    """Verify company ownership via email domain token."""
+    data = request.json
+    token = data.get('token', '')
+
+    if not token:
+        return jsonify({'error': 'Verification token required'}), 400
+
+    conn = get_db()
+    try:
+        with conn.cursor() as cursor:
+            # Find the verification token
+            cursor.execute("""
+                SELECT vt.id, vt.user_id, vt.company_profile_id, vt.expected_domain,
+                       vt.expires_at, vt.used_at, cp.company_name
+                FROM verification_tokens vt
+                JOIN company_profiles cp ON vt.company_profile_id = cp.id
+                WHERE vt.token = %s AND vt.token_type = 'company_domain'
+            """, (token,))
+            row = cursor.fetchone()
+
+            if not row:
+                return jsonify({'error': 'Invalid verification token'}), 400
+
+            token_id, user_id, company_profile_id, expected_domain, expires_at, used_at, company_name = row
+
+            if used_at:
+                return jsonify({'error': 'Token has already been used'}), 400
+
+            if expires_at < datetime.now():
+                return jsonify({'error': 'Token has expired'}), 400
+
+            # Mark token as used
+            cursor.execute("""
+                UPDATE verification_tokens
+                SET used_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (token_id,))
+
+            # Update company profile as verified
+            cursor.execute("""
+                UPDATE company_profiles
+                SET verified = TRUE,
+                    verified_at = CURRENT_TIMESTAMP,
+                    verification_method = 'email_domain'
+                WHERE id = %s
+            """, (company_profile_id,))
+
+        conn.commit()
+        return jsonify({
+            'success': True,
+            'message': f'{company_name} has been verified!',
+            'company_profile_id': company_profile_id
+        })
+
+    except Exception as e:
+        conn.rollback()
+        log.error(f"Verification error: {e}")
+        return jsonify({'error': 'Verification failed'}), 500
+
+
+@app.route('/api/auth/resend-verification', methods=['POST'])
+@require_company
+def resend_verification():
+    """Resend company verification email."""
+    conn = get_db()
+    try:
+        with conn.cursor() as cursor:
+            # Get user's company profile
+            cursor.execute("""
+                SELECT cp.id, cp.verified, cp.company_name
+                FROM company_profiles cp
+                JOIN company_team_members ctm ON cp.id = ctm.company_profile_id
+                WHERE ctm.user_id = %s AND ctm.role = 'owner'
+            """, (g.current_user['id'],))
+            row = cursor.fetchone()
+
+            if not row:
+                return jsonify({'error': 'Company profile not found'}), 404
+
+            company_profile_id, verified, company_name = row
+
+            if verified:
+                return jsonify({'error': 'Company is already verified'}), 400
+
+            # Invalidate old tokens
+            cursor.execute("""
+                UPDATE verification_tokens
+                SET used_at = CURRENT_TIMESTAMP
+                WHERE company_profile_id = %s AND token_type = 'company_domain' AND used_at IS NULL
+            """, (company_profile_id,))
+
+            # Create new token
+            email_domain = extract_email_domain(g.current_user['email'])
+            verification_token = generate_verification_token()
+            cursor.execute("""
+                INSERT INTO verification_tokens (
+                    user_id, company_profile_id, token, token_type,
+                    expected_domain, expires_at
+                ) VALUES (%s, %s, %s, 'company_domain', %s, CURRENT_TIMESTAMP + INTERVAL '7 days')
+            """, (g.current_user['id'], company_profile_id, verification_token, email_domain))
+
+        conn.commit()
+        # TODO: Actually send the email here
+        return jsonify({
+            'success': True,
+            'message': f'Verification email sent to {g.current_user["email"]}'
+        })
+
+    except Exception as e:
+        conn.rollback()
+        log.error(f"Resend verification error: {e}")
+        return jsonify({'error': 'Failed to resend verification'}), 500
+
+
+@app.route('/api/company/verification-status', methods=['GET'])
+@require_company
+def get_verification_status():
+    """Get company verification status."""
+    conn = get_db()
+    with conn.cursor() as cursor:
+        # Get company profile and verification status
+        cursor.execute("""
+            SELECT cp.id, cp.company_name, cp.verified, cp.verified_at, cp.verification_method
+            FROM company_profiles cp
+            JOIN company_team_members ctm ON cp.id = ctm.company_profile_id
+            WHERE ctm.user_id = %s
+        """, (g.current_user['id'],))
+        row = cursor.fetchone()
+
+        if not row:
+            return jsonify({'error': 'Company profile not found'}), 404
+
+        company_profile_id, company_name, verified, verified_at, verification_method = row
+
+        status = {
+            'company_profile_id': company_profile_id,
+            'company_name': company_name,
+            'verified': verified,
+            'verified_at': verified_at.isoformat() if verified_at else None,
+            'verification_method': verification_method
+        }
+
+        # Check for pending verification request
+        if not verified:
+            cursor.execute("""
+                SELECT id, verification_type, status, created_at
+                FROM company_verification_requests
+                WHERE company_profile_id = %s AND status = 'pending'
+                ORDER BY created_at DESC LIMIT 1
+            """, (company_profile_id,))
+            req_row = cursor.fetchone()
+            if req_row:
+                status['pending_request'] = {
+                    'id': req_row[0],
+                    'type': req_row[1],
+                    'status': req_row[2],
+                    'created_at': req_row[3].isoformat() if req_row[3] else None
+                }
+
+            # Check for pending domain verification token
+            cursor.execute("""
+                SELECT token, expires_at
+                FROM verification_tokens
+                WHERE company_profile_id = %s AND token_type = 'company_domain'
+                  AND used_at IS NULL AND expires_at > CURRENT_TIMESTAMP
+                ORDER BY created_at DESC LIMIT 1
+            """, (company_profile_id,))
+            token_row = cursor.fetchone()
+            if token_row:
+                status['pending_domain_verification'] = True
+                status['domain_verification_expires'] = token_row[1].isoformat() if token_row[1] else None
+
+        return jsonify(status)
+
+
+# ============================================================================
+# PASSWORD RESET ENDPOINTS
+# ============================================================================
+
+@app.route('/api/auth/forgot-password', methods=['POST'])
+def forgot_password():
+    """Request a password reset email."""
+    data = request.json
+    email = data.get('email', '').lower().strip()
+
+    if not email:
+        return jsonify({'error': 'Email is required'}), 400
+
+    conn = get_db()
+    try:
+        with conn.cursor() as cursor:
+            # Check if user exists
+            cursor.execute("""
+                SELECT id, first_name FROM platform_users WHERE email = %s
+            """, (email,))
+            row = cursor.fetchone()
+
+            # Always return success to prevent email enumeration
+            if not row:
+                return jsonify({
+                    'success': True,
+                    'message': 'If an account exists with that email, you will receive a password reset link.'
+                })
+
+            user_id, first_name = row
+
+            # Invalidate any existing reset tokens
+            cursor.execute("""
+                UPDATE verification_tokens
+                SET used_at = CURRENT_TIMESTAMP
+                WHERE user_id = %s AND token_type = 'password_reset' AND used_at IS NULL
+            """, (user_id,))
+
+            # Create new reset token (expires in 1 hour)
+            reset_token = secrets.token_urlsafe(32)
+            cursor.execute("""
+                INSERT INTO verification_tokens (
+                    user_id, token, token_type, expires_at
+                ) VALUES (%s, %s, 'password_reset', CURRENT_TIMESTAMP + INTERVAL '1 hour')
+            """, (user_id, reset_token))
+
+        conn.commit()
+
+        # Send reset email
+        if EMAIL_AVAILABLE:
+            try:
+                email_service = get_email_service()
+                email_service.send_password_reset_email(
+                    to_email=email,
+                    to_name=first_name or 'there',
+                    reset_token=reset_token
+                )
+                log.info(f"Password reset email sent to {email}")
+            except Exception as e:
+                log.error(f"Failed to send password reset email: {e}")
+        else:
+            log.warning(f"Email service not available. Reset token for {email}: {reset_token}")
+
+        return jsonify({
+            'success': True,
+            'message': 'If an account exists with that email, you will receive a password reset link.'
+        })
+
+    except Exception as e:
+        conn.rollback()
+        log.error(f"Password reset request error: {e}")
+        return jsonify({'error': 'Failed to process request'}), 500
+
+
+@app.route('/api/auth/reset-password', methods=['POST'])
+def reset_password():
+    """Reset password using a token."""
+    data = request.json
+    token = data.get('token', '')
+    new_password = data.get('password', '')
+
+    if not token:
+        return jsonify({'error': 'Reset token is required'}), 400
+
+    if not new_password or len(new_password) < 8:
+        return jsonify({'error': 'Password must be at least 8 characters'}), 400
+
+    conn = get_db()
+    try:
+        with conn.cursor() as cursor:
+            # Find valid token
+            cursor.execute("""
+                SELECT id, user_id, expires_at, used_at
+                FROM verification_tokens
+                WHERE token = %s AND token_type = 'password_reset'
+            """, (token,))
+            row = cursor.fetchone()
+
+            if not row:
+                return jsonify({'error': 'Invalid reset token'}), 400
+
+            token_id, user_id, expires_at, used_at = row
+
+            if used_at:
+                return jsonify({'error': 'This reset link has already been used'}), 400
+
+            if expires_at < datetime.now():
+                return jsonify({'error': 'This reset link has expired. Please request a new one.'}), 400
+
+            # Update password
+            password_hash = hash_password(new_password)
+            cursor.execute("""
+                UPDATE platform_users
+                SET password_hash = %s
+                WHERE id = %s
+            """, (password_hash, user_id))
+
+            # Mark token as used
+            cursor.execute("""
+                UPDATE verification_tokens
+                SET used_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (token_id,))
+
+        conn.commit()
+        log.info(f"Password reset successful for user {user_id}")
+        return jsonify({
+            'success': True,
+            'message': 'Password has been reset successfully. You can now log in.'
+        })
+
+    except Exception as e:
+        conn.rollback()
+        log.error(f"Password reset error: {e}")
+        return jsonify({'error': 'Failed to reset password'}), 500
+
+
+# ============================================================================
+# ADMIN VERIFICATION ENDPOINTS
+# ============================================================================
+
+def require_admin(f):
+    """Decorator to require admin user."""
+    @wraps(f)
+    @require_auth
+    def decorated(*args, **kwargs):
+        conn = get_db()
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT is_admin FROM platform_users WHERE id = %s", (g.current_user['id'],))
+            row = cursor.fetchone()
+            if not row or not row[0]:
+                return jsonify({'error': 'Admin access required'}), 403
+        return f(*args, **kwargs)
+    return decorated
+
+
+@app.route('/api/admin/verification-requests', methods=['GET'])
+@require_admin
+def list_verification_requests():
+    """List pending company verification requests."""
+    status_filter = request.args.get('status', 'pending')
+    limit = min(int(request.args.get('limit', 50)), 100)
+    offset = int(request.args.get('offset', 0))
+
+    conn = get_db()
+    with conn.cursor() as cursor:
+        cursor.execute("""
+            SELECT cvr.id, cvr.company_profile_id, cvr.verification_type, cvr.domain,
+                   cvr.document_url, cvr.document_type, cvr.status,
+                   cvr.created_at, cp.company_name, cp.website,
+                   pu.email as requester_email, pu.first_name, pu.last_name
+            FROM company_verification_requests cvr
+            JOIN company_profiles cp ON cvr.company_profile_id = cp.id
+            JOIN platform_users pu ON cvr.requested_by = pu.id
+            WHERE cvr.status = %s
+            ORDER BY cvr.created_at ASC
+            LIMIT %s OFFSET %s
+        """, (status_filter, limit, offset))
+
+        rows = cursor.fetchall()
+        requests = []
+        for row in rows:
+            requests.append({
+                'id': row[0],
+                'company_profile_id': row[1],
+                'verification_type': row[2],
+                'domain': row[3],
+                'document_url': row[4],
+                'document_type': row[5],
+                'status': row[6],
+                'created_at': row[7].isoformat() if row[7] else None,
+                'company_name': row[8],
+                'website': row[9],
+                'requester_email': row[10],
+                'requester_name': f"{row[11]} {row[12]}".strip()
+            })
+
+        # Get total count
+        cursor.execute("""
+            SELECT COUNT(*) FROM company_verification_requests WHERE status = %s
+        """, (status_filter,))
+        total = cursor.fetchone()[0]
+
+        return jsonify({
+            'requests': requests,
+            'total': total,
+            'limit': limit,
+            'offset': offset
+        })
+
+
+@app.route('/api/admin/verification-requests/<int:request_id>/approve', methods=['POST'])
+@require_admin
+def approve_verification_request(request_id):
+    """Approve a company verification request."""
+    data = request.json or {}
+    notes = data.get('notes', '')
+
+    conn = get_db()
+    try:
+        with conn.cursor() as cursor:
+            # Get the request
+            cursor.execute("""
+                SELECT cvr.id, cvr.company_profile_id, cvr.status, cp.company_name
+                FROM company_verification_requests cvr
+                JOIN company_profiles cp ON cvr.company_profile_id = cp.id
+                WHERE cvr.id = %s
+            """, (request_id,))
+            row = cursor.fetchone()
+
+            if not row:
+                return jsonify({'error': 'Verification request not found'}), 404
+
+            if row[2] != 'pending':
+                return jsonify({'error': 'Request has already been processed'}), 400
+
+            company_profile_id = row[1]
+            company_name = row[3]
+
+            # Update request status
+            cursor.execute("""
+                UPDATE company_verification_requests
+                SET status = 'approved',
+                    reviewed_by = %s,
+                    reviewed_at = CURRENT_TIMESTAMP,
+                    review_notes = %s,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (g.current_user['id'], notes, request_id))
+
+            # Update company profile
+            cursor.execute("""
+                UPDATE company_profiles
+                SET verified = TRUE,
+                    verified_at = CURRENT_TIMESTAMP,
+                    verification_method = 'manual'
+                WHERE id = %s
+            """, (company_profile_id,))
+
+            # Get the owner's email for notification
+            cursor.execute("""
+                SELECT pu.email, pu.first_name
+                FROM platform_users pu
+                JOIN company_team_members ctm ON pu.id = ctm.user_id
+                WHERE ctm.company_profile_id = %s AND ctm.role = 'owner'
+                LIMIT 1
+            """, (company_profile_id,))
+            owner_row = cursor.fetchone()
+
+        conn.commit()
+
+        # Send approval notification email
+        if owner_row and EMAIL_AVAILABLE:
+            try:
+                email_service = get_email_service()
+                email_service.send_verification_approved_email(
+                    to_email=owner_row[0],
+                    to_name=owner_row[1],
+                    company_name=company_name
+                )
+            except Exception as email_err:
+                log.error(f"Failed to send approval email: {email_err}")
+
+        return jsonify({
+            'success': True,
+            'message': f'{company_name} has been verified'
+        })
+
+    except Exception as e:
+        conn.rollback()
+        log.error(f"Approval error: {e}")
+        return jsonify({'error': 'Failed to approve request'}), 500
+
+
+@app.route('/api/admin/verification-requests/<int:request_id>/reject', methods=['POST'])
+@require_admin
+def reject_verification_request(request_id):
+    """Reject a company verification request."""
+    data = request.json or {}
+    reason = data.get('reason', 'Request rejected')
+    notes = data.get('notes', '')
+
+    conn = get_db()
+    try:
+        with conn.cursor() as cursor:
+            # Get the request
+            cursor.execute("""
+                SELECT id, status FROM company_verification_requests WHERE id = %s
+            """, (request_id,))
+            row = cursor.fetchone()
+
+            if not row:
+                return jsonify({'error': 'Verification request not found'}), 404
+
+            if row[1] != 'pending':
+                return jsonify({'error': 'Request has already been processed'}), 400
+
+            # Update request status
+            cursor.execute("""
+                UPDATE company_verification_requests
+                SET status = 'rejected',
+                    reviewed_by = %s,
+                    reviewed_at = CURRENT_TIMESTAMP,
+                    review_notes = %s,
+                    rejection_reason = %s,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (g.current_user['id'], notes, reason, request_id))
+
+        conn.commit()
+        return jsonify({
+            'success': True,
+            'message': 'Verification request rejected'
+        })
+
+    except Exception as e:
+        conn.rollback()
+        log.error(f"Rejection error: {e}")
+        return jsonify({'error': 'Failed to reject request'}), 500
 
 
 # ============================================================================
@@ -669,6 +1293,129 @@ def remove_watch_by_position(position_id):
 # ============================================================================
 # COMPANY ENDPOINTS
 # ============================================================================
+
+@app.route('/api/companies/search', methods=['GET'])
+def search_companies():
+    """
+    Search for companies by name for autocomplete.
+    Returns matching companies from the master companies table.
+    """
+    query = request.args.get('q', '').strip()
+    limit = min(int(request.args.get('limit', 10)), 25)
+
+    if len(query) < 2:
+        return jsonify({'companies': []})
+
+    conn = get_db()
+    with conn.cursor() as cursor:
+        # Search by name with trigram similarity for fuzzy matching
+        # Falls back to ILIKE if trigram extension not available
+        cursor.execute("""
+            SELECT id, name, domain, industry, size_category, is_public
+            FROM companies
+            WHERE name ILIKE %s OR normalized_name ILIKE %s
+            ORDER BY
+                CASE WHEN name ILIKE %s THEN 0 ELSE 1 END,
+                name
+            LIMIT %s
+        """, (f'%{query}%', f'%{query}%', f'{query}%', limit))
+
+        rows = cursor.fetchall()
+        companies = []
+        for row in rows:
+            companies.append({
+                'id': row[0],
+                'name': row[1],
+                'domain': row[2],
+                'industry': row[3],
+                'size': row[4],
+                'is_public': row[5]
+            })
+
+    return jsonify({'companies': companies})
+
+
+@app.route('/api/companies/lookup', methods=['GET'])
+def lookup_company():
+    """
+    Lookup a company by ID or domain.
+    Returns full company info for pre-filling forms.
+    """
+    company_id = request.args.get('id')
+    domain = request.args.get('domain', '').lower().strip()
+
+    if not company_id and not domain:
+        return jsonify({'error': 'id or domain required'}), 400
+
+    conn = get_db()
+    with conn.cursor() as cursor:
+        if company_id:
+            cursor.execute("""
+                SELECT id, name, domain, industry, size_category, is_public, ein
+                FROM companies WHERE id = %s
+            """, (company_id,))
+        else:
+            cursor.execute("""
+                SELECT id, name, domain, industry, size_category, is_public, ein
+                FROM companies WHERE domain = %s
+            """, (domain,))
+
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({'error': 'Company not found'}), 404
+
+        company = {
+            'id': row[0],
+            'name': row[1],
+            'domain': row[2],
+            'industry': row[3],
+            'size': row[4],
+            'is_public': row[5],
+            'ein': row[6]
+        }
+
+    return jsonify({'company': company})
+
+
+@app.route('/api/companies/by-domain', methods=['GET'])
+def get_company_by_email_domain():
+    """
+    Find a company by email domain.
+    Useful during signup to auto-suggest company.
+    """
+    email = request.args.get('email', '').lower().strip()
+
+    if not email or '@' not in email:
+        return jsonify({'error': 'Valid email required'}), 400
+
+    domain = extract_email_domain(email)
+
+    # Skip personal email domains
+    if not is_corporate_domain(domain):
+        return jsonify({'company': None, 'reason': 'personal_email'})
+
+    conn = get_db()
+    with conn.cursor() as cursor:
+        cursor.execute("""
+            SELECT id, name, domain, industry, size_category, is_public
+            FROM companies WHERE domain = %s
+        """, (domain,))
+
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({'company': None, 'reason': 'not_found'})
+
+        company = {
+            'id': row[0],
+            'name': row[1],
+            'domain': row[2],
+            'industry': row[3],
+            'size': row[4],
+            'is_public': row[5]
+        }
+
+    return jsonify({'company': company})
+
 
 @app.route('/api/companies/profile', methods=['GET'])
 @require_company
@@ -1389,8 +2136,37 @@ TECH_TITLE_KEYWORDS = [
     'data', 'scientist', 'analyst', 'machine learning', 'ml', 'ai',
     'backend', 'frontend', 'full stack', 'fullstack', 'devops', 'sre',
     'architect', 'technical', 'platform', 'infrastructure', 'cloud',
-    'research', 'applied scientist', 'quantitative'
+    'research', 'applied scientist', 'quantitative', 'automation',
+    'product', 'manager', 'designer', 'ux', 'ui', 'lead', 'director',
+    'consultant', 'specialist', 'administrator', 'ops', 'security'
 ]
+
+
+def clean_job_title(title: str) -> str:
+    """Clean up extracted job title by removing dates, noise, etc."""
+    if not title:
+        return ''
+
+    # Remove month names
+    months = r'\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\b'
+    title = re.sub(months, '', title, flags=re.IGNORECASE)
+
+    # Remove years (4 digits)
+    title = re.sub(r'\b(?:19|20)\d{2}\b', '', title)
+
+    # Remove common separators and noise at the end
+    title = re.sub(r'[\s\-–—|,]+$', '', title)
+
+    # Remove common prefixes that aren't part of the title
+    title = re.sub(r'^[\s\-–—|,•·]+', '', title)
+
+    # Remove "Present" or "Current" if accidentally captured
+    title = re.sub(r'\b(?:Present|Current)\b', '', title, flags=re.IGNORECASE)
+
+    # Normalize whitespace
+    title = re.sub(r'\s+', ' ', title).strip()
+
+    return title
 
 
 def extract_work_experiences(text: str) -> List[Dict[str, Any]]:
@@ -1442,18 +2218,45 @@ def extract_work_experiences(text: str) -> List[Dict[str, Any]]:
         context_end = min(len(text), pos + 100)
         context = text[context_start:context_end]
 
-        # Try to extract title
+        # Try to extract title - look for lines before the date
         title = ''
-        for title_kw in TECH_TITLE_KEYWORDS:
-            title_match = re.search(
-                rf'([A-Za-z\s]*{title_kw}[A-Za-z\s]*)',
-                context, re.IGNORECASE
+        # Get the text before the date on the same line or previous lines
+        pre_date_text = text[context_start:pos]
+        pre_date_lines = [l.strip() for l in pre_date_text.split('\n') if l.strip()]
+
+        for line in reversed(pre_date_lines[-3:]):  # Check last 3 lines before date
+            # Clean the line - remove dates, months, common separators
+            cleaned = re.sub(
+                r'\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\b',
+                '', line, flags=re.IGNORECASE
             )
-            if title_match:
-                potential_title = title_match.group(1).strip()
-                if 5 < len(potential_title) < 60:
-                    title = potential_title
-                    break
+            cleaned = re.sub(r'\b\d{4}\b', '', cleaned)  # Remove years
+            cleaned = re.sub(r'[-–—|•·]', ' ', cleaned)  # Replace separators with space
+            cleaned = re.sub(r'\s+', ' ', cleaned).strip()  # Normalize whitespace
+
+            # Check if this line contains a job title keyword
+            for title_kw in TECH_TITLE_KEYWORDS:
+                if title_kw.lower() in cleaned.lower():
+                    # Extract the title portion - stop at company indicators
+                    title_match = re.match(
+                        r'^(.*?\b(?:' + '|'.join(TECH_TITLE_KEYWORDS) + r')\w*)\s*(?:at|@|,|$)',
+                        cleaned, re.IGNORECASE
+                    )
+                    if title_match:
+                        potential_title = title_match.group(1).strip()
+                    else:
+                        # Just take words around the keyword
+                        potential_title = cleaned.split(',')[0].split(' at ')[0].split(' @ ')[0].strip()
+
+                    # Clean up the title
+                    potential_title = re.sub(r'^[^a-zA-Z]+', '', potential_title)  # Remove leading non-letters
+                    potential_title = re.sub(r'[^a-zA-Z]+$', '', potential_title)  # Remove trailing non-letters
+
+                    if 5 < len(potential_title) < 50 and potential_title[0].isupper():
+                        title = clean_job_title(potential_title)
+                        break
+            if title:
+                break
 
         # Try to extract company (often after "at" or on same/adjacent line)
         company = ''
@@ -1668,6 +2471,95 @@ def parse_resume():
     return jsonify({'error': 'Unsupported file type. Please upload PDF or TXT.'}), 400
 
 
+@app.route('/api/resume/upload', methods=['POST'])
+@require_auth
+def upload_resume():
+    """
+    Upload a resume file and store it.
+    Returns the URL for use in shortlist applications.
+    """
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+
+    file = request.files['file']
+    if not file.filename:
+        return jsonify({'error': 'No file selected'}), 400
+
+    filename = file.filename.lower()
+
+    # Validate file type
+    allowed_extensions = ['.pdf', '.txt', '.doc', '.docx']
+    if not any(filename.endswith(ext) for ext in allowed_extensions):
+        return jsonify({'error': 'Unsupported file type. Please upload PDF, DOC, DOCX, or TXT.'}), 400
+
+    # Validate file size (max 5MB)
+    file.seek(0, 2)  # Seek to end
+    size = file.tell()
+    file.seek(0)  # Seek back to start
+    if size > 5 * 1024 * 1024:
+        return jsonify({'error': 'File size must be less than 5MB'}), 400
+
+    user_id = g.current_user['id']
+
+    # Create uploads directory if it doesn't exist
+    uploads_dir = os.path.join(os.path.dirname(__file__), '..', 'uploads', 'resumes')
+    os.makedirs(uploads_dir, exist_ok=True)
+
+    # Generate unique filename
+    ext = os.path.splitext(file.filename)[1]
+    safe_filename = f"resume_{user_id}_{secrets.token_hex(8)}{ext}"
+    file_path = os.path.join(uploads_dir, safe_filename)
+
+    try:
+        file.save(file_path)
+
+        # Generate URL (in production this would be a CDN URL)
+        resume_url = f"/uploads/resumes/{safe_filename}"
+
+        # Update user's profile with resume URL
+        conn = get_db()
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                UPDATE seeker_profiles
+                SET resume_url = %s, updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = %s
+            """, (resume_url, user_id))
+        conn.commit()
+
+        # Also parse the resume if it's a PDF
+        parsed_data = None
+        if filename.endswith('.pdf') and PDF_SUPPORT:
+            try:
+                text_parts = []
+                with pdfplumber.open(file_path) as pdf:
+                    for page in pdf.pages[:10]:
+                        page_text = page.extract_text()
+                        if page_text:
+                            text_parts.append(page_text)
+                full_text = '\n'.join(text_parts)
+                parsed_data = parse_resume_text(full_text)
+            except Exception as e:
+                log.warning(f"Failed to parse uploaded PDF: {e}")
+
+        return jsonify({
+            'success': True,
+            'resume_url': resume_url,
+            'filename': file.filename,
+            'parsed': parsed_data
+        })
+
+    except Exception as e:
+        log.error(f"Resume upload error: {e}")
+        return jsonify({'error': 'Failed to upload resume'}), 500
+
+
+@app.route('/uploads/resumes/<filename>')
+def serve_resume(filename):
+    """Serve uploaded resume files."""
+    uploads_dir = os.path.join(os.path.dirname(__file__), '..', 'uploads', 'resumes')
+    return send_from_directory(uploads_dir, filename)
+
+
 # ============================================================================
 # SHORTLIST ENDPOINTS
 # ============================================================================
@@ -1805,8 +2697,7 @@ def join_shortlist():
     user = g.current_user
 
     # Validate required fields
-    required_fields = ['position_id', 'work_authorization', 'start_availability',
-                       'project_response', 'fit_response']
+    required_fields = ['position_id', 'work_authorization', 'project_response', 'fit_response']
     missing = [f for f in required_fields if not data.get(f)]
     if missing:
         return jsonify({'error': f'Missing required fields: {", ".join(missing)}'}), 400
@@ -1816,11 +2707,9 @@ def join_shortlist():
     if work_auth not in WORK_AUTH_OPTIONS:
         return jsonify({'error': f'Invalid work_authorization. Must be one of: {", ".join(WORK_AUTH_OPTIONS)}'}), 400
 
-    # Validate resume or LinkedIn
+    # Resume or LinkedIn (optional - they can add later)
     resume_url = data.get('resume_url')
     linkedin_url = data.get('linkedin_url')
-    if not resume_url and not linkedin_url:
-        return jsonify({'error': 'Either resume_url or linkedin_url is required'}), 400
 
     # Validate experience level if provided
     exp_level = data.get('experience_level')

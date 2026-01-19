@@ -98,7 +98,7 @@ def screen_application(
         return ScreeningResult(passed=False, fail_reason=fail_reason)
 
     # Step B: AI ranking (only for candidates who pass must-haves)
-    if run_ai_ranking and OPENAI_AVAILABLE:
+    if run_ai_ranking:
         try:
             ai_score, ai_strengths, ai_concern = rank_with_ai(
                 application, position, role_config
@@ -200,6 +200,126 @@ def is_work_auth_compatible(candidate_auth: str, allowed_auths: List[str]) -> bo
     return False
 
 
+def calculate_fallback_score(
+    application: Dict[str, Any],
+    position: Dict[str, Any],
+    role_config: Optional[Dict[str, Any]]
+) -> Tuple[int, List[str], str]:
+    """
+    Calculate a score based on objective criteria when AI is unavailable.
+
+    This provides a reasonable ranking based on:
+    - Application completeness
+    - Experience level match
+    - Work authorization strength
+    - Response quality (length/detail)
+
+    Returns:
+        Tuple of (score: int 0-100, strengths: list, concern: str)
+    """
+    score = 70  # Base score for passing must-haves
+    strengths = []
+    concerns = []
+
+    # Experience level match (0-10 points)
+    candidate_level = application.get('experience_level')
+    position_level = position.get('experience_level')
+    if candidate_level and position_level:
+        if candidate_level == position_level:
+            score += 10
+            strengths.append(f"Experience level ({candidate_level}) matches role requirements")
+        elif candidate_level in EXPERIENCE_LEVEL_ORDER and position_level in EXPERIENCE_LEVEL_ORDER:
+            cand_idx = EXPERIENCE_LEVEL_ORDER.index(candidate_level)
+            pos_idx = EXPERIENCE_LEVEL_ORDER.index(position_level)
+            if cand_idx > pos_idx:
+                score += 5  # Over-qualified
+                strengths.append(f"Candidate has {candidate_level} experience (above {position_level})")
+            else:
+                concerns.append(f"Experience level ({candidate_level}) is below target ({position_level})")
+
+    # Work authorization strength (0-5 points)
+    work_auth = application.get('work_authorization')
+    if work_auth:
+        if work_auth == 'us_citizen':
+            score += 5
+            strengths.append("US citizen - no visa constraints")
+        elif work_auth == 'permanent_resident':
+            score += 4
+            strengths.append("Permanent resident - stable work authorization")
+        elif work_auth in ['f1_opt', 'f1_cpt']:
+            score += 2
+            concerns.append("May require H-1B sponsorship in the future")
+        elif work_auth == 'needs_sponsorship':
+            concerns.append("Requires visa sponsorship")
+
+    # Project response quality (0-8 points)
+    project_response = application.get('project_response', '')
+    if project_response:
+        word_count = len(project_response.split())
+        if word_count >= 150:
+            score += 8
+            strengths.append("Detailed project description demonstrates execution ability")
+        elif word_count >= 75:
+            score += 5
+            strengths.append("Good project description provided")
+        elif word_count >= 25:
+            score += 3
+        else:
+            concerns.append("Brief project response - limited detail")
+    else:
+        concerns.append("No project response provided")
+
+    # Fit response quality (0-7 points)
+    fit_response = application.get('fit_response', '')
+    if fit_response:
+        word_count = len(fit_response.split())
+        if word_count >= 100:
+            score += 7
+            strengths.append("Thoughtful explanation of role fit")
+        elif word_count >= 50:
+            score += 4
+        elif word_count >= 20:
+            score += 2
+        else:
+            concerns.append("Brief fit response")
+    else:
+        concerns.append("No fit response provided")
+
+    # Resume/LinkedIn provided (0-5 points)
+    if application.get('resume_url') or application.get('resume_text'):
+        score += 3
+        strengths.append("Resume provided for detailed review")
+    if application.get('linkedin_url'):
+        score += 2
+        strengths.append("LinkedIn profile available")
+
+    # Start availability (0-5 points) - sooner is better
+    start_avail = application.get('start_availability')
+    if start_avail:
+        from datetime import date
+        if isinstance(start_avail, str):
+            start_avail = datetime.strptime(start_avail, '%Y-%m-%d').date()
+        days_until_start = (start_avail - date.today()).days
+        if days_until_start <= 14:
+            score += 5
+            strengths.append("Available to start immediately")
+        elif days_until_start <= 30:
+            score += 4
+        elif days_until_start <= 60:
+            score += 2
+        else:
+            concerns.append(f"Not available for {days_until_start} days")
+
+    # Cap score at 100
+    score = min(100, score)
+
+    # Select top 3 strengths and primary concern
+    top_strengths = strengths[:3]
+    primary_concern = concerns[0] if concerns else "No significant concerns identified"
+
+    return score, top_strengths, primary_concern
+
+
 def rank_with_ai(
     application: Dict[str, Any],
     position: Dict[str, Any],
@@ -212,12 +332,14 @@ def rank_with_ai(
         Tuple of (score: int 0-100, strengths: list of 3, concern: str)
     """
     if not OPENAI_AVAILABLE:
-        raise RuntimeError("OpenAI not available")
+        log.info("OpenAI not available, using fallback scoring")
+        return calculate_fallback_score(application, position, role_config)
 
     # Get API key from environment
     api_key = os.environ.get('OPENAI_API_KEY')
     if not api_key:
-        raise RuntimeError("OPENAI_API_KEY not set")
+        log.info("OPENAI_API_KEY not set, using fallback scoring")
+        return calculate_fallback_score(application, position, role_config)
 
     client = openai.OpenAI(api_key=api_key)
 
