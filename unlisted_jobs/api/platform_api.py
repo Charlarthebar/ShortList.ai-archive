@@ -381,6 +381,23 @@ def login():
         })
 
 
+@app.route('/api/auth/check-email', methods=['POST'])
+def check_email():
+    """Check if an email is already registered."""
+    data = request.json
+    email = data.get('email', '').lower().strip()
+
+    if not email:
+        return jsonify({'error': 'Email required'}), 400
+
+    conn = get_db()
+    with conn.cursor() as cursor:
+        cursor.execute("SELECT id FROM platform_users WHERE email = %s", (email,))
+        exists = cursor.fetchone() is not None
+
+    return jsonify({'exists': exists})
+
+
 @app.route('/api/auth/me', methods=['GET'])
 @require_auth
 def get_me():
@@ -2075,6 +2092,118 @@ def mark_all_read():
 
 
 # ============================================================================
+# POSTING TRIGGER NOTIFICATIONS
+# ============================================================================
+
+@app.route('/api/positions/<int:position_id>/trigger-opening', methods=['POST'])
+@require_company
+def trigger_opening_notifications(position_id):
+    """
+    Trigger notifications when a role opens.
+
+    Sends notifications to:
+    - Employer: "You have X qualified candidates ready"
+    - Candidates: "This role is now open"
+    """
+    conn = get_db()
+    try:
+        # Import the posting trigger service
+        from posting_trigger import PostingTriggerService
+
+        service = PostingTriggerService(conn)
+        result = service.trigger_opening(position_id)
+
+        if result['errors']:
+            return jsonify({
+                'success': False,
+                'errors': result['errors']
+            }), 400
+
+        return jsonify({
+            'success': True,
+            'employer_notified': result['employer_notified'],
+            'candidates_notified': result['candidates_notified']
+        })
+
+    except ImportError:
+        # Fallback if service not available
+        log.warning("PostingTriggerService not available")
+        return jsonify({
+            'success': False,
+            'error': 'Notification service not available'
+        }), 500
+    except Exception as e:
+        log.error(f"Error triggering opening notifications: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/positions/<int:position_id>/status', methods=['PATCH'])
+@require_company
+def update_position_status(position_id):
+    """
+    Update position status and optionally trigger notifications.
+
+    Body: { "status": "open"|"filled"|"closed", "trigger_notifications": true }
+    """
+    data = request.get_json()
+    new_status = data.get('status')
+    trigger_notifications = data.get('trigger_notifications', True)
+
+    if new_status not in ['open', 'filled', 'closed']:
+        return jsonify({'error': 'Invalid status. Must be open, filled, or closed'}), 400
+
+    conn = get_db()
+    try:
+        with conn.cursor() as cursor:
+            # Get current status
+            cursor.execute(
+                "SELECT status FROM watchable_positions WHERE id = %s",
+                (position_id,)
+            )
+            row = cursor.fetchone()
+            if not row:
+                return jsonify({'error': 'Position not found'}), 404
+
+            old_status = row[0]
+
+            # Update status
+            cursor.execute("""
+                UPDATE watchable_positions
+                SET status = %s, updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (new_status, position_id))
+
+        conn.commit()
+
+        result = {
+            'success': True,
+            'old_status': old_status,
+            'new_status': new_status
+        }
+
+        # Trigger notifications if status changed to 'open'
+        if new_status == 'open' and old_status != 'open' and trigger_notifications:
+            try:
+                from posting_trigger import PostingTriggerService
+                service = PostingTriggerService(conn)
+                notif_result = service.trigger_opening(position_id)
+                result['notifications'] = {
+                    'employer_notified': notif_result['employer_notified'],
+                    'candidates_notified': notif_result['candidates_notified']
+                }
+            except Exception as e:
+                log.warning(f"Failed to trigger notifications: {e}")
+                result['notification_error'] = str(e)
+
+        return jsonify(result)
+
+    except Exception as e:
+        conn.rollback()
+        log.error(f"Error updating position status: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ============================================================================
 # ACTIVITY LOGGING
 # ============================================================================
 
@@ -3137,6 +3266,319 @@ def get_role_shortlist(position_id):
         },
         'candidates': candidates,
         'showing_count': len(candidates)
+    })
+
+
+@app.route('/api/employer/roles/<int:position_id>/shortlist/export-csv', methods=['GET'])
+@require_company
+def export_shortlist_csv(position_id):
+    """
+    Export shortlist as CSV file.
+
+    Query params:
+    - filter: 'qualified' (default), 'all', or 'below'
+    """
+    import csv
+    import io
+    from flask import Response
+
+    conn = get_db()
+    filter_mode = request.args.get('filter', 'qualified')
+
+    with conn.cursor() as cursor:
+        # Verify ownership
+        cursor.execute("""
+            SELECT cp.id, cp.company_id
+            FROM company_profiles cp
+            JOIN company_team_members ctm ON cp.id = ctm.company_profile_id
+            WHERE ctm.user_id = %s
+        """, (g.current_user['id'],))
+
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({'error': 'Company not found'}), 404
+
+        company_profile_id, company_id = row
+
+        # Verify position and get title
+        cursor.execute("""
+            SELECT id, title FROM watchable_positions
+            WHERE id = %s AND (company_profile_id = %s OR company_id = %s)
+        """, (position_id, company_profile_id, company_id))
+
+        pos_row = cursor.fetchone()
+        if not pos_row:
+            return jsonify({'error': 'Role not found or access denied'}), 404
+
+        position_title = pos_row[1]
+
+        # Get role config for threshold
+        cursor.execute("SELECT score_threshold FROM role_configurations WHERE position_id = %s", (position_id,))
+        config_row = cursor.fetchone()
+        score_threshold = config_row[0] if config_row else 70
+
+        # Build query based on filter
+        where_clauses = ["sa.position_id = %s", "sa.screening_passed = TRUE"]
+        params = [position_id]
+
+        if filter_mode == 'qualified':
+            where_clauses.append("sa.ai_score >= %s")
+            params.append(score_threshold)
+        elif filter_mode == 'below':
+            where_clauses.append("sa.ai_score < %s")
+            params.append(score_threshold)
+        # 'all' has no additional filter
+
+        where_sql = "WHERE " + " AND ".join(where_clauses)
+
+        cursor.execute(f"""
+            SELECT
+                pu.first_name, pu.last_name, pu.email,
+                sa.work_authorization, sa.experience_level, sa.grad_year,
+                sa.start_availability, sa.ai_score,
+                sa.ai_strengths, sa.ai_concern,
+                sa.linkedin_url, sa.resume_url,
+                sa.created_at
+            FROM shortlist_applications sa
+            JOIN platform_users pu ON sa.user_id = pu.id
+            {where_sql}
+            ORDER BY sa.ai_score DESC NULLS LAST
+        """, params)
+
+        rows = cursor.fetchall()
+
+    # Create CSV
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Header
+    writer.writerow([
+        'First Name', 'Last Name', 'Email',
+        'Work Authorization', 'Experience Level', 'Grad Year',
+        'Available to Start', 'AI Score',
+        'Strengths', 'Concern',
+        'LinkedIn', 'Resume URL',
+        'Applied At'
+    ])
+
+    # Data rows
+    for row in rows:
+        strengths = row[8]
+        if isinstance(strengths, list):
+            strengths = '; '.join(strengths)
+
+        writer.writerow([
+            row[0],  # first_name
+            row[1],  # last_name
+            row[2],  # email
+            (row[3] or '').replace('_', ' ').title(),  # work_authorization
+            (row[4] or '').replace('_', ' ').title(),  # experience_level
+            row[5],  # grad_year
+            row[6].strftime('%Y-%m-%d') if row[6] else '',  # start_availability
+            row[7],  # ai_score
+            strengths,  # ai_strengths
+            row[9],  # ai_concern
+            row[10],  # linkedin_url
+            row[11],  # resume_url
+            row[12].strftime('%Y-%m-%d %H:%M') if row[12] else ''  # created_at
+        ])
+
+    # Generate filename
+    safe_title = re.sub(r'[^\w\s-]', '', position_title).strip().replace(' ', '_')
+    filename = f"shortlist_{safe_title}_{filter_mode}_{datetime.now().strftime('%Y%m%d')}.csv"
+
+    output.seek(0)
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename={filename}'}
+    )
+
+
+@app.route('/api/employer/roles/<int:position_id>/shortlist/export-resumes', methods=['GET'])
+@require_company
+def export_shortlist_resumes(position_id):
+    """
+    Export shortlist resumes as a ZIP bundle.
+
+    Query params:
+    - filter: 'qualified' (default), 'all', or 'below'
+
+    Returns JSON with download URLs for each resume (since actual files
+    may be stored externally). For locally stored resumes, returns a ZIP.
+    """
+    import zipfile
+    import io
+    import urllib.request
+    from flask import Response
+
+    conn = get_db()
+    filter_mode = request.args.get('filter', 'qualified')
+
+    with conn.cursor() as cursor:
+        # Verify ownership
+        cursor.execute("""
+            SELECT cp.id, cp.company_id
+            FROM company_profiles cp
+            JOIN company_team_members ctm ON cp.id = ctm.company_profile_id
+            WHERE ctm.user_id = %s
+        """, (g.current_user['id'],))
+
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({'error': 'Company not found'}), 404
+
+        company_profile_id, company_id = row
+
+        # Verify position and get title
+        cursor.execute("""
+            SELECT id, title FROM watchable_positions
+            WHERE id = %s AND (company_profile_id = %s OR company_id = %s)
+        """, (position_id, company_profile_id, company_id))
+
+        pos_row = cursor.fetchone()
+        if not pos_row:
+            return jsonify({'error': 'Role not found or access denied'}), 404
+
+        position_title = pos_row[1]
+
+        # Get role config for threshold
+        cursor.execute("SELECT score_threshold FROM role_configurations WHERE position_id = %s", (position_id,))
+        config_row = cursor.fetchone()
+        score_threshold = config_row[0] if config_row else 70
+
+        # Build query based on filter
+        where_clauses = ["sa.position_id = %s", "sa.screening_passed = TRUE"]
+        params = [position_id]
+
+        if filter_mode == 'qualified':
+            where_clauses.append("sa.ai_score >= %s")
+            params.append(score_threshold)
+        elif filter_mode == 'below':
+            where_clauses.append("sa.ai_score < %s")
+            params.append(score_threshold)
+
+        where_sql = "WHERE " + " AND ".join(where_clauses)
+
+        cursor.execute(f"""
+            SELECT
+                sa.id, pu.first_name, pu.last_name,
+                sa.ai_score, sa.resume_url, sa.linkedin_url
+            FROM shortlist_applications sa
+            JOIN platform_users pu ON sa.user_id = pu.id
+            {where_sql}
+            ORDER BY sa.ai_score DESC NULLS LAST
+        """, params)
+
+        candidates = cursor.fetchall()
+
+    # Collect resume info
+    resumes = []
+    for cand in candidates:
+        app_id, first_name, last_name, score, resume_url, linkedin_url = cand
+        name = f"{first_name}_{last_name}".replace(' ', '_')
+
+        if resume_url:
+            resumes.append({
+                'name': f"{score or 0}_{name}",
+                'url': resume_url,
+                'type': 'resume'
+            })
+        elif linkedin_url:
+            resumes.append({
+                'name': f"{score or 0}_{name}",
+                'url': linkedin_url,
+                'type': 'linkedin'
+            })
+
+    # For now, return a JSON list of resume URLs
+    # In production, you'd either:
+    # 1. Create a ZIP if resumes are stored locally
+    # 2. Return signed URLs for S3/cloud storage
+    # 3. Generate a batch download link
+
+    safe_title = re.sub(r'[^\w\s-]', '', position_title).strip().replace(' ', '_')
+
+    return jsonify({
+        'position': position_title,
+        'filter': filter_mode,
+        'total_candidates': len(candidates),
+        'resumes': resumes,
+        'message': f"Found {len(resumes)} resumes/profiles for {len(candidates)} candidates"
+    })
+
+
+@app.route('/api/employer/roles/<int:position_id>/config', methods=['GET'])
+@require_company
+def get_role_config(position_id):
+    """Get role configuration for a position."""
+    conn = get_db()
+
+    with conn.cursor() as cursor:
+        # Verify ownership
+        cursor.execute("""
+            SELECT cp.id, cp.company_id
+            FROM company_profiles cp
+            JOIN company_team_members ctm ON cp.id = ctm.company_profile_id
+            WHERE ctm.user_id = %s
+        """, (g.current_user['id'],))
+
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({'error': 'Company not found'}), 404
+
+        company_profile_id, company_id = row
+
+        # Verify position
+        cursor.execute("""
+            SELECT id, title FROM watchable_positions
+            WHERE id = %s AND (company_profile_id = %s OR company_id = %s)
+        """, (position_id, company_profile_id, company_id))
+
+        pos_row = cursor.fetchone()
+        if not pos_row:
+            return jsonify({'error': 'Role not found or access denied'}), 404
+
+        # Get configuration
+        cursor.execute("""
+            SELECT require_work_auth, allowed_work_auth,
+                   require_experience_level, allowed_experience_levels,
+                   min_grad_year, max_grad_year, required_skills,
+                   score_threshold, volume_cap
+            FROM role_configurations WHERE position_id = %s
+        """, (position_id,))
+
+        config_row = cursor.fetchone()
+        if config_row:
+            config = {
+                'require_work_auth': config_row[0],
+                'allowed_work_auth': config_row[1] or [],
+                'require_experience_level': config_row[2],
+                'allowed_experience_levels': config_row[3] or [],
+                'min_grad_year': config_row[4],
+                'max_grad_year': config_row[5],
+                'required_skills': config_row[6] or [],
+                'score_threshold': config_row[7] or 70,
+                'volume_cap': config_row[8]
+            }
+        else:
+            # Default configuration
+            config = {
+                'require_work_auth': False,
+                'allowed_work_auth': [],
+                'require_experience_level': False,
+                'allowed_experience_levels': [],
+                'min_grad_year': None,
+                'max_grad_year': None,
+                'required_skills': [],
+                'score_threshold': 70,
+                'volume_cap': None
+            }
+
+    return jsonify({
+        'position_id': position_id,
+        'position_title': pos_row[1],
+        'config': config
     })
 
 

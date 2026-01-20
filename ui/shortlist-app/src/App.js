@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 // API Configuration
 const API_BASE = 'http://localhost:5001/api';
@@ -106,9 +106,36 @@ const parseResume = async (file) => {
           }
         }
 
-        // Try to find company names (look for "at" or common patterns)
-        const companyMatch = text.match(/(?:at|@)\s+([A-Z][A-Za-z\s&.]+?)(?:\s*[-–|,]|\n|$)/);
-        const currentCompany = companyMatch ? companyMatch[1].trim() : '';
+        // Try to find current company - look for patterns near job titles or in experience sections
+        let currentCompany = '';
+
+        // Pattern 1: Look for "Company:" or "Employer:" labels
+        const labeledCompanyMatch = text.match(/(?:Company|Employer|Organization):\s*([A-Z][A-Za-z0-9\s&.,]+?)(?:\n|$)/i);
+        if (labeledCompanyMatch) {
+          currentCompany = labeledCompanyMatch[1].trim();
+        }
+
+        // Pattern 2: Look for company name after a job title line (Title at Company format)
+        if (!currentCompany) {
+          const titleAtCompanyMatch = text.match(/(?:Engineer|Developer|Designer|Manager|Director|Lead|Architect|Analyst|Consultant|Founder|CEO|CTO)\s+(?:at|@)\s+([A-Z][A-Za-z0-9\s&.]+?)(?:\s*[-–|,]|\n|$)/i);
+          if (titleAtCompanyMatch) {
+            currentCompany = titleAtCompanyMatch[1].trim();
+          }
+        }
+
+        // Pattern 3: Look for "Present" or "Current" indicators (common in experience sections)
+        if (!currentCompany) {
+          const presentMatch = text.match(/([A-Z][A-Za-z0-9\s&.]+?)\s*[-–|]\s*(?:Present|Current|Now)/i);
+          if (presentMatch && presentMatch[1].length < 50) {
+            currentCompany = presentMatch[1].trim();
+          }
+        }
+
+        // Clean up: Remove common false positives
+        const falsePositives = ['United States', 'USA', 'Remote', 'Hybrid', 'Full-time', 'Part-time', 'Contract', 'Investors Club', 'The'];
+        if (falsePositives.some(fp => currentCompany.toLowerCase() === fp.toLowerCase() || currentCompany.toLowerCase().startsWith('the '))) {
+          currentCompany = '';
+        }
 
         resolve({
           firstName,
@@ -131,33 +158,6 @@ const parseResume = async (file) => {
   });
 };
 
-// Skill options for profile - SWE/Data/ML focused
-const skillOptions = [
-  // Languages
-  'Python', 'JavaScript', 'TypeScript', 'Java', 'Go', 'Rust', 'C++', 'Scala',
-  // Frontend
-  'React', 'Vue.js', 'Angular', 'Next.js',
-  // Backend
-  'Node.js', 'Django', 'FastAPI', 'Spring',
-  // Data/ML
-  'Machine Learning', 'Deep Learning', 'PyTorch', 'TensorFlow', 'Data Science', 'NLP', 'Computer Vision', 'LLM/GPT',
-  'Spark', 'Pandas', 'Data Engineering', 'ETL',
-  // Infrastructure
-  'AWS', 'GCP', 'Azure', 'Docker', 'Kubernetes', 'Terraform',
-  // Databases
-  'PostgreSQL', 'MongoDB', 'Redis', 'Elasticsearch',
-  // Other
-  'System Design', 'Distributed Systems', 'Microservices', 'GraphQL', 'Kafka'
-];
-
-// Experience level requirements for jobs
-const EXPERIENCE_LEVELS = {
-  'entry': { label: 'Entry Level', minYears: 0, maxYears: 2 },
-  'mid': { label: 'Mid Level', minYears: 2, maxYears: 5 },
-  'senior': { label: 'Senior', minYears: 5, maxYears: 8 },
-  'staff': { label: 'Staff+', minYears: 8, maxYears: null }
-};
-
 export default function ShortList() {
   // Refs
   const fileInputRef = useRef(null);
@@ -178,6 +178,7 @@ export default function ShortList() {
   const [uploadingResume, setUploadingResume] = useState(false);
   const [resumeUploaded, setResumeUploaded] = useState(false);
   const [resumeFileName, setResumeFileName] = useState('');
+  const [resumeUrl, setResumeUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [loginEmail, setLoginEmail] = useState('');
@@ -204,6 +205,47 @@ export default function ShortList() {
     expLevelFilter: [] // Filter by experience level: ['entry', 'mid', 'senior', 'staff']
   });
 
+  // Shortlist application state
+  const [showJoinShortlist, setShowJoinShortlist] = useState(false);
+  const [shortlistPosition, setShortlistPosition] = useState(null);
+  const [shortlistApp, setShortlistApp] = useState({
+    work_authorization: '',
+    grad_year: '',
+    experience_level: '',
+    start_availability: '',
+    project_response: '',
+    fit_response: '',
+    linkedin_url: ''
+  });
+  const [shortlistSubmitting, setShortlistSubmitting] = useState(false);
+  const [shortlistError, setShortlistError] = useState(null);
+  const [shortlisted, setShortlisted] = useState([]); // Track positions user has joined shortlist for
+
+  // Employer positions state
+  const [companyPositions, setCompanyPositions] = useState([]);
+  const [selectedPosition, setSelectedPosition] = useState(null);
+  const [showRoleConfig, setShowRoleConfig] = useState(false);
+  const [roleConfig, setRoleConfig] = useState({
+    require_work_auth: false,
+    allowed_work_auth: [],
+    require_experience_level: false,
+    allowed_experience_levels: [],
+    min_grad_year: '',
+    max_grad_year: '',
+    required_skills: [],
+    score_threshold: 70,
+    volume_cap: ''
+  });
+  const [configSaving, setConfigSaving] = useState(false);
+  const [showShortlistView, setShowShortlistView] = useState(false);
+  const [shortlistCandidates, setShortlistCandidates] = useState([]);
+  const [shortlistStats, setShortlistStats] = useState(null);
+  const [shortlistFilter, setShortlistFilter] = useState('qualified'); // 'all', 'qualified', 'below'
+
+  // Role detail page state
+  const [viewingRole, setViewingRole] = useState(null);
+  const [roleDetail, setRoleDetail] = useState(null);
+  const [loadingRole, setLoadingRole] = useState(false);
 
   // Check auth on mount
   useEffect(() => {
@@ -241,6 +283,13 @@ export default function ShortList() {
     }
   }, [view, tab, token]);
 
+  // Load shortlist applications
+  useEffect(() => {
+    if (view === 'dashboard' && token) {
+      loadShortlistApplications();
+    }
+  }, [view, token]);
+
   // Load notifications
   useEffect(() => {
     if (view === 'dashboard' && token) {
@@ -254,6 +303,13 @@ export default function ShortList() {
       loadCandidates();
     }
   }, [view, userType, tab, search]);
+
+  // Load company positions
+  useEffect(() => {
+    if (view === 'dashboard' && userType === 'company' && tab === 'positions' && token) {
+      loadCompanyPositions();
+    }
+  }, [view, userType, tab, token]);
 
   // Format experience level for display
   const formatExpLevel = (level, minYears, maxYears) => {
@@ -301,7 +357,11 @@ export default function ShortList() {
         maxYearsRequired: p.max_years_experience,
         expLabel: formatExpLevel(p.experience_level, p.min_years_experience, p.max_years_experience),
         requiredSkills: p.required_skills || [],
-        preferredSkills: p.preferred_skills || []
+        preferredSkills: p.preferred_skills || [],
+        // Monitoring status
+        isMonitored: p.is_monitored || false,
+        dataSource: p.data_source,
+        dataAsOfDate: p.data_as_of_date
       })));
     } catch (err) {
       console.error('Failed to load jobs:', err);
@@ -316,6 +376,15 @@ export default function ShortList() {
       setWatched(data.watches.map(w => w.position_id));
     } catch (err) {
       console.error('Failed to load watchlist:', err);
+    }
+  };
+
+  const loadShortlistApplications = async () => {
+    try {
+      const data = await api.get('/shortlist/my-applications');
+      setShortlisted(data.applications.map(a => a.position_id));
+    } catch (err) {
+      console.error('Failed to load shortlist applications:', err);
     }
   };
 
@@ -358,6 +427,138 @@ export default function ShortList() {
     } catch (err) {
       console.error('Failed to load candidates:', err);
     }
+  };
+
+  const loadCompanyPositions = async () => {
+    try {
+      setLoading(true);
+      const data = await api.get('/companies/positions');
+      setCompanyPositions(data.positions || []);
+    } catch (err) {
+      console.error('Failed to load positions:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openRoleConfig = async (position) => {
+    setSelectedPosition(position);
+    try {
+      const data = await api.get(`/employer/roles/${position.id}/config`);
+      setRoleConfig(data.config);
+    } catch (err) {
+      // Use defaults if no config exists
+      setRoleConfig({
+        require_work_auth: false,
+        allowed_work_auth: [],
+        require_experience_level: false,
+        allowed_experience_levels: [],
+        min_grad_year: '',
+        max_grad_year: '',
+        required_skills: [],
+        score_threshold: 70,
+        volume_cap: ''
+      });
+    }
+    setShowRoleConfig(true);
+  };
+
+  const saveRoleConfig = async () => {
+    if (!selectedPosition) return;
+    setConfigSaving(true);
+    try {
+      await api.fetch(`/employer/roles/${selectedPosition.id}/config`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          ...roleConfig,
+          min_grad_year: roleConfig.min_grad_year ? parseInt(roleConfig.min_grad_year) : null,
+          max_grad_year: roleConfig.max_grad_year ? parseInt(roleConfig.max_grad_year) : null,
+          volume_cap: roleConfig.volume_cap ? parseInt(roleConfig.volume_cap) : null
+        })
+      });
+      setShowRoleConfig(false);
+      loadCompanyPositions(); // Refresh
+    } catch (err) {
+      console.error('Failed to save config:', err);
+      alert('Failed to save configuration');
+    } finally {
+      setConfigSaving(false);
+    }
+  };
+
+  const viewShortlist = async (position) => {
+    setSelectedPosition(position);
+    try {
+      const data = await api.get(`/employer/roles/${position.id}/shortlist`);
+      setShortlistCandidates(data.candidates || []);
+      setShortlistStats(data.stats);
+      setShowShortlistView(true);
+    } catch (err) {
+      console.error('Failed to load shortlist:', err);
+    }
+  };
+
+  const togglePositionStatus = async (position) => {
+    const newStatus = position.status === 'open' ? 'filled' : 'open';
+    const triggerNotifications = newStatus === 'open'; // Only notify when opening
+
+    try {
+      const result = await api.fetch(`/positions/${position.id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          status: newStatus,
+          trigger_notifications: triggerNotifications
+        })
+      });
+
+      // Reload positions to reflect the change
+      loadCompanyPositions();
+
+      // Show notification result if any
+      if (result.notifications?.candidates_notified > 0) {
+        alert(`Role marked as open! ${result.notifications.candidates_notified} candidates have been notified.`);
+      }
+    } catch (err) {
+      console.error('Failed to update position status:', err);
+      alert('Failed to update position status');
+    }
+  };
+
+  const toggleWorkAuth = (auth) => {
+    setRoleConfig(c => ({
+      ...c,
+      allowed_work_auth: c.allowed_work_auth.includes(auth)
+        ? c.allowed_work_auth.filter(a => a !== auth)
+        : [...c.allowed_work_auth, auth]
+    }));
+  };
+
+  const toggleExpLevel = (level) => {
+    setRoleConfig(c => ({
+      ...c,
+      allowed_experience_levels: c.allowed_experience_levels.includes(level)
+        ? c.allowed_experience_levels.filter(l => l !== level)
+        : [...c.allowed_experience_levels, level]
+    }));
+  };
+
+  const openRoleDetail = async (roleId) => {
+    setLoadingRole(true);
+    setViewingRole(roleId);
+    try {
+      const data = await api.get(`/positions/${roleId}`);
+      setRoleDetail(data.position);
+    } catch (err) {
+      console.error('Failed to load role:', err);
+      setRoleDetail(null);
+    } finally {
+      setLoadingRole(false);
+    }
+  };
+
+  const closeRoleDetail = () => {
+    setViewingRole(null);
+    setRoleDetail(null);
   };
 
   // Auth functions
@@ -422,6 +623,80 @@ export default function ShortList() {
       }
     } catch (err) {
       console.error('Failed to toggle watch:', err);
+    }
+  };
+
+  // Join Shortlist functions
+  const openJoinShortlist = (job) => {
+    if (!token) {
+      setView('onboarding');
+      return;
+    }
+    setShortlistPosition(job);
+    setShortlistApp({
+      work_authorization: '',
+      grad_year: '',
+      experience_level: '',
+      start_availability: '',
+      project_response: '',
+      fit_response: '',
+      linkedin_url: profile.linkedinUrl || ''
+    });
+    setShortlistError(null);
+    setShowJoinShortlist(true);
+  };
+
+  const closeJoinShortlist = () => {
+    setShowJoinShortlist(false);
+    setShortlistPosition(null);
+    setShortlistError(null);
+  };
+
+  const updateShortlistApp = (field, value) => {
+    setShortlistApp(prev => ({ ...prev, [field]: value }));
+  };
+
+  const submitShortlistApplication = async () => {
+    // Validate required fields
+    if (!shortlistApp.work_authorization) {
+      setShortlistError('Please select your work authorization status');
+      return;
+    }
+    if (!shortlistApp.experience_level) {
+      setShortlistError('Please select your experience level');
+      return;
+    }
+    if (!shortlistApp.project_response || shortlistApp.project_response.length < 50) {
+      setShortlistError('Please provide a project description (at least 50 characters)');
+      return;
+    }
+    if (!shortlistApp.fit_response || shortlistApp.fit_response.length < 50) {
+      setShortlistError('Please explain why you\'re a fit (at least 50 characters)');
+      return;
+    }
+
+    setShortlistSubmitting(true);
+    setShortlistError(null);
+
+    try {
+      await api.post('/shortlist/apply', {
+        position_id: shortlistPosition.id,
+        work_authorization: shortlistApp.work_authorization,
+        grad_year: shortlistApp.grad_year ? parseInt(shortlistApp.grad_year) : null,
+        experience_level: shortlistApp.experience_level,
+        start_availability: shortlistApp.start_availability || null,
+        project_response: shortlistApp.project_response,
+        fit_response: shortlistApp.fit_response,
+        linkedin_url: shortlistApp.linkedin_url || null,
+        resume_url: resumeUrl || null
+      });
+
+      setShortlisted(prev => [...prev, shortlistPosition.id]);
+      closeJoinShortlist();
+    } catch (err) {
+      setShortlistError(err.message || 'Failed to submit application');
+    } finally {
+      setShortlistSubmitting(false);
     }
   };
 
@@ -498,7 +773,6 @@ export default function ShortList() {
 
   const update = (f, v) => setProfile(p => ({ ...p, [f]: v }));
   const updateCompany = (f, v) => setCompanyProfile(p => ({ ...p, [f]: v }));
-  const toggleSkill = (sk) => setProfile(p => ({ ...p, skills: p.skills.includes(sk) ? p.skills.filter(s => s !== sk) : [...p.skills, sk] }));
 
   // Resume upload and parsing
   const handleResumeUpload = async (event) => {
@@ -526,42 +800,75 @@ export default function ShortList() {
 
     try {
       let parsed;
+      let uploadedResumeUrl = null;
 
-      if (isPdfOrDoc) {
-        // Send PDF/DOC to server for parsing
+      // If user is logged in, upload the file for storage
+      if (token && isPdfOrDoc) {
         const formData = new FormData();
         formData.append('file', file);
 
-        const response = await fetch(`${API_BASE}/resume/parse`, {
+        const uploadResponse = await fetch(`${API_BASE}/resume/upload`, {
           method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
           body: formData,
         });
 
-        const data = await response.json();
+        const uploadData = await uploadResponse.json();
 
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to parse resume');
+        if (uploadResponse.ok) {
+          uploadedResumeUrl = uploadData.resume_url;
+          parsed = uploadData.parsed;
+        } else {
+          // Fall back to parse-only endpoint
+          console.warn('Upload failed, trying parse-only:', uploadData.error);
         }
+      }
 
-        parsed = data.data;
-      } else {
-        // Parse text files locally
-        parsed = await parseResume(file);
+      // If we didn't get parsed data from upload, use the parse endpoint
+      if (!parsed) {
+        if (isPdfOrDoc) {
+          // Send PDF/DOC to server for parsing
+          const formData = new FormData();
+          formData.append('file', file);
+
+          const response = await fetch(`${API_BASE}/resume/parse`, {
+            method: 'POST',
+            body: formData,
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.error || 'Failed to parse resume');
+          }
+
+          parsed = data.data;
+        } else {
+          // Parse text files locally
+          parsed = await parseResume(file);
+        }
       }
 
       // Update profile with parsed data
       setProfile(p => ({
         ...p,
-        firstName: parsed.firstName || p.firstName,
-        lastName: parsed.lastName || p.lastName,
-        email: parsed.email || p.email,
-        currentTitle: parsed.currentTitle || p.currentTitle,
-        currentCompany: parsed.currentCompany || p.currentCompany,
-        skills: parsed.skills && parsed.skills.length > 0 ? [...new Set([...p.skills, ...parsed.skills])] : p.skills,
-        experiences: parsed.experiences || p.experiences,
-        yearsExperience: parsed.yearsExperience?.category || p.yearsExperience,
-        techYearsExperience: parsed.yearsExperience?.tech || p.techYearsExperience
+        firstName: parsed?.firstName || p.firstName,
+        lastName: parsed?.lastName || p.lastName,
+        email: parsed?.email || p.email,
+        currentTitle: parsed?.currentTitle || p.currentTitle,
+        currentCompany: parsed?.currentCompany || p.currentCompany,
+        skills: parsed?.skills && parsed.skills.length > 0 ? [...new Set([...p.skills, ...parsed.skills])] : p.skills,
+        experiences: parsed?.experiences || p.experiences,
+        yearsExperience: parsed?.yearsExperience?.category || p.yearsExperience,
+        techYearsExperience: parsed?.yearsExperience?.tech || p.techYearsExperience
       }));
+
+      // Store the resume URL if we uploaded it
+      if (uploadedResumeUrl) {
+        setResumeUrl(uploadedResumeUrl);
+      }
 
       // Set success state
       setResumeUploaded(true);
@@ -581,12 +888,29 @@ export default function ShortList() {
   };
 
   // Validation functions
-  const validateStep1 = () => {
+  const validateStep1 = async () => {
     const errors = {};
     if (!profile.firstName.trim()) errors.firstName = 'First name is required';
     if (!profile.lastName.trim()) errors.lastName = 'Last name is required';
     if (!profile.email.trim()) errors.email = 'Email is required';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(profile.email)) errors.email = 'Invalid email format';
+    else {
+      // Check if email is already taken
+      try {
+        const response = await fetch(`${API_BASE}/auth/check-email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: profile.email })
+        });
+        const data = await response.json();
+        if (data.exists) {
+          errors.email = 'This email is already registered. Please sign in or use a different email.';
+        }
+      } catch (err) {
+        console.error('Email check failed:', err);
+        // Continue if check fails - signup will catch it
+      }
+    }
     if (!profile.password || profile.password.length < 6) errors.password = 'Password must be at least 6 characters';
     if (!profile.currentTitle.trim()) errors.currentTitle = 'Current job title is required';
     if (!profile.yearsExperience) errors.yearsExperience = 'Years of experience is required';
@@ -601,18 +925,34 @@ export default function ShortList() {
     return Object.keys(errors).length === 0;
   };
 
-  const validateStep4 = () => {
+  const validateStep3 = () => {
     const errors = {};
     if (profile.workStyle.length === 0) errors.workStyle = 'Please select at least one work style preference';
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
-  const validateCompanyStep1 = () => {
+  const validateCompanyStep1 = async () => {
     const errors = {};
     if (!companyProfile.name.trim()) errors.name = 'Company name is required';
     if (!companyProfile.contactEmail.trim()) errors.contactEmail = 'Email is required';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(companyProfile.contactEmail)) errors.contactEmail = 'Invalid email format';
+    else {
+      // Check if email is already taken
+      try {
+        const response = await fetch(`${API_BASE}/auth/check-email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: companyProfile.contactEmail })
+        });
+        const data = await response.json();
+        if (data.exists) {
+          errors.contactEmail = 'This email is already registered. Please sign in or use a different email.';
+        }
+      } catch (err) {
+        console.error('Email check failed:', err);
+      }
+    }
     if (!companyProfile.password || companyProfile.password.length < 6) errors.password = 'Password must be at least 6 characters';
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
@@ -790,7 +1130,7 @@ export default function ShortList() {
       <style>{css}</style>
       <header style={s.oHeader}>
         <div style={s.logo}><span style={s.logoIcon}>◈</span><span style={s.logoText}>ShortList</span></div>
-        <div style={s.prog}><span>Step {step}/4</span><div style={s.progBar}><div style={{...s.progFill, width:`${step*25}%`}}/></div></div>
+        <div style={s.prog}><span>Step {step}/3</span><div style={s.progBar}><div style={{...s.progFill, width:`${step*33.33}%`}}/></div></div>
         <button style={s.skip} onClick={() => setView('dashboard')}>Skip</button>
       </header>
       <main style={s.oMain}>
@@ -895,11 +1235,6 @@ export default function ShortList() {
           </div>
         </div>}
         {step === 3 && <div style={s.step}>
-          <h1 style={s.sTitle}>What are your skills?</h1>
-          <p style={s.sSub}>Select all that apply — these power your match score</p>
-          <div style={s.skills}>{skillOptions.map(sk => <button key={sk} style={{...s.skBtn, ...(profile.skills.includes(sk)?s.skBtnA:{})}} onClick={() => toggleSkill(sk)}>{profile.skills.includes(sk) && '✓ '}{sk}</button>)}</div>
-        </div>}
-        {step === 4 && <div style={s.step}>
           <h1 style={s.sTitle}>Almost done! Preferences</h1>
           <p style={s.sSub}>Tell us what you're looking for</p>
           {validationErrors.workStyle && <div style={{color: '#ef4444', marginBottom: '16px', padding: '12px', background: '#fef2f2', borderRadius: '8px'}}>{validationErrors.workStyle}</div>}
@@ -926,7 +1261,8 @@ export default function ShortList() {
           <button style={s.next} onClick={async () => {
             setError(null);
             if (step === 1) {
-              if (!validateStep1()) return;
+              const isValid = await validateStep1();
+              if (!isValid) return;
               setValidationErrors({});
               setStep(2);
             } else if (step === 2) {
@@ -934,10 +1270,7 @@ export default function ShortList() {
               setValidationErrors({});
               setStep(3);
             } else if (step === 3) {
-              // Skills are optional
-              setStep(4);
-            } else if (step === 4) {
-              if (!validateStep4()) return;
+              if (!validateStep3()) return;
               // Create account and go to dashboard
               const success = await handleSignup(profile.email, profile.password, 'seeker');
               if (success) {
@@ -945,7 +1278,7 @@ export default function ShortList() {
                 setView('dashboard');
               }
             }
-          }}>{step===4?'Complete Setup →':'Continue →'}</button>
+          }}>{step===3?'Complete Setup →':'Continue →'}</button>
         </div>
       </main>
     </div>
@@ -1026,7 +1359,8 @@ export default function ShortList() {
           <button style={s.next} onClick={async () => {
             setError(null);
             if (companyStep === 1) {
-              if (!validateCompanyStep1()) return;
+              const isValid = await validateCompanyStep1();
+              if (!isValid) return;
               setValidationErrors({});
               setCompanyStep(2);
             } else if (companyStep < 4) {
@@ -1111,17 +1445,24 @@ export default function ShortList() {
             {(tab==='matches'?[...filteredJobs].sort((a,b)=>b.matchScore-a.matchScore):filteredJobs).map(j => (
               <div key={j.id} style={{...s.jobCard, borderLeft: j.matchScore>=90?'4px solid #6366f1':'none'}}>
                 <div style={s.jHeader}><div style={s.jLogo}>{j.company?.[0] || '?'}</div><div style={s.jMeta}><strong>{j.company}</strong><span style={s.jLoc}>{j.location}</span></div><div style={{...s.match, background:j.matchScore>=90?'#6366f1':j.matchScore>=80?'#8b5cf6':'#a5b4fc'}}>{j.matchScore}%</div></div>
-                <h3 style={s.jTitle}>{j.title}</h3>
+                <h3 style={{...s.jTitle, cursor:'pointer'}} onClick={() => openRoleDetail(j.id)}>{j.title}</h3>
                 <p style={s.jSal}>{j.salary}</p>
                 <div style={s.jTags}>
                   <span style={s.dept}>{j.dept}</span>
                   {j.expLabel && <span style={s.expLevel}>{j.expLabel}</span>}
                   <span style={{...s.status, background:j.status==='open'?'#dcfce7':'#f1f5f9', color:j.status==='open'?'#166534':'#64748b'}}>{j.status==='open'?'● Open':'○ Filled'}</span>
+                  {!j.isMonitored && <span style={s.historicalTag} title="Historical data - notifications not available">📊 Historical</span>}
                 </div>
                 {j.requiredSkills && j.requiredSkills.length > 0 && (
                   <div style={s.reqSkills}>{j.requiredSkills.slice(0,3).map(sk => <span key={sk} style={s.reqSkill}>{sk}</span>)}{j.requiredSkills.length > 3 && <span style={s.moreSkills}>+{j.requiredSkills.length - 3}</span>}</div>
                 )}
-                <div style={s.jFoot}><span style={s.watchers}>👁 {j.watchers}</span><button style={{...s.watchBtn, background:watched.includes(j.id)?'#6366f1':'transparent', color:watched.includes(j.id)?'#fff':'#6366f1'}} onClick={() => toggleWatch(j.id)}>{watched.includes(j.id)?'✓ Watching':'+ Watch'}</button></div>
+                <div style={s.jFoot}>
+                  <span style={s.watchers}>👁 {j.watchers}</span>
+                  <div style={{display:'flex',gap:'8px'}}>
+                    <button style={{...s.watchBtn, background:watched.includes(j.id)?'#6366f1':'transparent', color:watched.includes(j.id)?'#fff':'#6366f1'}} onClick={() => toggleWatch(j.id)}>{watched.includes(j.id)?'✓':'+'}</button>
+                    <button style={shortlisted.includes(j.id)?s.shortlistedBtn:s.shortlistBtn} onClick={() => openJoinShortlist(j)}>{shortlisted.includes(j.id)?'✓ On Shortlist':'Join Shortlist'}</button>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
@@ -1189,13 +1530,353 @@ export default function ShortList() {
           <div style={s.posHead}>
             <div>
               <h1 style={s.secTitle}>Your Positions</h1>
-              <p style={s.secSub}>Manage your job listings and track candidate interest</p>
+              <p style={s.secSub}>Manage your job listings and shortlists</p>
             </div>
             <button style={s.newPos}>+ New Position</button>
           </div>
-          <div style={s.empty}><div style={s.emptyIco}>💼</div><h3>No positions yet</h3><p>Create your first position to start attracting talent</p></div>
+
+          {loading ? (
+            <div style={s.loadingState}>Loading positions...</div>
+          ) : companyPositions.length === 0 ? (
+            <div style={s.empty}><div style={s.emptyIco}>💼</div><h3>No positions yet</h3><p>Create your first position to start attracting talent</p></div>
+          ) : (
+            <div style={s.positionsList}>
+              {companyPositions.map(pos => (
+                <div key={pos.id} style={s.positionCard}>
+                  <div style={s.posCardHeader}>
+                    <div>
+                      <h3 style={s.posTitle}>{pos.title}</h3>
+                      <p style={s.posMeta}>{pos.location || 'Remote'} • {pos.department || 'General'}</p>
+                    </div>
+                    <span style={{
+                      ...s.posStatus,
+                      background: pos.status === 'open' ? '#dcfce7' : pos.status === 'filled' ? '#fef3c7' : '#f1f5f9',
+                      color: pos.status === 'open' ? '#166534' : pos.status === 'filled' ? '#92400e' : '#64748b'
+                    }}>
+                      {pos.status === 'open' ? '● Open' : pos.status === 'filled' ? '● Filled' : '○ ' + pos.status}
+                    </span>
+                  </div>
+
+                  <div style={s.posStats}>
+                    <div style={s.posStat}>
+                      <span style={s.posStatNum}>{pos.application_count || 0}</span>
+                      <span style={s.posStatLabel}>Shortlisted</span>
+                    </div>
+                    <div style={s.posStat}>
+                      <span style={s.posStatNum}>{pos.watcher_count || 0}</span>
+                      <span style={s.posStatLabel}>Watching</span>
+                    </div>
+                    <div style={s.posStat}>
+                      <span style={s.posStatNum}>{pos.view_count || 0}</span>
+                      <span style={s.posStatLabel}>Views</span>
+                    </div>
+                  </div>
+
+                  <div style={s.posActions}>
+                    <button style={s.posActionBtn} onClick={() => viewShortlist(pos)}>
+                      View Shortlist →
+                    </button>
+                    <button style={s.posConfigBtn} onClick={() => openRoleConfig(pos)}>
+                      ⚙️ Configure
+                    </button>
+                    <button
+                      style={{
+                        ...s.posStatusBtn,
+                        background: pos.status === 'open' ? '#fef2f2' : '#f0fdf4',
+                        color: pos.status === 'open' ? '#dc2626' : '#16a34a',
+                        borderColor: pos.status === 'open' ? '#fecaca' : '#86efac'
+                      }}
+                      onClick={() => togglePositionStatus(pos)}
+                    >
+                      {pos.status === 'open' ? '⏸ Mark Filled' : '▶ Open Role'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>}
       </main>
+
+      {/* ROLE CONFIGURATION MODAL */}
+      {showRoleConfig && selectedPosition && (
+        <div style={s.overlay} onClick={() => setShowRoleConfig(false)}>
+          <div style={s.configModal} onClick={e => e.stopPropagation()}>
+            <button style={s.modalX} onClick={() => setShowRoleConfig(false)}>✕</button>
+
+            <h2 style={s.configTitle}>Configure Shortlist</h2>
+            <p style={s.configSub}>{selectedPosition.title}</p>
+
+            <div style={s.configSection}>
+              <h4 style={s.configLabel}>Score Threshold</h4>
+              <p style={s.configHelp}>Only show candidates with AI score at or above this threshold</p>
+              <div style={s.thresholdRow}>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={roleConfig.score_threshold}
+                  onChange={e => setRoleConfig(c => ({...c, score_threshold: parseInt(e.target.value)}))}
+                  style={s.thresholdSlider}
+                />
+                <span style={s.thresholdValue}>{roleConfig.score_threshold}</span>
+              </div>
+            </div>
+
+            <div style={s.configSection}>
+              <label style={s.configCheckLabel}>
+                <input
+                  type="checkbox"
+                  checked={roleConfig.require_work_auth}
+                  onChange={e => setRoleConfig(c => ({...c, require_work_auth: e.target.checked}))}
+                />
+                <span>Require specific work authorization</span>
+              </label>
+              {roleConfig.require_work_auth && (
+                <div style={s.configOptions}>
+                  {[
+                    {value: 'us_citizen', label: 'US Citizen'},
+                    {value: 'permanent_resident', label: 'Permanent Resident'},
+                    {value: 'f1_opt', label: 'F-1 OPT'},
+                    {value: 'f1_cpt', label: 'F-1 CPT'},
+                    {value: 'h1b', label: 'H-1B'},
+                    {value: 'needs_sponsorship', label: 'Needs Sponsorship'}
+                  ].map(opt => (
+                    <label key={opt.value} style={s.configOption}>
+                      <input
+                        type="checkbox"
+                        checked={roleConfig.allowed_work_auth.includes(opt.value)}
+                        onChange={() => toggleWorkAuth(opt.value)}
+                      />
+                      <span>{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div style={s.configSection}>
+              <label style={s.configCheckLabel}>
+                <input
+                  type="checkbox"
+                  checked={roleConfig.require_experience_level}
+                  onChange={e => setRoleConfig(c => ({...c, require_experience_level: e.target.checked}))}
+                />
+                <span>Require specific experience level</span>
+              </label>
+              {roleConfig.require_experience_level && (
+                <div style={s.configOptions}>
+                  {[
+                    {value: 'intern', label: 'Intern'},
+                    {value: 'new_grad', label: 'New Grad'},
+                    {value: 'entry', label: 'Entry Level'},
+                    {value: 'mid', label: 'Mid Level'},
+                    {value: 'senior', label: 'Senior'},
+                    {value: 'staff', label: 'Staff+'}
+                  ].map(opt => (
+                    <label key={opt.value} style={s.configOption}>
+                      <input
+                        type="checkbox"
+                        checked={roleConfig.allowed_experience_levels.includes(opt.value)}
+                        onChange={() => toggleExpLevel(opt.value)}
+                      />
+                      <span>{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div style={s.configSection}>
+              <h4 style={s.configLabel}>Graduation Year Range (optional)</h4>
+              <div style={s.configRow}>
+                <input
+                  type="number"
+                  placeholder="Min year (e.g. 2020)"
+                  value={roleConfig.min_grad_year || ''}
+                  onChange={e => setRoleConfig(c => ({...c, min_grad_year: e.target.value}))}
+                  style={s.configInput}
+                />
+                <span style={s.configDash}>to</span>
+                <input
+                  type="number"
+                  placeholder="Max year (e.g. 2025)"
+                  value={roleConfig.max_grad_year || ''}
+                  onChange={e => setRoleConfig(c => ({...c, max_grad_year: e.target.value}))}
+                  style={s.configInput}
+                />
+              </div>
+            </div>
+
+            <div style={s.configSection}>
+              <h4 style={s.configLabel}>Volume Cap (optional)</h4>
+              <p style={s.configHelp}>Limit how many candidates appear in your shortlist</p>
+              <input
+                type="number"
+                placeholder="e.g. 50"
+                value={roleConfig.volume_cap || ''}
+                onChange={e => setRoleConfig(c => ({...c, volume_cap: e.target.value}))}
+                style={{...s.configInput, width: '120px'}}
+              />
+            </div>
+
+            <div style={s.configActions}>
+              <button style={s.configCancel} onClick={() => setShowRoleConfig(false)}>Cancel</button>
+              <button style={s.configSave} onClick={saveRoleConfig} disabled={configSaving}>
+                {configSaving ? 'Saving...' : 'Save Configuration'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SHORTLIST VIEW MODAL */}
+      {showShortlistView && selectedPosition && (
+        <div style={s.overlay} onClick={() => setShowShortlistView(false)}>
+          <div style={s.shortlistViewModal} onClick={e => e.stopPropagation()}>
+            <button style={s.modalX} onClick={() => setShowShortlistView(false)}>✕</button>
+
+            <h2 style={s.configTitle}>Shortlist: {selectedPosition.title}</h2>
+
+            {shortlistStats && (
+              <div style={s.slStats}>
+                <div style={s.slStat}>
+                  <span style={s.slStatNum}>{shortlistStats.total_applicants}</span>
+                  <span style={s.slStatLabel}>Total Applied</span>
+                </div>
+                <div style={s.slStat}>
+                  <span style={s.slStatNum}>{shortlistStats.passed_screening}</span>
+                  <span style={s.slStatLabel}>Passed Screening</span>
+                </div>
+                <div style={s.slStat}>
+                  <span style={{...s.slStatNum, color: '#6366f1'}}>{shortlistStats.meets_threshold}</span>
+                  <span style={s.slStatLabel}>Qualified</span>
+                </div>
+              </div>
+            )}
+
+            {/* Filter Controls */}
+            <div style={s.filterControls}>
+              <span style={s.filterLabel}>Show:</span>
+              <div style={s.filterBtns}>
+                <button
+                  style={{...s.filterBtn, ...(shortlistFilter === 'qualified' ? s.filterBtnActive : {})}}
+                  onClick={() => setShortlistFilter('qualified')}
+                >
+                  Qualified ({shortlistStats?.meets_threshold || 0})
+                </button>
+                <button
+                  style={{...s.filterBtn, ...(shortlistFilter === 'all' ? s.filterBtnActive : {})}}
+                  onClick={() => setShortlistFilter('all')}
+                >
+                  All ({shortlistStats?.passed_screening || 0})
+                </button>
+                <button
+                  style={{...s.filterBtn, ...(shortlistFilter === 'below' ? s.filterBtnActive : {})}}
+                  onClick={() => setShortlistFilter('below')}
+                >
+                  Below Threshold ({(shortlistStats?.passed_screening || 0) - (shortlistStats?.meets_threshold || 0)})
+                </button>
+              </div>
+              <span style={s.thresholdNote}>Threshold: {selectedPosition.score_threshold || 70}+</span>
+            </div>
+
+            {/* Export Buttons */}
+            <div style={s.exportRow}>
+              <span style={s.exportLabel}>Export:</span>
+              <a
+                href={`${API_BASE}/employer/roles/${selectedPosition.id}/shortlist/export-csv?filter=${shortlistFilter}`}
+                style={s.exportBtn}
+                download
+              >
+                📊 Download CSV
+              </a>
+              <button
+                style={s.exportBtn}
+                onClick={async () => {
+                  try {
+                    const data = await api.get(`/employer/roles/${selectedPosition.id}/shortlist/export-resumes?filter=${shortlistFilter}`);
+                    if (data.resumes && data.resumes.length > 0) {
+                      // Open each resume in a new tab (up to 10)
+                      const toOpen = data.resumes.slice(0, 10);
+                      toOpen.forEach((r, i) => {
+                        setTimeout(() => window.open(r.url, '_blank'), i * 300);
+                      });
+                      if (data.resumes.length > 10) {
+                        alert(`Opened first 10 of ${data.resumes.length} resumes. Download CSV for full list.`);
+                      }
+                    } else {
+                      alert('No resumes available for download');
+                    }
+                  } catch (err) {
+                    console.error('Failed to get resumes:', err);
+                    alert('Failed to export resumes');
+                  }
+                }}
+              >
+                📄 Open Resumes
+              </button>
+            </div>
+
+            {shortlistCandidates.length === 0 ? (
+              <div style={s.emptyShortlist}>
+                <p>No candidates have joined this shortlist yet.</p>
+              </div>
+            ) : (
+              <div style={s.candidatesList}>
+                {shortlistCandidates
+                  .filter(cand => {
+                    const threshold = selectedPosition.score_threshold || 70;
+                    if (shortlistFilter === 'qualified') return (cand.ai_score || 0) >= threshold;
+                    if (shortlistFilter === 'below') return (cand.ai_score || 0) < threshold;
+                    return true; // 'all'
+                  })
+                  .sort((a, b) => (b.ai_score || 0) - (a.ai_score || 0))
+                  .map(cand => (
+                  <div key={cand.id} style={s.candidateCard}>
+                    <div style={s.candHeader}>
+                      <div style={s.candAvatar}>{cand.first_name?.[0]}{cand.last_name?.[0]}</div>
+                      <div style={s.candInfo}>
+                        <h4>{cand.first_name} {cand.last_name}</h4>
+                        <p>{cand.email}</p>
+                      </div>
+                      <div style={s.candScore}>
+                        <span style={{...s.scoreNum, color: cand.ai_score >= 80 ? '#16a34a' : cand.ai_score >= 70 ? '#ca8a04' : '#dc2626'}}>
+                          {cand.ai_score || '—'}
+                        </span>
+                        <span style={s.scoreLabel}>Score</span>
+                      </div>
+                    </div>
+
+                    <div style={s.candDetails}>
+                      <span style={s.candTag}>{cand.experience_level || 'N/A'}</span>
+                      <span style={s.candTag}>{cand.work_authorization?.replace('_', ' ') || 'N/A'}</span>
+                      {cand.grad_year && <span style={s.candTag}>Class of {cand.grad_year}</span>}
+                    </div>
+
+                    {cand.ai_strengths && cand.ai_strengths.length > 0 && (
+                      <div style={s.candStrengths}>
+                        <strong>Strengths:</strong> {cand.ai_strengths.join(' • ')}
+                      </div>
+                    )}
+
+                    {cand.ai_concern && (
+                      <div style={s.candConcern}>
+                        <strong>Note:</strong> {cand.ai_concern}
+                      </div>
+                    )}
+
+                    <div style={s.candLinks}>
+                      {cand.resume_url && <a href={cand.resume_url} target="_blank" rel="noreferrer" style={s.candLink}>📄 Resume</a>}
+                      {cand.linkedin_url && <a href={cand.linkedin_url} target="_blank" rel="noreferrer" style={s.candLink}>💼 LinkedIn</a>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* CANDIDATE MODAL */}
       {selCand && <div style={s.overlay} onClick={() => setSelCand(null)}>
@@ -1206,6 +1887,268 @@ export default function ShortList() {
           <div style={s.mSec}><h4>Education</h4><p>{selCand.education}</p></div>
           <div style={s.mSec}><h4>Skills</h4><div style={s.mSkills}>{selCand.skills.map(sk => <span key={sk} style={s.mSkill}>{sk}</span>)}</div></div>
           <div style={s.mActions}><button style={{...s.mInvBtn, background:invited.includes(selCand.id)?'#e2e8f0':'#6366f1', color:invited.includes(selCand.id)?'#64748b':'#fff'}} onClick={() => {inviteCandidate(selCand.id); setSelCand(null);}}>{invited.includes(selCand.id)?'✓ Already Invited':'Invite to Apply'}</button><button style={s.mSecBtn}>Save for Later</button></div>
+        </div>
+      </div>}
+
+      {/* JOIN SHORTLIST MODAL */}
+      {showJoinShortlist && shortlistPosition && <div style={s.overlay} onClick={closeJoinShortlist}>
+        <div style={s.shortlistModal} onClick={e => e.stopPropagation()}>
+          <button style={s.modalX} onClick={closeJoinShortlist}>✕</button>
+
+          <div style={s.slHeader}>
+            <div style={s.jLogo}>{shortlistPosition.company?.[0] || '?'}</div>
+            <div>
+              <h2 style={s.slTitle}>Join the Shortlist</h2>
+              <p style={s.slSub}>{shortlistPosition.title} at {shortlistPosition.company}</p>
+            </div>
+          </div>
+
+          <p style={s.slDesc}>
+            Get notified when this role opens and be among the first candidates considered.
+            {shortlistPosition.status === 'open' ? ' This role is currently accepting applications!' : ' This role is currently filled.'}
+          </p>
+
+          {shortlistError && <div style={s.slError}>{shortlistError}</div>}
+
+          <div style={s.slForm}>
+            {/* Work Authorization */}
+            <div style={s.slField}>
+              <label style={s.slLabel}>Work Authorization *</label>
+              <select
+                style={s.slSelect}
+                value={shortlistApp.work_authorization}
+                onChange={e => updateShortlistApp('work_authorization', e.target.value)}
+              >
+                <option value="">Select your work authorization</option>
+                <option value="us_citizen">US Citizen</option>
+                <option value="permanent_resident">Permanent Resident (Green Card)</option>
+                <option value="f1_opt">F-1 OPT</option>
+                <option value="f1_cpt">F-1 CPT</option>
+                <option value="h1b">H-1B</option>
+                <option value="needs_sponsorship">Needs Sponsorship</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+
+            {/* Experience Level */}
+            <div style={s.slField}>
+              <label style={s.slLabel}>Experience Level *</label>
+              <select
+                style={s.slSelect}
+                value={shortlistApp.experience_level}
+                onChange={e => updateShortlistApp('experience_level', e.target.value)}
+              >
+                <option value="">Select your experience level</option>
+                <option value="intern">Intern</option>
+                <option value="new_grad">New Grad (0-1 years)</option>
+                <option value="entry">Entry Level (1-2 years)</option>
+                <option value="mid">Mid Level (2-5 years)</option>
+                <option value="senior">Senior (5-8 years)</option>
+                <option value="staff">Staff+ (8+ years)</option>
+              </select>
+            </div>
+
+            <div style={s.slRow}>
+              {/* Graduation Year */}
+              <div style={s.slFieldHalf}>
+                <label style={s.slLabel}>Graduation Year</label>
+                <input
+                  type="number"
+                  style={s.slInput}
+                  placeholder="e.g. 2024"
+                  min="1990"
+                  max="2030"
+                  value={shortlistApp.grad_year}
+                  onChange={e => updateShortlistApp('grad_year', e.target.value)}
+                />
+              </div>
+
+              {/* Start Availability */}
+              <div style={s.slFieldHalf}>
+                <label style={s.slLabel}>Available to Start</label>
+                <input
+                  type="date"
+                  style={s.slInput}
+                  value={shortlistApp.start_availability}
+                  onChange={e => updateShortlistApp('start_availability', e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* LinkedIn URL */}
+            <div style={s.slField}>
+              <label style={s.slLabel}>LinkedIn Profile</label>
+              <input
+                type="url"
+                style={s.slInput}
+                placeholder="https://linkedin.com/in/yourprofile"
+                value={shortlistApp.linkedin_url}
+                onChange={e => updateShortlistApp('linkedin_url', e.target.value)}
+              />
+            </div>
+
+            {/* Project Response */}
+            <div style={s.slField}>
+              <label style={s.slLabel}>Describe a project you built or accomplished *</label>
+              <textarea
+                style={s.slTextarea}
+                placeholder="Tell us about a project you're proud of. What problem did you solve? What was your approach? What was the impact?"
+                rows={4}
+                value={shortlistApp.project_response}
+                onChange={e => updateShortlistApp('project_response', e.target.value)}
+              />
+              <span style={s.slCharCount}>{shortlistApp.project_response.length}/500</span>
+            </div>
+
+            {/* Fit Response */}
+            <div style={s.slField}>
+              <label style={s.slLabel}>Why are you a great fit for this role? *</label>
+              <textarea
+                style={s.slTextarea}
+                placeholder="What makes you excited about this opportunity? How do your skills and experience align with what this role needs?"
+                rows={4}
+                value={shortlistApp.fit_response}
+                onChange={e => updateShortlistApp('fit_response', e.target.value)}
+              />
+              <span style={s.slCharCount}>{shortlistApp.fit_response.length}/500</span>
+            </div>
+          </div>
+
+          <div style={s.slActions}>
+            <button style={s.slCancel} onClick={closeJoinShortlist}>Cancel</button>
+            <button
+              style={{...s.slSubmit, opacity: shortlistSubmitting ? 0.7 : 1}}
+              onClick={submitShortlistApplication}
+              disabled={shortlistSubmitting}
+            >
+              {shortlistSubmitting ? 'Submitting...' : 'Join Shortlist'}
+            </button>
+          </div>
+        </div>
+      </div>}
+
+      {/* ROLE DETAIL MODAL */}
+      {viewingRole && <div style={s.overlay} onClick={closeRoleDetail}>
+        <div style={s.roleDetailModal} onClick={e => e.stopPropagation()}>
+          <button style={s.modalX} onClick={closeRoleDetail}>×</button>
+
+          {loadingRole ? (
+            <div style={s.loadingState}>Loading role details...</div>
+          ) : roleDetail ? (
+            <>
+              {/* Header */}
+              <div style={s.rdHeader}>
+                <div style={s.rdLogo}>{(roleDetail.company_name || roleDetail.company_display_name)?.[0] || '?'}</div>
+                <div style={s.rdHeaderInfo}>
+                  <h2 style={s.rdTitle}>{roleDetail.title}</h2>
+                  <p style={s.rdCompany}>{roleDetail.company_name || roleDetail.company_display_name}</p>
+                  <div style={s.rdMeta}>
+                    <span style={s.rdMetaItem}>📍 {roleDetail.location || 'Location not specified'}</span>
+                    {roleDetail.department && <span style={s.rdMetaItem}>🏢 {roleDetail.department}</span>}
+                  </div>
+                </div>
+                <div style={{...s.rdStatus, background: roleDetail.status === 'open' ? '#dcfce7' : '#f1f5f9', color: roleDetail.status === 'open' ? '#166534' : '#64748b'}}>
+                  {roleDetail.status === 'open' ? '● Open' : '○ Filled'}
+                </div>
+              </div>
+
+              {/* Salary */}
+              {(roleDetail.salary_min || roleDetail.salary_max) && (
+                <div style={s.rdSalary}>
+                  💰 {roleDetail.salary_min ? `$${(roleDetail.salary_min/1000).toFixed(0)}k` : ''}
+                  {roleDetail.salary_min && roleDetail.salary_max ? ' - ' : ''}
+                  {roleDetail.salary_max ? `$${(roleDetail.salary_max/1000).toFixed(0)}k` : ''}
+                  {!roleDetail.salary_min && !roleDetail.salary_max ? 'Salary not disclosed' : ''}
+                </div>
+              )}
+
+              {/* Experience Level */}
+              {roleDetail.experience_level && roleDetail.experience_level !== 'any' && (
+                <div style={s.rdExpLevel}>
+                  <span style={s.rdExpBadge}>
+                    {roleDetail.experience_level === 'entry' ? 'Entry Level' :
+                     roleDetail.experience_level === 'mid' ? 'Mid Level' :
+                     roleDetail.experience_level === 'senior' ? 'Senior Level' :
+                     roleDetail.experience_level === 'intern' ? 'Internship' :
+                     roleDetail.experience_level}
+                    {roleDetail.min_years_experience && roleDetail.max_years_experience ?
+                      ` (${roleDetail.min_years_experience}-${roleDetail.max_years_experience} years)` : ''}
+                  </span>
+                </div>
+              )}
+
+              {/* Required Skills */}
+              {roleDetail.required_skills && roleDetail.required_skills.length > 0 && (
+                <div style={s.rdSection}>
+                  <h4 style={s.rdSectionTitle}>Required Skills</h4>
+                  <div style={s.rdSkills}>
+                    {roleDetail.required_skills.map(skill => (
+                      <span key={skill} style={s.rdSkill}>{skill}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Description */}
+              {roleDetail.description && (
+                <div style={s.rdSection}>
+                  <h4 style={s.rdSectionTitle}>About this Role</h4>
+                  <p style={s.rdDescription}>{roleDetail.description}</p>
+                </div>
+              )}
+
+              {/* Shortlist Info - Different message based on monitoring status */}
+              {roleDetail.is_monitored ? (
+                <div style={s.rdInfo}>
+                  <div style={s.rdInfoIcon}>📋</div>
+                  <div style={s.rdInfoText}>
+                    <strong>What is the Shortlist?</strong>
+                    <p>This is not a formal application. By joining, you're expressing interest in this role.
+                    If the position opens, you'll be notified and the employer can review your profile if you meet their requirements.</p>
+                  </div>
+                </div>
+              ) : (
+                <div style={s.rdInfoHistorical}>
+                  <div style={s.rdInfoIcon}>📊</div>
+                  <div style={s.rdInfoText}>
+                    <strong>Historical Role Data</strong>
+                    <p>This role is based on historical data{roleDetail.data_as_of_date ? ` from ${roleDetail.data_as_of_date}` : ''}.
+                    We don't actively monitor this employer's job postings, so we can't notify you when positions open.
+                    You can still join the shortlist to express interest.</p>
+                  </div>
+                </div>
+              )}
+
+              {/* CTA */}
+              <div style={s.rdActions}>
+                {shortlisted.includes(roleDetail.id) ? (
+                  <div style={s.rdOnShortlist}>
+                    <span style={s.rdCheckmark}>✓</span>
+                    You're on the Shortlist
+                  </div>
+                ) : (
+                  <button
+                    style={s.rdJoinBtn}
+                    onClick={() => {
+                      closeRoleDetail();
+                      // Transform roleDetail to match the job format expected by openJoinShortlist
+                      openJoinShortlist({
+                        ...roleDetail,
+                        company: roleDetail.company_name || roleDetail.company_display_name
+                      });
+                    }}
+                  >
+                    Join the Shortlist
+                  </button>
+                )}
+                <button style={s.rdWatchBtn} onClick={() => toggleWatch(roleDetail.id)}>
+                  {watched.includes(roleDetail.id) ? '✓ Watching' : '+ Watch'}
+                </button>
+              </div>
+            </>
+          ) : (
+            <div style={s.loadingState}>Role not found</div>
+          )}
         </div>
       </div>}
     </div>
@@ -1258,9 +2201,6 @@ const s = {
   stBtnA:{borderColor:'#6366f1',background:'#f0f0ff'},
   stIcon:{fontSize:'28px'},stDesc:{fontSize:'13px',color:'#64748b',marginTop:'4px',fontWeight:'normal'},
   check:{marginLeft:'auto',color:'#6366f1',fontSize:'20px',fontWeight:700},
-  skills:{display:'flex',flexWrap:'wrap',gap:'10px'},
-  skBtn:{padding:'10px 16px',background:'#f1f5f9',border:'none',borderRadius:'8px',fontSize:'13px',cursor:'pointer'},
-  skBtnA:{background:'#6366f1',color:'#fff'},
   pref:{marginBottom:'24px'},lbl:{display:'block',fontSize:'14px',fontWeight:600,marginBottom:'10px',color:'#334155'},
   wsRow:{display:'flex',gap:'10px'},wsBtn:{padding:'12px 20px',background:'#f1f5f9',border:'none',borderRadius:'10px',fontSize:'14px',cursor:'pointer'},wsBtnA:{background:'#6366f1',color:'#fff'},
   salRow:{display:'flex',alignItems:'center',gap:'12px'},salInp:{flex:1,padding:'14px 16px',border:'1px solid #e2e8f0',borderRadius:'10px',fontSize:'14px'},
@@ -1394,8 +2334,124 @@ const s = {
   expMore:{fontSize:'12px',color:'#64748b',textAlign:'center',paddingTop:'4px'},
   // Experience level badge on job cards
   expLevel:{fontSize:'11px',fontWeight:500,padding:'4px 8px',borderRadius:'4px',background:'#fef3c7',color:'#92400e'},
+  historicalTag:{fontSize:'10px',fontWeight:500,padding:'3px 6px',borderRadius:'4px',background:'#fefce8',color:'#a16207',cursor:'help'},
   // Required skills on job cards
   reqSkills:{display:'flex',flexWrap:'wrap',gap:'6px',marginTop:'8px'},
   reqSkill:{fontSize:'11px',padding:'3px 8px',background:'#e0e7ff',color:'#4338ca',borderRadius:'4px'},
   moreSkills:{fontSize:'11px',padding:'3px 8px',color:'#64748b'},
+  // Shortlist modal styles
+  shortlistModal:{background:'#fff',borderRadius:'20px',padding:'32px',maxWidth:'560px',width:'100%',position:'relative',maxHeight:'90vh',overflow:'auto'},
+  slHeader:{display:'flex',alignItems:'center',gap:'16px',marginBottom:'16px'},
+  slTitle:{fontSize:'22px',fontWeight:600,color:'#0f172a',margin:0},
+  slSub:{fontSize:'14px',color:'#64748b',margin:0},
+  slDesc:{fontSize:'14px',color:'#475569',lineHeight:1.5,marginBottom:'20px',padding:'12px 16px',background:'#f0f9ff',borderRadius:'10px',border:'1px solid #bae6fd'},
+  slError:{padding:'12px 16px',background:'#fef2f2',border:'1px solid #fecaca',borderRadius:'10px',color:'#dc2626',fontSize:'14px',marginBottom:'16px'},
+  slForm:{display:'flex',flexDirection:'column',gap:'20px'},
+  slField:{display:'flex',flexDirection:'column',gap:'6px'},
+  slFieldHalf:{flex:1,display:'flex',flexDirection:'column',gap:'6px'},
+  slRow:{display:'flex',gap:'16px'},
+  slLabel:{fontSize:'14px',fontWeight:500,color:'#334155'},
+  slInput:{padding:'12px 14px',border:'1px solid #e2e8f0',borderRadius:'10px',fontSize:'14px',outline:'none',transition:'border-color 0.2s'},
+  slSelect:{padding:'12px 14px',border:'1px solid #e2e8f0',borderRadius:'10px',fontSize:'14px',outline:'none',background:'#fff',cursor:'pointer'},
+  slTextarea:{padding:'12px 14px',border:'1px solid #e2e8f0',borderRadius:'10px',fontSize:'14px',outline:'none',resize:'vertical',fontFamily:'inherit',lineHeight:1.5},
+  slCharCount:{fontSize:'12px',color:'#94a3b8',textAlign:'right',marginTop:'4px'},
+  slActions:{display:'flex',justifyContent:'flex-end',gap:'12px',marginTop:'24px',paddingTop:'20px',borderTop:'1px solid #f1f5f9'},
+  slCancel:{padding:'12px 20px',background:'#f1f5f9',border:'none',borderRadius:'10px',fontSize:'14px',cursor:'pointer',color:'#475569'},
+  slSubmit:{padding:'12px 24px',background:'#6366f1',border:'none',borderRadius:'10px',fontSize:'14px',fontWeight:600,cursor:'pointer',color:'#fff'},
+  // Shortlist button style
+  shortlistBtn:{padding:'8px 12px',background:'#10b981',border:'none',borderRadius:'8px',fontSize:'12px',fontWeight:600,cursor:'pointer',color:'#fff'},
+  shortlistedBtn:{padding:'8px 12px',background:'#dcfce7',border:'1px solid #86efac',borderRadius:'8px',fontSize:'12px',fontWeight:600,color:'#166534'},
+  // Employer positions styles
+  loadingState:{padding:'40px',textAlign:'center',color:'#64748b'},
+  positionsList:{display:'flex',flexDirection:'column',gap:'16px'},
+  positionCard:{background:'#fff',borderRadius:'12px',padding:'20px',border:'1px solid #e2e8f0'},
+  posCardHeader:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'16px'},
+  posTitle:{fontSize:'18px',fontWeight:600,color:'#1e293b',margin:0},
+  posMeta:{fontSize:'14px',color:'#64748b',marginTop:'4px'},
+  posStatus:{padding:'4px 10px',borderRadius:'20px',fontSize:'12px',fontWeight:500},
+  posStats:{display:'flex',gap:'24px',marginBottom:'16px',paddingBottom:'16px',borderBottom:'1px solid #f1f5f9'},
+  posStat:{textAlign:'center'},
+  posStatNum:{display:'block',fontSize:'24px',fontWeight:700,color:'#1e293b'},
+  posStatLabel:{fontSize:'12px',color:'#64748b'},
+  posActions:{display:'flex',gap:'10px'},
+  posActionBtn:{padding:'10px 16px',background:'#6366f1',border:'none',borderRadius:'8px',fontSize:'14px',fontWeight:500,cursor:'pointer',color:'#fff'},
+  posConfigBtn:{padding:'10px 16px',background:'#f1f5f9',border:'none',borderRadius:'8px',fontSize:'14px',cursor:'pointer',color:'#475569'},
+  posStatusBtn:{padding:'10px 16px',border:'1px solid',borderRadius:'8px',fontSize:'14px',fontWeight:500,cursor:'pointer'},
+  // Role config modal styles
+  configModal:{background:'#fff',borderRadius:'16px',padding:'32px',maxWidth:'560px',width:'90%',maxHeight:'85vh',overflowY:'auto'},
+  configTitle:{fontSize:'22px',fontWeight:600,color:'#1e293b',margin:0},
+  configSub:{fontSize:'14px',color:'#64748b',marginTop:'4px',marginBottom:'24px'},
+  configSection:{marginBottom:'24px'},
+  configLabel:{fontSize:'14px',fontWeight:600,color:'#1e293b',marginBottom:'6px'},
+  configHelp:{fontSize:'13px',color:'#64748b',marginBottom:'10px'},
+  thresholdRow:{display:'flex',alignItems:'center',gap:'16px'},
+  thresholdSlider:{flex:1,height:'6px',cursor:'pointer'},
+  thresholdValue:{fontSize:'20px',fontWeight:700,color:'#6366f1',minWidth:'40px',textAlign:'center'},
+  configCheckLabel:{display:'flex',alignItems:'center',gap:'10px',cursor:'pointer',fontSize:'14px',color:'#1e293b'},
+  configOptions:{marginTop:'12px',marginLeft:'24px',display:'flex',flexWrap:'wrap',gap:'8px'},
+  configOption:{display:'flex',alignItems:'center',gap:'6px',padding:'6px 12px',background:'#f8fafc',borderRadius:'6px',fontSize:'13px',cursor:'pointer'},
+  configRow:{display:'flex',gap:'12px',alignItems:'center'},
+  configInput:{padding:'10px 12px',border:'1px solid #e2e8f0',borderRadius:'8px',fontSize:'14px',width:'150px'},
+  configDash:{color:'#64748b'},
+  configActions:{display:'flex',justifyContent:'flex-end',gap:'12px',marginTop:'24px',paddingTop:'20px',borderTop:'1px solid #f1f5f9'},
+  configCancel:{padding:'12px 20px',background:'#f1f5f9',border:'none',borderRadius:'10px',fontSize:'14px',cursor:'pointer',color:'#475569'},
+  configSave:{padding:'12px 24px',background:'#6366f1',border:'none',borderRadius:'10px',fontSize:'14px',fontWeight:600,cursor:'pointer',color:'#fff'},
+  // Shortlist view modal styles
+  shortlistViewModal:{background:'#fff',borderRadius:'16px',padding:'32px',maxWidth:'800px',width:'95%',maxHeight:'85vh',overflowY:'auto'},
+  slStats:{display:'flex',gap:'24px',marginBottom:'24px',paddingBottom:'20px',borderBottom:'1px solid #f1f5f9'},
+  slStat:{textAlign:'center',flex:1},
+  slStatNum:{display:'block',fontSize:'28px',fontWeight:700,color:'#1e293b'},
+  slStatLabel:{fontSize:'13px',color:'#64748b'},
+  emptyShortlist:{padding:'40px',textAlign:'center',color:'#64748b'},
+  candidatesList:{display:'flex',flexDirection:'column',gap:'16px'},
+  candidateCard:{background:'#f8fafc',borderRadius:'12px',padding:'16px',border:'1px solid #e2e8f0'},
+  candHeader:{display:'flex',alignItems:'center',gap:'12px',marginBottom:'12px'},
+  candAvatar:{width:'44px',height:'44px',borderRadius:'50%',background:'#6366f1',color:'#fff',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:600,fontSize:'14px'},
+  candInfo:{flex:1},
+  candScore:{textAlign:'center'},
+  scoreNum:{display:'block',fontSize:'24px',fontWeight:700},
+  scoreLabel:{fontSize:'11px',color:'#64748b',textTransform:'uppercase'},
+  candDetails:{display:'flex',gap:'8px',marginBottom:'10px',flexWrap:'wrap'},
+  candTag:{padding:'4px 10px',background:'#e2e8f0',borderRadius:'20px',fontSize:'12px',color:'#475569'},
+  candStrengths:{fontSize:'13px',color:'#16a34a',marginBottom:'8px'},
+  candConcern:{fontSize:'13px',color:'#ca8a04',marginBottom:'8px'},
+  candLinks:{display:'flex',gap:'12px'},
+  candLink:{fontSize:'13px',color:'#6366f1',textDecoration:'none'},
+  // Shortlist filter controls
+  filterControls:{display:'flex',alignItems:'center',gap:'16px',marginBottom:'20px',padding:'12px 16px',background:'#f8fafc',borderRadius:'10px',flexWrap:'wrap'},
+  filterBtns:{display:'flex',gap:'8px'},
+  filterBtn:{padding:'8px 14px',background:'#fff',border:'1px solid #e2e8f0',borderRadius:'8px',fontSize:'13px',color:'#64748b',cursor:'pointer'},
+  filterBtnActive:{background:'#6366f1',borderColor:'#6366f1',color:'#fff'},
+  thresholdNote:{fontSize:'12px',color:'#64748b',marginLeft:'auto'},
+  // Export row styles
+  exportRow:{display:'flex',alignItems:'center',gap:'12px',marginBottom:'20px',padding:'12px 16px',background:'#f0fdf4',borderRadius:'10px',border:'1px solid #bbf7d0'},
+  exportLabel:{fontSize:'13px',fontWeight:500,color:'#166534'},
+  exportBtn:{padding:'8px 14px',background:'#fff',border:'1px solid #86efac',borderRadius:'8px',fontSize:'13px',color:'#166534',cursor:'pointer',textDecoration:'none',display:'inline-flex',alignItems:'center',gap:'6px'},
+  // Role Detail Modal styles
+  roleDetailModal:{background:'#fff',borderRadius:'20px',padding:'32px',maxWidth:'640px',width:'95%',position:'relative',maxHeight:'90vh',overflow:'auto'},
+  rdHeader:{display:'flex',gap:'16px',alignItems:'flex-start',marginBottom:'20px'},
+  rdLogo:{width:'60px',height:'60px',borderRadius:'12px',background:'#6366f1',color:'#fff',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:'24px',flexShrink:0},
+  rdHeaderInfo:{flex:1},
+  rdTitle:{fontSize:'24px',fontWeight:600,color:'#0f172a',margin:0,marginBottom:'4px'},
+  rdCompany:{fontSize:'16px',color:'#475569',margin:0,marginBottom:'8px'},
+  rdMeta:{display:'flex',gap:'16px',flexWrap:'wrap'},
+  rdMetaItem:{fontSize:'14px',color:'#64748b'},
+  rdStatus:{padding:'6px 12px',borderRadius:'20px',fontSize:'13px',fontWeight:500,flexShrink:0},
+  rdSalary:{fontSize:'18px',fontWeight:600,color:'#16a34a',marginBottom:'16px',padding:'12px 16px',background:'#f0fdf4',borderRadius:'10px'},
+  rdExpLevel:{marginBottom:'16px'},
+  rdExpBadge:{display:'inline-block',padding:'6px 14px',background:'#fef3c7',color:'#92400e',borderRadius:'20px',fontSize:'14px',fontWeight:500},
+  rdSection:{marginBottom:'20px'},
+  rdSectionTitle:{fontSize:'14px',fontWeight:600,color:'#1e293b',marginBottom:'10px'},
+  rdSkills:{display:'flex',flexWrap:'wrap',gap:'8px'},
+  rdSkill:{padding:'6px 12px',background:'#e0e7ff',color:'#4338ca',borderRadius:'6px',fontSize:'13px'},
+  rdDescription:{fontSize:'14px',color:'#475569',lineHeight:1.6},
+  rdInfo:{display:'flex',gap:'12px',padding:'16px',background:'#f0f9ff',borderRadius:'12px',border:'1px solid #bae6fd',marginBottom:'24px'},
+  rdInfoHistorical:{display:'flex',gap:'12px',padding:'16px',background:'#fefce8',borderRadius:'12px',border:'1px solid #fde047',marginBottom:'24px'},
+  rdInfoIcon:{fontSize:'24px',flexShrink:0},
+  rdInfoText:{flex:1,fontSize:'13px',color:'#0369a1',lineHeight:1.5},
+  rdActions:{display:'flex',gap:'12px',justifyContent:'center'},
+  rdJoinBtn:{padding:'14px 32px',background:'#10b981',border:'none',borderRadius:'12px',fontSize:'16px',fontWeight:600,color:'#fff',cursor:'pointer'},
+  rdWatchBtn:{padding:'14px 24px',background:'#f1f5f9',border:'none',borderRadius:'12px',fontSize:'14px',color:'#475569',cursor:'pointer'},
+  rdOnShortlist:{display:'flex',alignItems:'center',gap:'8px',padding:'14px 24px',background:'#dcfce7',borderRadius:'12px',fontSize:'15px',fontWeight:500,color:'#166534'},
+  rdCheckmark:{fontSize:'18px'},
 };
