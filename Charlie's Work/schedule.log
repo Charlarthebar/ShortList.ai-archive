@@ -12,3 +12,11 @@
 2026-01-13 10:11:13,990 - __main__ - INFO - DAILY SCRAPER - Collecting active job listings
 2026-01-13 10:11:13,990 - __main__ - INFO - ============================================================
 2026-01-13 10:11:13,991 - __main__ - ERROR - Daily script not found: /Users/charleslai/Library/CloudStorage/OneDrive-MassachusettsInstituteofTechnology/ShortList.ai/Charlie's Work/test_cambridge.py
+2026-01-16 13:38:52,170 - __main__ - INFO - Setting up macOS launchd jobs...
+2026-01-16 13:38:52,172 - __main__ - INFO - launchd configuration complete
+2026-01-16 13:41:49,237 - __main__ - INFO - ============================================================
+2026-01-16 13:41:49,237 - __main__ - INFO - DAILY SCRAPER - Collecting active job listings
+2026-01-16 13:41:49,237 - __main__ - INFO - ============================================================
+2026-01-16 13:41:49,360 - __main__ - ERROR - Daily scraper failed with code 1
+2026-01-20 16:11:25,315 - __main__ - INFO - Setting up macOS launchd jobs...
+2026-01-20 16:11:25,337 - __main__ - INFO - launchd configuration complete

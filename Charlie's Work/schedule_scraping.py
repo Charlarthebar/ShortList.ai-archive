@@ -4,7 +4,12 @@ Job Scraping Scheduler
 ======================
 
 This script sets up scheduled scraping for job data collection:
-- DAILY: Active job listings from Adzuna and USAJOBS
+- DAILY: Active job listings from 6 sources (both Cambridge area AND nationwide)
+  1. Cambridge Area Collector -> cambridge_jobs.db (filtered to 10-mile radius + remote)
+  2. Nationwide Collector -> nationwide_jobs.db (all US jobs)
+
+  Sources: Adzuna, USAJOBS, The Muse, Coresignal, RemoteOK, Remotive
+
 - WEEKLY: Unlisted/filled jobs from BLS, Form 990, state payroll, and historical tracking
 
 Scheduling Methods:
@@ -46,7 +51,9 @@ logger = logging.getLogger(__name__)
 SCRIPT_DIR = Path(__file__).parent.absolute()
 # Use the actual Python path, not the shim (fixes pyenv compatibility)
 PYTHON_PATH = os.path.realpath(sys.executable)
-DAILY_SCRIPT = SCRIPT_DIR / "test_cambridge.py"  # Your existing job scraper
+# Daily scripts: Cambridge collector first, then nationwide
+CAMBRIDGE_SCRIPT = SCRIPT_DIR / "cambridge_jobs_collector.py"
+NATIONWIDE_SCRIPT = SCRIPT_DIR / "nationwide_jobs_collector.py"
 WEEKLY_SCRIPT = SCRIPT_DIR / "unlisted_jobs_collector.py"
 DB_PATH = SCRIPT_DIR / "cambridge_jobs.db"
 LOG_DIR = SCRIPT_DIR / "logs"
@@ -59,11 +66,19 @@ def ensure_log_dir():
 
 def run_daily_scraper():
     """
-    Run the daily job scraper.
+    Run the daily job scrapers.
 
-    This collects ACTIVE job listings from:
+    Runs BOTH collectors sequentially:
+    1. Cambridge Area Jobs Collector (6 sources, filtered to Cambridge area + remote)
+    2. Nationwide Jobs Collector (6 sources, all US jobs)
+
+    Sources:
     - Adzuna API
     - USAJOBS API
+    - The Muse API
+    - Coresignal API
+    - RemoteOK API
+    - Remotive API
     """
     logger.info("="*60)
     logger.info("DAILY SCRAPER - Collecting active job listings")
@@ -72,41 +87,104 @@ def run_daily_scraper():
     ensure_log_dir()
     log_file = LOG_DIR / f"daily_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
 
+    overall_success = True
+    log_content = []
+    log_content.append(f"=== Daily Scraper Run: {datetime.now()} ===\n")
+
+    # =========================================================
+    # 1. CAMBRIDGE AREA JOBS COLLECTOR
+    # =========================================================
+    logger.info("Step 1/2: Running Cambridge Area Jobs Collector...")
+    log_content.append("\n" + "="*60)
+    log_content.append("STEP 1: CAMBRIDGE AREA JOBS COLLECTOR")
+    log_content.append("="*60 + "\n")
+
     try:
-        # Run the Cambridge job scraper
-        if DAILY_SCRIPT.exists():
+        if CAMBRIDGE_SCRIPT.exists():
             result = subprocess.run(
-                [PYTHON_PATH, str(DAILY_SCRIPT)],
+                [PYTHON_PATH, str(CAMBRIDGE_SCRIPT)],
                 cwd=str(SCRIPT_DIR),
                 capture_output=True,
                 text=True,
-                timeout=600  # 10 minute timeout
+                timeout=1800  # 30 minute timeout
             )
 
-            # Log output
-            with open(log_file, 'w') as f:
-                f.write(f"=== Daily Scraper Run: {datetime.now()} ===\n\n")
-                f.write("STDOUT:\n")
-                f.write(result.stdout)
-                f.write("\n\nSTDERR:\n")
-                f.write(result.stderr)
+            log_content.append("STDOUT:\n")
+            log_content.append(result.stdout)
+            log_content.append("\nSTDERR:\n")
+            log_content.append(result.stderr)
 
             if result.returncode == 0:
-                logger.info(f"Daily scraper completed successfully. Log: {log_file}")
+                logger.info("Cambridge collector completed successfully")
             else:
-                logger.error(f"Daily scraper failed with code {result.returncode}")
-
-            return result.returncode == 0
+                logger.error(f"Cambridge collector failed with code {result.returncode}")
+                overall_success = False
         else:
-            logger.error(f"Daily script not found: {DAILY_SCRIPT}")
-            return False
+            logger.error(f"Cambridge script not found: {CAMBRIDGE_SCRIPT}")
+            log_content.append(f"ERROR: Cambridge script not found: {CAMBRIDGE_SCRIPT}\n")
+            overall_success = False
 
     except subprocess.TimeoutExpired:
-        logger.error("Daily scraper timed out after 10 minutes")
-        return False
+        logger.error("Cambridge collector timed out after 30 minutes")
+        log_content.append("ERROR: Cambridge collector timed out after 30 minutes\n")
+        overall_success = False
     except Exception as e:
-        logger.error(f"Error running daily scraper: {e}")
-        return False
+        logger.error(f"Error running Cambridge collector: {e}")
+        log_content.append(f"ERROR: {e}\n")
+        overall_success = False
+
+    # =========================================================
+    # 2. NATIONWIDE JOBS COLLECTOR
+    # =========================================================
+    logger.info("Step 2/2: Running Nationwide Jobs Collector...")
+    log_content.append("\n" + "="*60)
+    log_content.append("STEP 2: NATIONWIDE JOBS COLLECTOR")
+    log_content.append("="*60 + "\n")
+
+    try:
+        if NATIONWIDE_SCRIPT.exists():
+            result = subprocess.run(
+                [PYTHON_PATH, str(NATIONWIDE_SCRIPT)],
+                cwd=str(SCRIPT_DIR),
+                capture_output=True,
+                text=True,
+                timeout=3600  # 60 minute timeout (nationwide takes longer)
+            )
+
+            log_content.append("STDOUT:\n")
+            log_content.append(result.stdout)
+            log_content.append("\nSTDERR:\n")
+            log_content.append(result.stderr)
+
+            if result.returncode == 0:
+                logger.info("Nationwide collector completed successfully")
+            else:
+                logger.error(f"Nationwide collector failed with code {result.returncode}")
+                overall_success = False
+        else:
+            logger.error(f"Nationwide script not found: {NATIONWIDE_SCRIPT}")
+            log_content.append(f"ERROR: Nationwide script not found: {NATIONWIDE_SCRIPT}\n")
+            overall_success = False
+
+    except subprocess.TimeoutExpired:
+        logger.error("Nationwide collector timed out after 60 minutes")
+        log_content.append("ERROR: Nationwide collector timed out after 60 minutes\n")
+        overall_success = False
+    except Exception as e:
+        logger.error(f"Error running Nationwide collector: {e}")
+        log_content.append(f"ERROR: {e}\n")
+        overall_success = False
+
+    # Write combined log
+    with open(log_file, 'w') as f:
+        f.write('\n'.join(log_content))
+
+    if overall_success:
+        logger.info(f"Daily scraper completed successfully. Log: {log_file}")
+    else:
+        logger.error(f"Daily scraper completed with errors. Log: {log_file}")
+
+    return overall_success
 
 
 def run_weekly_collector():
@@ -467,9 +545,38 @@ def check_status():
 
     # Check database status
     print("\n--- DATABASE STATUS ---")
-    if DB_PATH.exists():
+
+    # Cambridge database
+    cambridge_db = SCRIPT_DIR / "cambridge_jobs.db"
+    print("\nCambridge Jobs Database:")
+    if cambridge_db.exists():
         import sqlite3
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect(cambridge_db)
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT COUNT(*) FROM jobs WHERE status='active'")
+        active = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM jobs WHERE is_remote=1")
+        remote = cursor.fetchone()[0]
+
+        cursor.execute("SELECT MAX(last_seen) FROM jobs")
+        last_seen = cursor.fetchone()[0]
+
+        print(f"  Active jobs: {active}")
+        print(f"  Remote jobs: {remote}")
+        print(f"  Last update: {last_seen}")
+
+        conn.close()
+    else:
+        print("  Database not found")
+
+    # Nationwide database
+    nationwide_db = SCRIPT_DIR / "nationwide_jobs.db"
+    print("\nNationwide Jobs Database:")
+    if nationwide_db.exists():
+        import sqlite3
+        conn = sqlite3.connect(nationwide_db)
         cursor = conn.cursor()
 
         cursor.execute("SELECT COUNT(*) FROM jobs WHERE status='active'")
@@ -487,7 +594,7 @@ def check_status():
 
         conn.close()
     else:
-        print("Database not found")
+        print("  Database not found")
 
     print("\n" + "="*60)
 
