@@ -4,15 +4,25 @@
 
 ShortList.ai operates in the online recruitment and hiring platform market, with a focus on skill-based matching and passive candidate discovery.
 
+This market includes a variety of solutions:
+
+- Online recruitment platforms
+- Job boards with advanced matching
+- AI/ML-driven candidate sourcing
+- Passive talent discovery solutions
+- Recruitment SaaS tools for hiring teams
+
 ## Total Addressable Market (TAM)
 
-The global online recruitment platform market is estimated at approximately **$57.7B in 2025**, with projections exceeding **$100B by 2030**, more specifically $132.13B by 2032 with a 12.4% CAGR.
+The global online recruitment platform market is large and growing, but reported market size varies depending on whether the source includes adjacent categories (e.g., recruitment services, broader HR tech).
 
-For initial modeling, we focus on the U.S. portion of this market.
+**Representative estimates include:**
+- ~$57.7B in 2025, projected to ~$132.1B by 2032 (~12.5% CAGR)
+- Other estimates suggest lower totals depending on market scope
 
-Assumptions:
-- U.S. represents ~35% of global recruitment spend
-- TAM (U.S.) ≈ $20B annually
+**Global TAM (modeling range):**
+- **Base Case:** ~$50–60B (2025)
+- **Long-term:** $100B+ by ~2030/2032
 
 ## Serviceable Available Market (SAM)
 
@@ -44,3 +54,4 @@ This TAM model is intentionally conservative and will be refined as:
 - Pricing experiments are run
 - Employer willingness to pay is validated
 - Expansion into non-traditional roles is evaluated
+

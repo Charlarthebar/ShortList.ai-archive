@@ -20,7 +20,9 @@ from sources.job_postings.company_targets import (
     GREENHOUSE_COMPANIES,
     LEVER_COMPANIES,
     SMARTRECRUITERS_COMPANIES,
-    WORKDAY_COMPANIES
+    WORKDAY_COMPANIES,
+    ASHBY_COMPANIES,
+    RIPPLING_COMPANIES
 )
 
 logging.basicConfig(
@@ -120,6 +122,28 @@ def main():
         db_company_id = get_or_create_company(cursor, company_name)
 
         if add_posting_target(cursor, company_id, company_name, "workday", careers_url, db_company_id):
+            added += 1
+        else:
+            skipped += 1
+
+    # Add Ashby companies
+    log.info(f"Adding {len(ASHBY_COMPANIES)} Ashby companies...")
+    for company_id, company_name in ASHBY_COMPANIES.items():
+        careers_url = f"https://jobs.ashbyhq.com/{company_id}"
+        db_company_id = get_or_create_company(cursor, company_name)
+
+        if add_posting_target(cursor, company_id, company_name, "ashby", careers_url, db_company_id):
+            added += 1
+        else:
+            skipped += 1
+
+    # Add Rippling companies
+    log.info(f"Adding {len(RIPPLING_COMPANIES)} Rippling companies...")
+    for company_id, company_name in RIPPLING_COMPANIES.items():
+        careers_url = f"https://ats.rippling.com/{company_id}"
+        db_company_id = get_or_create_company(cursor, company_name)
+
+        if add_posting_target(cursor, company_id, company_name, "rippling", careers_url, db_company_id):
             added += 1
         else:
             skipped += 1

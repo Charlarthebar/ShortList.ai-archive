@@ -43,6 +43,8 @@ from sources.job_postings.greenhouse import GreenhouseConnector
 from sources.job_postings.lever import LeverConnector
 from sources.job_postings.smartrecruiters import SmartRecruitersConnector
 from sources.job_postings.workday import WorkdayConnector
+from sources.job_postings.ashby import AshbyConnector
+from sources.job_postings.rippling import RipplingConnector
 
 # Setup logging
 logging.basicConfig(
@@ -63,6 +65,8 @@ class PostingRefresher:
         'lever': LeverConnector,
         'smartrecruiters': SmartRecruitersConnector,
         'workday': WorkdayConnector,
+        'ashby': AshbyConnector,
+        'rippling': RipplingConnector,
     }
 
     def __init__(self, dry_run: bool = False):

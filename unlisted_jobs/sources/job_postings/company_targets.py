@@ -115,6 +115,100 @@ SMARTRECRUITERS_COMPANIES: Dict[str, str] = {
     "LVMH": "LVMH",                  # 4 jobs
 }
 
+# Validated: 2026-01-16 - Popular with AI/ML and dev tools companies
+# 31 companies, ~2,000+ jobs
+ASHBY_COMPANIES: Dict[str, str] = {
+    # AI / ML Companies
+    "openai": "OpenAI",              # 463 jobs
+    "cohere": "Cohere",              # 128 jobs
+    "perplexity": "Perplexity",      # 78 jobs
+    "character": "Character.AI",     # 20 jobs
+    "runway": "Runway",              # 2 jobs
+    "essentialai": "Essential AI",   # 2 jobs
+    "harvey": "Harvey",              # 134 jobs
+
+    # Fintech
+    "deel": "Deel",                  # 274 jobs
+    "ramp": "Ramp",                  # 131 jobs
+
+    # Dev Tools / Infrastructure
+    "notion": "Notion",              # 115 jobs
+    "linear": "Linear",              # 22 jobs
+    "supabase": "Supabase",          # 37 jobs
+    "neon": "Neon",                  # 26 jobs
+    "posthog": "PostHog",            # 23 jobs
+    "sentry": "Sentry",              # 42 jobs
+    "render": "Render",              # 18 jobs
+    "railway": "Railway",            # 8 jobs
+    "coder": "Coder",                # 5 jobs
+    "cursor": "Cursor",              # 33 jobs
+    "replit": "Replit",              # 53 jobs
+    "observeinc": "Observe",         # 21 jobs
+    "Namespace": "Namespace",        # 5 jobs
+    "mintlify": "Mintlify",          # 14 jobs
+
+    # Productivity / SaaS
+    "clickup": "ClickUp",            # 80 jobs
+    "zapier": "Zapier",              # 32 jobs
+    "claylabs": "Clay",              # 49 jobs
+    "quora": "Quora",                # 13 jobs
+
+    # Security
+    "1password": "1Password",        # 59 jobs
+
+    # HR / Remote Work
+    "oyster": "Oyster HR",           # 11 jobs
+
+    # Healthcare
+    "hims-and-hers": "Hims & Hers",  # 103 jobs
+
+    # Insurance / Automotive
+    "Jerry.ai": "Jerry",             # 46 jobs
+}
+
+# Validated: 2026-01-16 - Rippling's ATS is popular with startups
+# 29 companies, ~800+ jobs
+RIPPLING_COMPANIES: Dict[str, str] = {
+    # HR / Software (Rippling itself)
+    "rippling": "Rippling",                      # 787 jobs
+
+    # Aerospace / Defense
+    "forterra": "Forterra",                      # 43 jobs
+    "boom-supersonic": "Boom Supersonic",        # 27 jobs
+    "aalo-atomics": "Aalo Atomics",              # 22 jobs
+    "archer": "Archer Aviation",                 # 6 jobs
+    "framework": "Framework",                    # 1 job
+
+    # Tech / SaaS
+    "cbts": "CBTS",                              # 35 jobs
+    "genlogs-corporation": "GenLogs",            # 27 jobs
+    "keeblerhealth": "Keebler Health",           # 12 jobs
+    "interplaylearning": "Interplay Learning",   # 8 jobs
+    "hutch-ads-job-board": "Hutch Advertising",  # 8 jobs
+    "theinformation-jobs": "The Information",    # 7 jobs
+    "teamworks-careers": "Teamworks",            # 7 jobs
+    "capacity": "Capacity",                      # 7 jobs
+    "qu-careers": "Qu POS",                      # 6 jobs
+    "searchbloom-careers": "Searchbloom",        # 6 jobs
+    "mspark-careers": "Mspark",                  # 4 jobs
+    "poggio": "Poggio",                          # 3 jobs
+    "whitestone-branding-careers": "Whitestone Branding",  # 2 jobs
+
+    # Developer Tools / Data
+    "prisma-careers": "Prisma",                  # 58 jobs
+    "anaconda": "Anaconda",                      # 23 jobs
+    "reforge": "Reforge",                        # 3 jobs
+
+    # AI Startups
+    "dropzone-ai": "Dropzone AI",                # 13 jobs
+    "bronco-ai": "Bronco AI",                    # 3 jobs
+    "unityai-jobs": "UnityAI",                   # 6 jobs
+    "bizzycar": "BizzyCar",                      # 2 jobs
+    "sketchy": "Sketchy",                        # 2 jobs
+    "lcacareers": "LCA",                         # 6 jobs
+    "optigon": "Optigon",                        # 2 jobs
+}
+
 WORKDAY_COMPANIES: Dict[Tuple[str, str, str], str] = {
     # (company_id, workday_host, tenant): Company Name
     ("amazon", "wd5.myworkdayjobs.com", "External"): "Amazon",
@@ -646,6 +740,24 @@ def get_all_known_targets() -> List[CompanyTarget]:
             notes=f"host={host}, tenant={tenant}"
         ))
 
+    # Ashby companies
+    for company_id, company_name in ASHBY_COMPANIES.items():
+        targets.append(CompanyTarget(
+            company_id=company_id,
+            company_name=company_name,
+            ats_type="ashby",
+            priority=1
+        ))
+
+    # Rippling companies
+    for company_id, company_name in RIPPLING_COMPANIES.items():
+        targets.append(CompanyTarget(
+            company_id=company_id,
+            company_name=company_name,
+            ats_type="rippling",
+            priority=1
+        ))
+
     return targets
 
 
@@ -667,6 +779,10 @@ def get_auto_detect_targets() -> List[CompanyTarget]:
     for company_id, _ in SMARTRECRUITERS_COMPANIES.items():
         known_ids.add(company_id.lower())
     for (company_id, _, _), _ in WORKDAY_COMPANIES.items():
+        known_ids.add(company_id.lower())
+    for company_id, _ in ASHBY_COMPANIES.items():
+        known_ids.add(company_id.lower())
+    for company_id, _ in RIPPLING_COMPANIES.items():
         known_ids.add(company_id.lower())
 
     seen = set()
@@ -696,6 +812,8 @@ if __name__ == "__main__":
     print(f"  - Greenhouse: {len(GREENHOUSE_COMPANIES)}")
     print(f"  - Lever: {len(LEVER_COMPANIES)}")
     print(f"  - SmartRecruiters: {len(SMARTRECRUITERS_COMPANIES)}")
+    print(f"  - Ashby: {len(ASHBY_COMPANIES)}")
+    print(f"  - Rippling: {len(RIPPLING_COMPANIES)}")
     print(f"  - Workday: {len(WORKDAY_COMPANIES)}")
     print(f"\nAuto-detect targets: {len(auto_detect)}")
     print(f"\nTotal targets: {len(known) + len(auto_detect)}")
