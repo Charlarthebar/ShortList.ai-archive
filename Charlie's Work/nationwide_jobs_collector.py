@@ -557,6 +557,497 @@ class RemotiveClient:
             return []
 
 
+class ArbeitnowClient:
+    """Client for Arbeitnow API (free, tech/startup jobs)."""
+
+    BASE_URL = "https://www.arbeitnow.com/api/job-board-api"
+
+    def search(self, max_results: int = 0, delay: float = 1.0) -> List[Dict]:
+        """Fetch jobs from Arbeitnow (mostly Europe but some US remote)."""
+        print(f"  Fetching jobs from Arbeitnow...")
+
+        jobs = []
+        page = 1
+        consecutive_errors = 0
+
+        while True:
+            if max_results > 0 and len(jobs) >= max_results:
+                break
+
+            try:
+                params = {"page": page}
+                response = requests.get(self.BASE_URL, params=params, timeout=30)
+
+                if response.status_code == 429:
+                    print(f"    Rate limited, waiting 60s...")
+                    time.sleep(60)
+                    continue
+
+                if response.status_code != 200:
+                    consecutive_errors += 1
+                    if consecutive_errors >= 3:
+                        break
+                    time.sleep(5)
+                    continue
+
+                consecutive_errors = 0
+                data = response.json()
+                results = data.get("data", [])
+
+                if not results:
+                    break
+
+                for job in results:
+                    # Filter for US-related jobs (remote-friendly or US location)
+                    location = job.get("location", "").lower()
+                    remote = job.get("remote", False)
+
+                    if remote or "us" in location or "united states" in location or "america" in location:
+                        jobs.append({
+                            "title": job.get("title", ""),
+                            "employer": job.get("company_name", "Unknown"),
+                            "location": job.get("location", "Remote") if not remote else "Remote",
+                            "city": "",
+                            "state": "",
+                            "salary_min": None,
+                            "salary_max": None,
+                            "description": job.get("description", "")[:1000] if job.get("description") else "",
+                            "url": job.get("url", ""),
+                            "posted_date": job.get("created_at", ""),
+                            "source": "arbeitnow",
+                            "source_id": str(job.get("slug", "")),
+                            "category": ",".join(job.get("tags", [])) if job.get("tags") else "",
+                        })
+
+                # Check for more pages
+                links = data.get("links", {})
+                if not links.get("next"):
+                    break
+
+                page += 1
+                time.sleep(delay)
+
+                if page % 10 == 0:
+                    print(f"    Page {page}: {len(jobs)} jobs")
+
+            except Exception as e:
+                consecutive_errors += 1
+                print(f"    Arbeitnow error: {e}")
+                if consecutive_errors >= 3:
+                    break
+                time.sleep(5)
+
+        print(f"  Collected {len(jobs)} jobs from Arbeitnow")
+        return jobs[:max_results] if max_results > 0 else jobs
+
+
+class HimalayasClient:
+    """Client for Himalayas.app API (free, remote jobs)."""
+
+    BASE_URL = "https://himalayas.app/jobs/api"
+
+    def search(self, max_results: int = 0) -> List[Dict]:
+        """Fetch remote jobs from Himalayas."""
+        print(f"  Fetching jobs from Himalayas...")
+
+        jobs = []
+        offset = 0
+        limit = 50
+        consecutive_errors = 0
+
+        while True:
+            if max_results > 0 and len(jobs) >= max_results:
+                break
+
+            try:
+                params = {"offset": offset, "limit": limit}
+                response = requests.get(self.BASE_URL, params=params, timeout=30)
+
+                if response.status_code != 200:
+                    consecutive_errors += 1
+                    if consecutive_errors >= 3:
+                        break
+                    time.sleep(5)
+                    continue
+
+                consecutive_errors = 0
+                data = response.json()
+                results = data.get("jobs", [])
+
+                if not results:
+                    break
+
+                for job in results:
+                    jobs.append({
+                        "title": job.get("title", ""),
+                        "employer": job.get("companyName", "Unknown"),
+                        "location": "Remote",
+                        "city": "",
+                        "state": "",
+                        "salary_min": job.get("minSalary"),
+                        "salary_max": job.get("maxSalary"),
+                        "description": job.get("description", "")[:1000] if job.get("description") else "",
+                        "url": job.get("applicationLink", "") or f"https://himalayas.app/jobs/{job.get('slug', '')}",
+                        "posted_date": job.get("pubDate", ""),
+                        "source": "himalayas",
+                        "source_id": str(job.get("id", "")),
+                        "category": job.get("categories", [""])[0] if job.get("categories") else "",
+                    })
+
+                offset += limit
+
+                if len(results) < limit:
+                    break
+
+                time.sleep(0.5)
+
+            except Exception as e:
+                print(f"    Himalayas error: {e}")
+                break
+
+        print(f"  Collected {len(jobs)} jobs from Himalayas")
+        return jobs[:max_results] if max_results > 0 else jobs
+
+
+class JobicyClient:
+    """Client for Jobicy API (free, remote jobs)."""
+
+    BASE_URL = "https://jobicy.com/api/v2/remote-jobs"
+
+    def search(self, max_results: int = 0) -> List[Dict]:
+        """Fetch remote jobs from Jobicy."""
+        print(f"  Fetching jobs from Jobicy...")
+
+        jobs = []
+
+        # Jobicy has different industry categories
+        industries = ["", "marketing", "design", "dev", "copywriting", "customer-support",
+                     "finance", "hr", "data-science", "devops", "product", "management", "sales"]
+
+        for industry in industries:
+            try:
+                params = {"count": 50, "geo": "usa"}
+                if industry:
+                    params["industry"] = industry
+
+                response = requests.get(self.BASE_URL, params=params, timeout=30)
+
+                if response.status_code != 200:
+                    continue
+
+                data = response.json()
+                results = data.get("jobs", [])
+
+                for job in results:
+                    jobs.append({
+                        "title": job.get("jobTitle", ""),
+                        "employer": job.get("companyName", "Unknown"),
+                        "location": job.get("jobGeo", "Remote"),
+                        "city": "",
+                        "state": "",
+                        "salary_min": None,
+                        "salary_max": None,
+                        "description": job.get("jobExcerpt", "")[:1000] if job.get("jobExcerpt") else "",
+                        "url": job.get("url", ""),
+                        "posted_date": job.get("pubDate", ""),
+                        "source": "jobicy",
+                        "source_id": str(job.get("id", "")),
+                        "category": job.get("jobIndustry", [""])[0] if job.get("jobIndustry") else "",
+                    })
+
+                time.sleep(0.5)
+
+                if max_results > 0 and len(jobs) >= max_results:
+                    break
+
+            except Exception as e:
+                print(f"    Jobicy error for {industry}: {e}")
+                continue
+
+        # Dedupe by source_id
+        seen = set()
+        unique_jobs = []
+        for job in jobs:
+            if job["source_id"] not in seen:
+                seen.add(job["source_id"])
+                unique_jobs.append(job)
+
+        print(f"  Collected {len(unique_jobs)} jobs from Jobicy")
+        return unique_jobs[:max_results] if max_results > 0 else unique_jobs
+
+
+class JSearchClient:
+    """
+    Client for JSearch API via RapidAPI.
+
+    This aggregates jobs from LinkedIn, Indeed, Glassdoor, ZipRecruiter, and more.
+    Can access millions of jobs but requires RapidAPI subscription.
+    """
+
+    BASE_URL = "https://jsearch.p.rapidapi.com/search"
+
+    def __init__(self):
+        self.api_key = os.environ.get('RAPIDAPI_KEY') or os.environ.get('JSEARCH_API_KEY')
+
+    def is_configured(self) -> bool:
+        return bool(self.api_key)
+
+    def search(self, max_results: int = 10000, delay: float = 1.0) -> List[Dict]:
+        """
+        Search for jobs via JSearch (aggregates LinkedIn, Indeed, etc).
+
+        Note: RapidAPI has rate limits based on subscription tier.
+        """
+        if not self.is_configured():
+            return []
+
+        jobs = []
+        page = 1
+        consecutive_errors = 0
+
+        # Search multiple queries to maximize coverage
+        queries = [
+            "software engineer USA",
+            "data analyst USA",
+            "marketing USA",
+            "sales USA",
+            "healthcare USA",
+            "accounting USA",
+            "engineering USA",
+            "customer service USA",
+            "operations USA",
+            "human resources USA",
+        ]
+
+        headers = {
+            "X-RapidAPI-Key": self.api_key,
+            "X-RapidAPI-Host": "jsearch.p.rapidapi.com"
+        }
+
+        print(f"  Fetching jobs from JSearch (RapidAPI)...")
+
+        for query in queries:
+            if max_results > 0 and len(jobs) >= max_results:
+                break
+
+            page = 1
+            print(f"    Query: {query}")
+
+            while True:
+                if max_results > 0 and len(jobs) >= max_results:
+                    break
+
+                try:
+                    params = {
+                        "query": query,
+                        "page": str(page),
+                        "num_pages": "1",
+                        "date_posted": "month"  # Last 30 days
+                    }
+
+                    response = requests.get(self.BASE_URL, headers=headers, params=params, timeout=30)
+
+                    if response.status_code == 429:
+                        print(f"      Rate limited, waiting 60s...")
+                        time.sleep(60)
+                        continue
+
+                    if response.status_code == 403:
+                        print(f"      API quota exceeded")
+                        break
+
+                    if response.status_code != 200:
+                        consecutive_errors += 1
+                        if consecutive_errors >= 3:
+                            break
+                        time.sleep(5)
+                        continue
+
+                    consecutive_errors = 0
+                    data = response.json()
+                    results = data.get("data", [])
+
+                    if not results:
+                        break
+
+                    for job in results:
+                        city = job.get("job_city", "")
+                        state = job.get("job_state", "")
+
+                        jobs.append({
+                            "title": job.get("job_title", ""),
+                            "employer": job.get("employer_name", "Unknown"),
+                            "location": f"{city}, {state}" if city and state else city or state or "USA",
+                            "city": city,
+                            "state": state,
+                            "salary_min": job.get("job_min_salary"),
+                            "salary_max": job.get("job_max_salary"),
+                            "description": job.get("job_description", "")[:1000] if job.get("job_description") else "",
+                            "url": job.get("job_apply_link", ""),
+                            "posted_date": job.get("job_posted_at_datetime_utc", ""),
+                            "source": "jsearch",
+                            "source_id": job.get("job_id", ""),
+                            "category": job.get("job_employment_type", ""),
+                        })
+
+                    page += 1
+                    time.sleep(delay)
+
+                    # JSearch limits pages per query
+                    if page > 10:
+                        break
+
+                except Exception as e:
+                    print(f"      JSearch error: {e}")
+                    break
+
+        print(f"  Collected {len(jobs)} jobs from JSearch")
+        return jobs[:max_results] if max_results > 0 else jobs
+
+
+class LinkedInJobsClient:
+    """
+    Client for LinkedIn Jobs (unofficial).
+
+    Uses the public job search which doesn't require auth for basic searches.
+    Limited but can get some jobs without API access.
+    """
+
+    BASE_URL = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search"
+
+    def search(self, max_results: int = 1000, delay: float = 2.0) -> List[Dict]:
+        """Fetch public job listings from LinkedIn."""
+        print(f"  Fetching jobs from LinkedIn (public)...")
+
+        jobs = []
+        start = 0
+        consecutive_errors = 0
+
+        # Multiple search terms to maximize coverage
+        keywords_list = [
+            "software", "engineer", "developer", "analyst", "manager",
+            "sales", "marketing", "finance", "healthcare", "data"
+        ]
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+        }
+
+        for keyword in keywords_list:
+            if max_results > 0 and len(jobs) >= max_results:
+                break
+
+            start = 0
+            print(f"    Searching: {keyword}")
+
+            while True:
+                if max_results > 0 and len(jobs) >= max_results:
+                    break
+
+                try:
+                    params = {
+                        "keywords": keyword,
+                        "location": "United States",
+                        "start": start,
+                        "f_TPR": "r2592000",  # Last 30 days
+                    }
+
+                    response = requests.get(self.BASE_URL, params=params, headers=headers, timeout=30)
+
+                    if response.status_code == 429:
+                        print(f"      Rate limited, waiting 60s...")
+                        time.sleep(60)
+                        continue
+
+                    if response.status_code != 200:
+                        consecutive_errors += 1
+                        if consecutive_errors >= 5:
+                            break
+                        time.sleep(10)
+                        continue
+
+                    consecutive_errors = 0
+
+                    # Parse HTML response (basic extraction)
+                    html = response.text
+                    if not html or "No matching jobs found" in html:
+                        break
+
+                    # Extract job cards using basic parsing
+                    import re
+
+                    # Find all job card sections
+                    job_cards = re.findall(r'<div class="base-card[^"]*job-search-card[^"]*"[^>]*>(.*?)</div>\s*</div>\s*</div>', html, re.DOTALL)
+
+                    if not job_cards:
+                        # Alternative pattern
+                        job_cards = re.findall(r'data-entity-urn="urn:li:jobPosting:(\d+)"', html)
+
+                    if not job_cards:
+                        break
+
+                    # Extract basic info from each card
+                    titles = re.findall(r'<span class="sr-only">([^<]+)</span>', html)
+                    companies = re.findall(r'<h4 class="base-search-card__subtitle"[^>]*>\s*<a[^>]*>([^<]+)</a>', html)
+                    locations = re.findall(r'<span class="job-search-card__location">([^<]+)</span>', html)
+                    urls = re.findall(r'<a[^>]*class="base-card__full-link[^"]*"[^>]*href="([^"]+)"', html)
+
+                    # Zip together what we found
+                    batch_size = min(len(titles), len(companies), len(locations), len(urls))
+
+                    if batch_size == 0:
+                        break
+
+                    for i in range(batch_size):
+                        loc = locations[i].strip() if i < len(locations) else ""
+                        city, state = "", ""
+                        if ", " in loc:
+                            parts = loc.rsplit(", ", 1)
+                            city = parts[0]
+                            state = parts[1]
+
+                        jobs.append({
+                            "title": titles[i].strip() if i < len(titles) else "",
+                            "employer": companies[i].strip() if i < len(companies) else "Unknown",
+                            "location": loc,
+                            "city": city,
+                            "state": state,
+                            "salary_min": None,
+                            "salary_max": None,
+                            "description": "",
+                            "url": urls[i] if i < len(urls) else "",
+                            "posted_date": "",
+                            "source": "linkedin",
+                            "source_id": re.search(r'jobPosting:(\d+)', urls[i]).group(1) if i < len(urls) and re.search(r'jobPosting:(\d+)', urls[i]) else "",
+                            "category": keyword,
+                        })
+
+                    start += 25
+                    time.sleep(delay)
+
+                    # LinkedIn limits pagination
+                    if start >= 200:
+                        break
+
+                except Exception as e:
+                    print(f"      LinkedIn error: {e}")
+                    consecutive_errors += 1
+                    if consecutive_errors >= 5:
+                        break
+                    time.sleep(10)
+
+        # Dedupe by source_id
+        seen = set()
+        unique_jobs = []
+        for job in jobs:
+            if job["source_id"] and job["source_id"] not in seen:
+                seen.add(job["source_id"])
+                unique_jobs.append(job)
+
+        print(f"  Collected {len(unique_jobs)} jobs from LinkedIn")
+        return unique_jobs[:max_results] if max_results > 0 else unique_jobs
+
+
 class CoresignalClient:
     """
     Client for Coresignal Job Posting API.
@@ -968,32 +1459,48 @@ def collect_nationwide():
     print("     NATIONWIDE OPEN JOBS COLLECTOR (MULTI-SOURCE)")
     print("=" * 70)
     print(f"\nStarted: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"\nSources: USAJOBS, Adzuna (by category), Coresignal, The Muse, RemoteOK, Remotive")
+    print(f"\nSources: USAJOBS, Adzuna, LinkedIn (public), JSearch, Coresignal,")
+    print(f"         The Muse, RemoteOK, Remotive, Arbeitnow, Himalayas, Jobicy")
 
     # Initialize database and clients
     db = JobDatabase(config.db_path)
     adzuna = AdzunaClient()
     usajobs = USAJobsClient()
     coresignal = CoresignalClient()
+    jsearch = JSearchClient()
     themuse = TheMuseClient()
     remoteok = RemoteOKClient()
     remotive = RemotiveClient()
+    arbeitnow = ArbeitnowClient()
+    himalayas = HimalayasClient()
+    jobicy = JobicyClient()
+    linkedin = LinkedInJobsClient()
 
     print(f"\nAPI Status:")
     print(f"  Adzuna: {'Configured' if adzuna.is_configured() else 'NOT CONFIGURED'}")
     print(f"  USAJOBS: {'Configured' if usajobs.is_configured() else 'NOT CONFIGURED'}")
     print(f"  Coresignal: {'Configured' if coresignal.is_configured() else 'NOT CONFIGURED'}")
+    print(f"  JSearch (RapidAPI): {'Configured' if jsearch.is_configured() else 'NOT CONFIGURED - add RAPIDAPI_KEY for millions more jobs'}")
+    print(f"  LinkedIn: Available (public scraping)")
     print(f"  The Muse: Available (no key needed)")
     print(f"  RemoteOK: Available (no key needed)")
     print(f"  Remotive: Available (no key needed)")
+    print(f"  Arbeitnow: Available (no key needed)")
+    print(f"  Himalayas: Available (no key needed)")
+    print(f"  Jobicy: Available (no key needed)")
 
     results = {
         'usajobs': {'inserted': 0, 'updated': 0},
         'adzuna': {'inserted': 0, 'updated': 0},
+        'linkedin': {'inserted': 0, 'updated': 0},
+        'jsearch': {'inserted': 0, 'updated': 0},
         'coresignal': {'inserted': 0, 'updated': 0},
         'themuse': {'inserted': 0, 'updated': 0},
         'remoteok': {'inserted': 0, 'updated': 0},
         'remotive': {'inserted': 0, 'updated': 0},
+        'arbeitnow': {'inserted': 0, 'updated': 0},
+        'himalayas': {'inserted': 0, 'updated': 0},
+        'jobicy': {'inserted': 0, 'updated': 0},
     }
 
     # =========================================================
@@ -1088,6 +1595,70 @@ def collect_nationwide():
     ins, upd = save_jobs_to_db(db, remotive_jobs, "remotive")
     results['remotive'] = {'inserted': ins, 'updated': upd}
     print(f"  Remotive: +{ins:,} new, {upd:,} updated")
+
+    # =========================================================
+    # 7. LINKEDIN (Public job listings)
+    # =========================================================
+    print(f"\n{'='*70}")
+    print("7. LINKEDIN - Public Job Listings")
+    print("=" * 70)
+    print("  Note: Scraping public listings (rate limited)")
+
+    linkedin_jobs = linkedin.search(max_results=2000, delay=2.0)
+    ins, upd = save_jobs_to_db(db, linkedin_jobs, "linkedin")
+    results['linkedin'] = {'inserted': ins, 'updated': upd}
+    print(f"  LinkedIn: +{ins:,} new, {upd:,} updated")
+
+    # =========================================================
+    # 8. JSEARCH (RapidAPI - LinkedIn, Indeed, Glassdoor aggregator)
+    # =========================================================
+    print(f"\n{'='*70}")
+    print("8. JSEARCH - Job Aggregator (RapidAPI)")
+    print("=" * 70)
+
+    if jsearch.is_configured():
+        jsearch_jobs = jsearch.search(max_results=50000, delay=1.0)
+        ins, upd = save_jobs_to_db(db, jsearch_jobs, "jsearch")
+        results['jsearch'] = {'inserted': ins, 'updated': upd}
+        print(f"  JSearch: +{ins:,} new, {upd:,} updated")
+    else:
+        print("  JSearch: SKIPPED (add RAPIDAPI_KEY to .env for millions more jobs)")
+
+    # =========================================================
+    # 9. ARBEITNOW (Tech/startup jobs)
+    # =========================================================
+    print(f"\n{'='*70}")
+    print("9. ARBEITNOW - Tech & Startup Jobs")
+    print("=" * 70)
+
+    arbeitnow_jobs = arbeitnow.search(max_results=0, delay=1.0)
+    ins, upd = save_jobs_to_db(db, arbeitnow_jobs, "arbeitnow")
+    results['arbeitnow'] = {'inserted': ins, 'updated': upd}
+    print(f"  Arbeitnow: +{ins:,} new, {upd:,} updated")
+
+    # =========================================================
+    # 10. HIMALAYAS (Remote jobs)
+    # =========================================================
+    print(f"\n{'='*70}")
+    print("10. HIMALAYAS - Remote Jobs")
+    print("=" * 70)
+
+    himalayas_jobs = himalayas.search(max_results=0)
+    ins, upd = save_jobs_to_db(db, himalayas_jobs, "himalayas")
+    results['himalayas'] = {'inserted': ins, 'updated': upd}
+    print(f"  Himalayas: +{ins:,} new, {upd:,} updated")
+
+    # =========================================================
+    # 11. JOBICY (Remote jobs)
+    # =========================================================
+    print(f"\n{'='*70}")
+    print("11. JOBICY - Remote Jobs (USA)")
+    print("=" * 70)
+
+    jobicy_jobs = jobicy.search(max_results=0)
+    ins, upd = save_jobs_to_db(db, jobicy_jobs, "jobicy")
+    results['jobicy'] = {'inserted': ins, 'updated': upd}
+    print(f"  Jobicy: +{ins:,} new, {upd:,} updated")
 
     # =========================================================
     # EXPORT AND SUMMARY

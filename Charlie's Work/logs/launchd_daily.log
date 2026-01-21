@@ -2,3 +2,11 @@
 2026-01-13 10:11:13,990 - __main__ - INFO - DAILY SCRAPER - Collecting active job listings
 2026-01-13 10:11:13,990 - __main__ - INFO - ============================================================
 2026-01-13 10:11:13,991 - __main__ - ERROR - Daily script not found: /Users/charleslai/Library/CloudStorage/OneDrive-MassachusettsInstituteofTechnology/ShortList.ai/Charlie's Work/test_cambridge.py
+2026-01-21 10:17:47,382 - __main__ - INFO - ============================================================
+2026-01-21 10:17:47,405 - __main__ - INFO - DAILY SCRAPER - Collecting active job listings
+2026-01-21 10:17:47,406 - __main__ - INFO - ============================================================
+2026-01-21 10:17:47,406 - __main__ - INFO - Step 1/2: Running Cambridge Area Jobs Collector...
+2026-01-21 10:47:47,475 - __main__ - ERROR - Cambridge collector timed out after 30 minutes
+2026-01-21 10:47:47,485 - __main__ - INFO - Step 2/2: Running Nationwide Jobs Collector...
+2026-01-21 11:12:15,221 - __main__ - ERROR - Nationwide collector failed with code -15
+2026-01-21 11:12:15,232 - __main__ - ERROR - Daily scraper completed with errors. Log: /Users/charleslai/Library/CloudStorage/OneDrive-MassachusettsInstituteofTechnology/ShortList.ai/Charlie's Work/logs/daily_20260121_101747.log
