@@ -727,6 +727,68 @@ nav a.active {
     gap: 12px;
 }
 
+/* Role Description - HTML content styling */
+.role-description {
+    color: #525252;
+    font-size: 14px;
+    line-height: 1.7;
+}
+
+.role-description p {
+    margin-bottom: 16px;
+}
+
+.role-description ul,
+.role-description ol {
+    margin-bottom: 16px;
+    padding-left: 24px;
+}
+
+.role-description li {
+    margin-bottom: 8px;
+}
+
+.role-description strong {
+    color: #1a1a1a;
+    font-weight: 600;
+}
+
+.role-description a {
+    color: #2563eb;
+    text-decoration: none;
+}
+
+.role-description a:hover {
+    text-decoration: underline;
+}
+
+.role-description h1,
+.role-description h2,
+.role-description h3,
+.role-description h4 {
+    color: #1a1a1a;
+    margin-top: 20px;
+    margin-bottom: 12px;
+}
+
+.role-description .content-pay-transparency {
+    margin-top: 24px;
+    padding: 16px;
+    background: #f5f5f5;
+    border-radius: 8px;
+}
+
+.role-description .pay-range {
+    font-weight: 600;
+    color: #16a34a;
+}
+
+.role-description .title {
+    font-weight: 600;
+    color: #1a1a1a;
+    margin-bottom: 4px;
+}
+
 /* My Shortlist */
 .shortlist-page h1 {
     font-size: 20px;

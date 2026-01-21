@@ -864,11 +864,6 @@ function renderBrowse() {
     document.getElementById('filter-exp-level').value = state.filters.experience_level;
 
     // Event listeners
-    document.getElementById('search-btn').addEventListener('click', () => {
-        state.filters.search = document.getElementById('search-input').value;
-        loadRoles();
-    });
-
     document.getElementById('search-input').addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
             state.filters.search = e.target.value;
@@ -1007,7 +1002,7 @@ function renderRoleDetail() {
                     ${role.description ? `
                     <div style="margin-top:24px;">
                         <h3 style="font-size:14px;font-weight:600;margin-bottom:12px;">About this role</h3>
-                        <p style="color:#525252;white-space:pre-line;">${escapeHtml(role.description)}</p>
+                        <div class="role-description">${role.description}</div>
                     </div>
                     ` : ''}
                     <div class="role-detail-actions">
