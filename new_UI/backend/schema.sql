@@ -1,6 +1,14 @@
 -- Schema additions for new ShortList UI
 -- Run this to ensure the necessary columns exist
 
+-- Add resume_path column to platform_users for storing user's saved resume
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'platform_users' AND column_name = 'resume_path') THEN
+        ALTER TABLE platform_users ADD COLUMN resume_path VARCHAR(500);
+    END IF;
+END $$;
+
 -- Add columns to seeker_profiles if they don't exist
 DO $$
 BEGIN
@@ -69,3 +77,56 @@ CREATE TABLE IF NOT EXISTS shortlist_applications (
 -- Create index for faster lookups
 CREATE INDEX IF NOT EXISTS idx_shortlist_apps_user ON shortlist_applications(user_id);
 CREATE INDEX IF NOT EXISTS idx_shortlist_apps_position ON shortlist_applications(position_id);
+
+-- ============================================================================
+-- FIT QUESTIONS TABLES
+-- ============================================================================
+
+-- Fit questions table - stores the question definitions
+CREATE TABLE IF NOT EXISTS fit_questions (
+    id SERIAL PRIMARY KEY,
+    role_type VARCHAR(50),  -- NULL means applies to all roles, or specific like 'software_engineer', 'sales'
+    question_text TEXT NOT NULL,
+    question_type VARCHAR(20) NOT NULL,  -- 'multiple_choice' or 'free_response'
+    options JSONB,  -- Array of {label, value} for multiple choice questions
+    display_order INT DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Application fit responses - stores user answers to fit questions
+-- Note: question_id is VARCHAR because questions are hardcoded in Python, not stored in DB
+CREATE TABLE IF NOT EXISTS application_fit_responses (
+    id SERIAL PRIMARY KEY,
+    application_id INTEGER REFERENCES shortlist_applications(id) ON DELETE CASCADE,
+    question_id VARCHAR(50) NOT NULL,  -- String ID like 'tech_requirements', 'sales_motion'
+    response_value VARCHAR(10),  -- 'A', 'B', 'C', 'D' for multiple choice
+    response_text TEXT,  -- For free response questions
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(application_id, question_id)
+);
+
+-- Migration: If table exists with INTEGER question_id, alter it to VARCHAR
+DO $$
+BEGIN
+    -- Check if the column exists and is integer type
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'application_fit_responses'
+        AND column_name = 'question_id'
+        AND data_type = 'integer'
+    ) THEN
+        -- Drop the foreign key constraint if it exists
+        ALTER TABLE application_fit_responses DROP CONSTRAINT IF EXISTS application_fit_responses_question_id_fkey;
+        -- Drop the unique constraint
+        ALTER TABLE application_fit_responses DROP CONSTRAINT IF EXISTS application_fit_responses_application_id_question_id_key;
+        -- Alter the column type
+        ALTER TABLE application_fit_responses ALTER COLUMN question_id TYPE VARCHAR(50);
+        -- Re-add the unique constraint
+        ALTER TABLE application_fit_responses ADD CONSTRAINT application_fit_responses_application_id_question_id_key UNIQUE(application_id, question_id);
+    END IF;
+END $$;
+
+-- Create indexes for faster lookups
+CREATE INDEX IF NOT EXISTS idx_fit_responses_app ON application_fit_responses(application_id);
+CREATE INDEX IF NOT EXISTS idx_fit_questions_role ON fit_questions(role_type);

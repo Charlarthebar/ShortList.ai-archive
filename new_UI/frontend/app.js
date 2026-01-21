@@ -54,27 +54,24 @@ async function api(endpoint, options = {}) {
 
 // Auth Functions
 async function checkAuth() {
+    // Always start at home page
     if (!state.token) {
         navigate('home');
         return;
     }
 
+    // Validate token silently and load user data
     try {
         const data = await api('/auth/me');
         state.user = data.user;
-
-        // Route based on user type
-        if (state.user.user_type === 'employer') {
-            navigate('employer');
-        } else if (!state.user.profile_complete) {
-            navigate('setup');
-        } else {
-            navigate('browse');
-        }
+        // Stay on home page - user can navigate from there
+        navigate('home');
     } catch (err) {
+        // Invalid token - clear it and show home page
         localStorage.removeItem('shortlist_token');
         state.token = null;
-        navigate('login');
+        state.user = null;
+        navigate('home');
     }
 }
 
@@ -126,22 +123,28 @@ function logout() {
     localStorage.removeItem('shortlist_token');
     state.token = null;
     state.user = null;
-    navigate('login');
+    navigate('home');
 }
 
-async function saveProfile(experienceLevel, workPreference) {
-    await api('/profile', {
+async function savePreferences(preferences) {
+    await api('/profile/preferences', {
         method: 'PUT',
-        body: JSON.stringify({
-            experience_level: experienceLevel,
-            work_preference: workPreference
-        })
+        body: JSON.stringify(preferences)
     });
 
     state.user.profile_complete = true;
-    state.user.experience_level = experienceLevel;
-    state.user.work_preference = workPreference;
+    state.user.preferences = preferences;
     navigate('browse');
+}
+
+async function loadPreferences() {
+    try {
+        const data = await api('/profile/preferences');
+        return data.preferences || {};
+    } catch (err) {
+        console.error('Failed to load preferences:', err);
+        return {};
+    }
 }
 
 // Roles Functions
@@ -176,8 +179,17 @@ async function applyToShortlist(roleId) {
             body: JSON.stringify({ role_id: roleId })
         });
 
-        // Show upload modal
-        showUploadModal(data.application_id);
+        // Always show fit questions first (they are required)
+        if (data.questions && data.questions.length > 0) {
+            showFitQuestionsModal(data.application_id, data.questions, data.has_resume);
+        } else {
+            // Fallback: No questions configured, proceed directly
+            if (data.has_resume) {
+                showSuccessModal('Application Submitted!', 'Your resume was automatically attached from your profile.');
+            } else {
+                showUploadModal(data.application_id);
+            }
+        }
     } catch (err) {
         if (err.message.includes('INCOMPLETE_PROFILE')) {
             navigate('setup');
@@ -221,10 +233,15 @@ async function loadEmployerRoles() {
 }
 
 async function loadApplicants(roleId) {
-    const data = await api(`/employer/roles/${roleId}/applicants`);
-    state.applicants = data.applicants;
-    state.selectedEmployerRole = state.employerRoles.find(r => r.id === roleId);
-    renderApplicantsList();
+    try {
+        const data = await api(`/employer/roles/${roleId}/applicants`);
+        state.applicants = data.applicants || [];
+        state.selectedEmployerRole = state.employerRoles.find(r => r.id === roleId);
+        renderApplicantsList();
+    } catch (err) {
+        console.error('Failed to load applicants:', err);
+        alert('Failed to load candidates. Please try again.');
+    }
 }
 
 // Navigation
@@ -284,6 +301,30 @@ function render() {
 
 function renderLanding() {
     const app = document.getElementById('app');
+    const isLoggedIn = state.user && state.token;
+    const isEmployer = isLoggedIn && state.user.user_type === 'employer';
+
+    // Different nav items based on login state
+    let navHtml;
+    if (isLoggedIn) {
+        if (isEmployer) {
+            navHtml = `
+                <a href="#how-it-works" id="nav-how-it-works">How It Works</a>
+                <a href="#" class="btn btn-secondary btn-small" id="nav-dashboard">Dashboard</a>
+            `;
+        } else {
+            navHtml = `
+                <a href="#how-it-works" id="nav-how-it-works">How It Works</a>
+                <a href="#" class="btn btn-secondary btn-small" id="nav-browse">Browse Roles</a>
+            `;
+        }
+    } else {
+        navHtml = `
+            <a href="#how-it-works" id="nav-how-it-works">How It Works</a>
+            <a href="#" class="btn btn-secondary btn-small" id="nav-login">Sign In</a>
+        `;
+    }
+
     app.innerHTML = `
         <div class="landing-page">
             <!-- Header -->
@@ -291,8 +332,7 @@ function renderLanding() {
                 <div class="container">
                     <a href="#" class="logo" id="landing-logo">Short<span>List</span></a>
                     <nav class="landing-nav">
-                        <a href="#how-it-works" id="nav-how-it-works">How It Works</a>
-                        <a href="#" class="btn btn-secondary btn-small" id="nav-login">Sign In</a>
+                        ${navHtml}
                     </nav>
                 </div>
             </header>
@@ -307,8 +347,13 @@ function renderLanding() {
                         Be first in line for roles at companies that matter.
                     </p>
                     <div class="hero-ctas">
-                        <button class="btn btn-gradient" id="cta-get-started">Get Started</button>
-                        <button class="btn btn-outline" id="cta-hiring">I'm Hiring</button>
+                        ${isLoggedIn
+                            ? (isEmployer
+                                ? `<button class="btn btn-gradient" id="cta-dashboard">Go to Dashboard</button>`
+                                : `<button class="btn btn-gradient" id="cta-browse">Browse Roles</button>`)
+                            : `<button class="btn btn-gradient" id="cta-get-started">Get Started</button>
+                               <button class="btn btn-outline" id="cta-hiring">I'm Hiring</button>`
+                        }
                     </div>
                 </div>
             </section>
@@ -426,12 +471,22 @@ function renderLanding() {
             <!-- CTA Section -->
             <section class="cta-section">
                 <div class="container">
-                    <h2>Ready to get started?</h2>
-                    <p>Join ShortList and find your next opportunity before everyone else.</p>
-                    <div class="hero-ctas">
-                        <button class="btn btn-gradient" id="cta-get-started-bottom">Get Started</button>
-                        <button class="btn btn-outline" id="cta-hiring-bottom">I'm Hiring</button>
-                    </div>
+                    ${isLoggedIn
+                        ? `<h2>Welcome back!</h2>
+                           <p>Continue exploring opportunities on ShortList.</p>
+                           <div class="hero-ctas">
+                               ${isEmployer
+                                   ? `<button class="btn btn-gradient" id="cta-dashboard-bottom">Go to Dashboard</button>`
+                                   : `<button class="btn btn-gradient" id="cta-browse-bottom">Browse Roles</button>`
+                               }
+                           </div>`
+                        : `<h2>Ready to get started?</h2>
+                           <p>Join ShortList and find your next opportunity before everyone else.</p>
+                           <div class="hero-ctas">
+                               <button class="btn btn-gradient" id="cta-get-started-bottom">Get Started</button>
+                               <button class="btn btn-outline" id="cta-hiring-bottom">I'm Hiring</button>
+                           </div>`
+                    }
                 </div>
             </section>
 
@@ -456,26 +511,44 @@ function renderLanding() {
         document.getElementById('how-it-works').scrollIntoView({ behavior: 'smooth' });
     });
 
-    document.getElementById('nav-login').addEventListener('click', (e) => {
-        e.preventDefault();
-        navigate('login');
-    });
+    // Nav button - depends on login state
+    if (isLoggedIn) {
+        if (isEmployer) {
+            document.getElementById('nav-dashboard')?.addEventListener('click', (e) => {
+                e.preventDefault();
+                navigate('employer');
+            });
+        } else {
+            document.getElementById('nav-browse')?.addEventListener('click', (e) => {
+                e.preventDefault();
+                navigate('browse');
+            });
+        }
+    } else {
+        document.getElementById('nav-login')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            navigate('login');
+        });
+    }
 
-    // CTA buttons - Get Started goes to seeker signup
-    document.getElementById('cta-get-started').addEventListener('click', () => {
-        navigate('signup');
-    });
-    document.getElementById('cta-get-started-bottom').addEventListener('click', () => {
-        navigate('signup');
-    });
+    // CTA buttons - depend on login state
+    if (isLoggedIn) {
+        if (isEmployer) {
+            document.getElementById('cta-dashboard')?.addEventListener('click', () => navigate('employer'));
+            document.getElementById('cta-dashboard-bottom')?.addEventListener('click', () => navigate('employer'));
+        } else {
+            document.getElementById('cta-browse')?.addEventListener('click', () => navigate('browse'));
+            document.getElementById('cta-browse-bottom')?.addEventListener('click', () => navigate('browse'));
+        }
+    } else {
+        // Get Started buttons - go to seeker signup
+        document.getElementById('cta-get-started')?.addEventListener('click', () => navigate('signup'));
+        document.getElementById('cta-get-started-bottom')?.addEventListener('click', () => navigate('signup'));
 
-    // I'm Hiring buttons - go to employer signup
-    document.getElementById('cta-hiring').addEventListener('click', () => {
-        navigateEmployerSignup();
-    });
-    document.getElementById('cta-hiring-bottom').addEventListener('click', () => {
-        navigateEmployerSignup();
-    });
+        // I'm Hiring buttons - go to employer signup
+        document.getElementById('cta-hiring')?.addEventListener('click', () => navigateEmployerSignup());
+        document.getElementById('cta-hiring-bottom')?.addEventListener('click', () => navigateEmployerSignup());
+    }
 }
 
 function navigateEmployerSignup() {
@@ -741,67 +814,346 @@ async function renderSignup() {
 function renderSetup() {
     const app = document.getElementById('app');
     app.innerHTML = `
-        <div class="profile-setup">
-            <div class="profile-box">
-                <h1>Complete your profile</h1>
-                <p>Tell us a bit about yourself so we can match you with the right roles.</p>
+        <div class="preferences-page">
+            <div class="preferences-container">
+                <div class="preferences-header">
+                    <h1>What are you looking for?</h1>
+                    <p>Help us match you with the perfect roles. All fields are optional.</p>
+                </div>
                 <div id="setup-error"></div>
-                <form id="setup-form">
-                    <div class="form-group">
-                        <label>Experience Level</label>
-                        <div class="option-group" id="exp-level-options">
-                            <button type="button" class="option-btn" data-value="intern">Intern</button>
-                            <button type="button" class="option-btn" data-value="entry">Entry Level</button>
-                            <button type="button" class="option-btn" data-value="mid">Mid Level</button>
-                            <button type="button" class="option-btn" data-value="senior">Senior</button>
+                <form id="preferences-form">
+                    <!-- Location -->
+                    <div class="pref-section">
+                        <label class="pref-label">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                                <circle cx="12" cy="10" r="3"></circle>
+                            </svg>
+                            Preferred Location
+                        </label>
+                        <div class="location-autocomplete">
+                            <input type="text" id="pref-location-input" placeholder="Type a city..." autocomplete="off">
+                            <div id="location-suggestions" class="autocomplete-suggestions"></div>
                         </div>
-                        <input type="hidden" id="setup-exp-level" required>
+                        <div id="selected-locations" class="selected-tags"></div>
                     </div>
-                    <div class="form-group">
-                        <label>Work Preference</label>
-                        <div class="option-group" id="work-pref-options">
-                            <button type="button" class="option-btn" data-value="remote">Remote</button>
-                            <button type="button" class="option-btn" data-value="hybrid">Hybrid</button>
-                            <button type="button" class="option-btn" data-value="onsite">On-site</button>
+
+                    <!-- Salary Range -->
+                    <div class="pref-section">
+                        <label class="pref-label">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="12" y1="1" x2="12" y2="23"></line>
+                                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                            </svg>
+                            Salary Expectation
+                        </label>
+                        <div class="salary-range-container">
+                            <div class="salary-inputs">
+                                <div class="salary-input-group">
+                                    <span class="salary-prefix">$</span>
+                                    <input type="text" id="pref-salary-min" placeholder="80,000" class="salary-input">
+                                </div>
+                                <span class="salary-separator">to</span>
+                                <div class="salary-input-group">
+                                    <span class="salary-prefix">$</span>
+                                    <input type="text" id="pref-salary-max" placeholder="150,000" class="salary-input">
+                                </div>
+                            </div>
+                            <div class="salary-presets">
+                                <button type="button" class="salary-preset" data-min="50000" data-max="80000">$50k-$80k</button>
+                                <button type="button" class="salary-preset" data-min="80000" data-max="120000">$80k-$120k</button>
+                                <button type="button" class="salary-preset" data-min="120000" data-max="180000">$120k-$180k</button>
+                                <button type="button" class="salary-preset" data-min="180000" data-max="300000">$180k+</button>
+                            </div>
                         </div>
-                        <input type="hidden" id="setup-work-pref" required>
                     </div>
-                    <button type="submit" class="btn btn-primary" style="width:100%;margin-top:24px;">Continue</button>
+
+                    <!-- Role Type -->
+                    <div class="pref-section">
+                        <label class="pref-label">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+                                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+                            </svg>
+                            Role Type
+                            <span class="pref-hint">Select all that apply</span>
+                        </label>
+                        <div class="role-type-grid" id="role-type-options">
+                            <button type="button" class="role-type-btn" data-value="software_engineer">
+                                <span class="role-icon">💻</span>
+                                Software Engineer
+                            </button>
+                            <button type="button" class="role-type-btn" data-value="data_scientist">
+                                <span class="role-icon">🔬</span>
+                                Data Science
+                            </button>
+                            <button type="button" class="role-type-btn" data-value="data_analyst">
+                                <span class="role-icon">📊</span>
+                                Data Analyst
+                            </button>
+                            <button type="button" class="role-type-btn" data-value="product_manager">
+                                <span class="role-icon">📋</span>
+                                Product Manager
+                            </button>
+                            <button type="button" class="role-type-btn" data-value="engineering_manager">
+                                <span class="role-icon">👥</span>
+                                Engineering Manager
+                            </button>
+                            <button type="button" class="role-type-btn" data-value="sales">
+                                <span class="role-icon">💼</span>
+                                Sales
+                            </button>
+                            <button type="button" class="role-type-btn" data-value="marketing">
+                                <span class="role-icon">📣</span>
+                                Marketing
+                            </button>
+                            <button type="button" class="role-type-btn" data-value="design">
+                                <span class="role-icon">🎨</span>
+                                Design
+                            </button>
+                            <button type="button" class="role-type-btn" data-value="operations">
+                                <span class="role-icon">⚙️</span>
+                                Operations
+                            </button>
+                            <button type="button" class="role-type-btn" data-value="finance">
+                                <span class="role-icon">💰</span>
+                                Finance
+                            </button>
+                            <button type="button" class="role-type-btn" data-value="hr">
+                                <span class="role-icon">🤝</span>
+                                HR / People
+                            </button>
+                            <button type="button" class="role-type-btn" data-value="support">
+                                <span class="role-icon">🎧</span>
+                                Customer Support
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Experience Level -->
+                    <div class="pref-section">
+                        <label class="pref-label">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                            </svg>
+                            Experience Level
+                        </label>
+                        <div class="exp-level-options" id="exp-level-options">
+                            <button type="button" class="exp-btn" data-value="intern">
+                                <span class="exp-title">Intern</span>
+                                <span class="exp-desc">Student or recent grad</span>
+                            </button>
+                            <button type="button" class="exp-btn" data-value="entry">
+                                <span class="exp-title">Entry Level</span>
+                                <span class="exp-desc">0-2 years</span>
+                            </button>
+                            <button type="button" class="exp-btn" data-value="mid">
+                                <span class="exp-title">Mid Level</span>
+                                <span class="exp-desc">3-5 years</span>
+                            </button>
+                            <button type="button" class="exp-btn" data-value="senior">
+                                <span class="exp-title">Senior</span>
+                                <span class="exp-desc">6+ years</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Work Arrangement -->
+                    <div class="pref-section">
+                        <label class="pref-label">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                                <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                            </svg>
+                            Work Arrangement
+                        </label>
+                        <div class="work-arrangement-options" id="work-arrangement-options">
+                            <button type="button" class="work-btn" data-value="remote">
+                                <span class="work-icon">🏠</span>
+                                <span class="work-title">Remote</span>
+                            </button>
+                            <button type="button" class="work-btn" data-value="hybrid">
+                                <span class="work-icon">🔄</span>
+                                <span class="work-title">Hybrid</span>
+                            </button>
+                            <button type="button" class="work-btn" data-value="onsite">
+                                <span class="work-icon">🏢</span>
+                                <span class="work-title">On-site</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- What else are you looking for -->
+                    <div class="pref-section">
+                        <label class="pref-label">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                                <line x1="16" y1="13" x2="8" y2="13"></line>
+                                <line x1="16" y1="17" x2="8" y2="17"></line>
+                            </svg>
+                            Anything else you're looking for?
+                        </label>
+                        <textarea id="pref-text" placeholder="e.g., &quot;I want to work on AI/ML products at a startup with a strong engineering culture.&quot;" rows="3"></textarea>
+                        <div class="pref-hint" style="margin-top:6px;font-size:12px;color:#737373;">We'll use AI to match you with jobs that fit what you describe.</div>
+                    </div>
+
+                    <div class="pref-actions">
+                        <button type="submit" class="btn btn-primary" style="width:100%;">Continue</button>
+                    </div>
                 </form>
             </div>
         </div>
     `;
 
-    // Handle option selection
-    document.querySelectorAll('#exp-level-options .option-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('#exp-level-options .option-btn').forEach(b => b.classList.remove('selected'));
-            btn.classList.add('selected');
-            document.getElementById('setup-exp-level').value = btn.dataset.value;
+    // State for selected values
+    const selectedLocations = [];
+    const selectedRoles = [];
+    let selectedExpLevel = null;
+    let selectedWorkArrangement = null;
+
+    // Location autocomplete
+    const locationInput = document.getElementById('pref-location-input');
+    const locationSuggestions = document.getElementById('location-suggestions');
+    const selectedLocationsDiv = document.getElementById('selected-locations');
+    let locationDebounce = null;
+
+    function renderSelectedLocations() {
+        selectedLocationsDiv.innerHTML = selectedLocations.map(loc =>
+            `<span class="selected-tag">${escapeHtml(loc)} <button type="button" class="tag-remove" data-loc="${escapeHtml(loc)}">&times;</button></span>`
+        ).join('');
+
+        selectedLocationsDiv.querySelectorAll('.tag-remove').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const loc = btn.dataset.loc;
+                const idx = selectedLocations.indexOf(loc);
+                if (idx > -1) selectedLocations.splice(idx, 1);
+                renderSelectedLocations();
+            });
         });
-    });
+    }
 
-    document.querySelectorAll('#work-pref-options .option-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('#work-pref-options .option-btn').forEach(b => b.classList.remove('selected'));
-            btn.classList.add('selected');
-            document.getElementById('setup-work-pref').value = btn.dataset.value;
-        });
-    });
+    locationInput.addEventListener('input', () => {
+        clearTimeout(locationDebounce);
+        const query = locationInput.value.trim();
 
-    document.getElementById('setup-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const expLevel = document.getElementById('setup-exp-level').value;
-        const workPref = document.getElementById('setup-work-pref').value;
-
-        if (!expLevel || !workPref) {
-            document.getElementById('setup-error').innerHTML =
-                '<div class="alert alert-error">Please select both options to continue.</div>';
+        if (query.length < 2) {
+            locationSuggestions.style.display = 'none';
             return;
         }
 
+        locationDebounce = setTimeout(async () => {
+            try {
+                const data = await api(`/locations?q=${encodeURIComponent(query)}`);
+                const locations = (data.locations || []).filter(l => !selectedLocations.includes(l));
+
+                if (locations.length === 0) {
+                    locationSuggestions.style.display = 'none';
+                    return;
+                }
+
+                locationSuggestions.innerHTML = locations.map(l =>
+                    `<div class="autocomplete-item" data-value="${escapeHtml(l)}">${escapeHtml(l)}</div>`
+                ).join('');
+                locationSuggestions.style.display = 'block';
+
+                locationSuggestions.querySelectorAll('.autocomplete-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        selectedLocations.push(item.dataset.value);
+                        renderSelectedLocations();
+                        locationInput.value = '';
+                        locationSuggestions.style.display = 'none';
+                    });
+                });
+            } catch (err) {
+                console.error('Failed to fetch locations:', err);
+            }
+        }, 200);
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.location-autocomplete')) {
+            locationSuggestions.style.display = 'none';
+        }
+    });
+
+    // Salary formatting and presets
+    const salaryMinInput = document.getElementById('pref-salary-min');
+    const salaryMaxInput = document.getElementById('pref-salary-max');
+
+    function formatSalaryInput(input) {
+        let value = input.value.replace(/[^0-9]/g, '');
+        if (value) {
+            value = parseInt(value).toLocaleString();
+        }
+        input.value = value;
+    }
+
+    salaryMinInput.addEventListener('input', () => formatSalaryInput(salaryMinInput));
+    salaryMaxInput.addEventListener('input', () => formatSalaryInput(salaryMaxInput));
+
+    document.querySelectorAll('.salary-preset').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.salary-preset').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            salaryMinInput.value = parseInt(btn.dataset.min).toLocaleString();
+            salaryMaxInput.value = parseInt(btn.dataset.max).toLocaleString();
+        });
+    });
+
+    // Role type selection (multi-select)
+    document.querySelectorAll('#role-type-options .role-type-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            btn.classList.toggle('selected');
+            const value = btn.dataset.value;
+            const idx = selectedRoles.indexOf(value);
+            if (idx > -1) {
+                selectedRoles.splice(idx, 1);
+            } else {
+                selectedRoles.push(value);
+            }
+        });
+    });
+
+    // Experience level selection (single select)
+    document.querySelectorAll('#exp-level-options .exp-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('#exp-level-options .exp-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            selectedExpLevel = btn.dataset.value;
+        });
+    });
+
+    // Work arrangement selection (single select)
+    document.querySelectorAll('#work-arrangement-options .work-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('#work-arrangement-options .work-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            selectedWorkArrangement = btn.dataset.value;
+        });
+    });
+
+    // Form submit
+    document.getElementById('preferences-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const salaryMin = salaryMinInput.value ? parseInt(salaryMinInput.value.replace(/[^0-9]/g, '')) : null;
+        const salaryMax = salaryMaxInput.value ? parseInt(salaryMaxInput.value.replace(/[^0-9]/g, '')) : null;
+        const preferencesText = document.getElementById('pref-text').value.trim();
+
+        const preferences = {
+            preferred_locations: selectedLocations.length > 0 ? selectedLocations : null,
+            salary_min: salaryMin,
+            salary_max: salaryMax,
+            open_to_roles: selectedRoles.length > 0 ? selectedRoles : null,
+            experience_level: selectedExpLevel,
+            work_arrangement: selectedWorkArrangement,
+            preferences_text: preferencesText || null
+        };
+
         try {
-            await saveProfile(expLevel, workPref);
+            await savePreferences(preferences);
         } catch (err) {
             document.getElementById('setup-error').innerHTML =
                 `<div class="alert alert-error">${err.message}</div>`;
@@ -834,12 +1186,17 @@ function renderBrowse() {
                             <select id="filter-role-type" class="filter-select">
                                 <option value="">All roles</option>
                                 <option value="software_engineer">Software Engineer</option>
+                                <option value="data_scientist">Data Science</option>
                                 <option value="data_analyst">Data Analyst</option>
-                                <option value="data_scientist">Data Scientist</option>
                                 <option value="product_manager">Product Manager</option>
-                                <option value="hardware">Hardware</option>
-                                <option value="security">Security Engineer</option>
-                                <option value="qa">QA Engineer</option>
+                                <option value="engineering_manager">Engineering Manager</option>
+                                <option value="sales">Sales</option>
+                                <option value="marketing">Marketing</option>
+                                <option value="design">Design</option>
+                                <option value="operations">Operations</option>
+                                <option value="finance">Finance</option>
+                                <option value="hr">HR / People</option>
+                                <option value="support">Customer Support</option>
                             </select>
                             <select id="filter-exp-level" class="filter-select">
                                 <option value="">All levels</option>
@@ -914,32 +1271,44 @@ function renderRolesList() {
         return;
     }
 
-    container.innerHTML = state.roles.map(role => `
-        <div class="role-card" data-role-id="${role.id}">
-            <div class="role-card-header">
-                <div class="company-badge">${escapeHtml(role.company_name?.charAt(0) || 'C')}</div>
-                <div class="role-status-badge ${role.status === 'open' ? 'status-open' : 'status-closed'}">
-                    ${role.status === 'open' ? 'Actively hiring' : 'Closed'}
+    container.innerHTML = state.roles.map(role => {
+        // Determine match score display
+        let matchScoreHtml = '';
+        if (role.match_score !== null && role.match_score !== undefined) {
+            const scoreClass = role.match_score >= 75 ? 'high' : role.match_score >= 50 ? 'medium' : 'low';
+            matchScoreHtml = `<div class="match-score ${scoreClass}">${role.match_score}% match</div>`;
+        }
+
+        return `
+            <div class="role-card" data-role-id="${role.id}">
+                <div class="role-card-header">
+                    <div class="company-badge">${escapeHtml(role.company_name?.charAt(0) || 'C')}</div>
+                    <div class="role-header-right">
+                        ${matchScoreHtml}
+                        <div class="role-status-badge ${role.status === 'open' ? 'status-open' : 'status-closed'}">
+                            ${role.status === 'open' ? 'Actively hiring' : 'Closed'}
+                        </div>
+                    </div>
+                </div>
+                <div class="role-card-body">
+                    <h3 class="role-title">${escapeHtml(role.title)}</h3>
+                    <div class="role-company">${escapeHtml(role.company_name)}</div>
+                </div>
+                <div class="role-card-footer">
+                    <div class="role-tags">
+                        <span class="role-tag">${escapeHtml(role.location || 'Boston Area')}</span>
+                        ${role.salary_range ? `<span class="role-tag salary">${escapeHtml(role.salary_range)}</span>` : ''}
+                    </div>
+                    <button class="view-role-btn" data-role-id="${role.id}">
+                        <span>View</span>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M5 12h14M12 5l7 7-7 7"/>
+                        </svg>
+                    </button>
                 </div>
             </div>
-            <div class="role-card-body">
-                <h3 class="role-title">${escapeHtml(role.title)}</h3>
-                <div class="role-company">${escapeHtml(role.company_name)}</div>
-            </div>
-            <div class="role-card-footer">
-                <div class="role-tags">
-                    <span class="role-tag">${escapeHtml(role.location || 'Boston Area')}</span>
-                    ${role.salary_range ? `<span class="role-tag salary">${escapeHtml(role.salary_range)}</span>` : ''}
-                </div>
-                <button class="view-role-btn" data-role-id="${role.id}">
-                    <span>View</span>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M5 12h14M12 5l7 7-7 7"/>
-                    </svg>
-                </button>
-            </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 
     // Add click listeners
     container.querySelectorAll('.role-card').forEach(card => {
@@ -1146,15 +1515,187 @@ function renderApplicantsList() {
     const role = state.selectedEmployerRole;
     const app = document.getElementById('app');
 
+    // Find first applicant with a resume
+    const firstWithResume = state.applicants.find(a => a.resume_path);
+    const selectedApplicant = firstWithResume || null;
+
+    // Helper to get match score display
+    const getMatchScoreHtml = (score) => {
+        if (score === null || score === undefined) return '';
+        const scoreClass = score >= 75 ? 'high' : score >= 50 ? 'medium' : 'low';
+        return `<span class="candidate-match-badge ${scoreClass}">${score}% Match</span>`;
+    };
+
+    // Helper to render the resume card content
+    const renderResumeCard = (applicant) => {
+        if (!applicant) {
+            return `
+                <div class="resume-card-empty">
+                    <div class="resume-card-empty-content">
+                        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                        </svg>
+                        <h3>Select a candidate</h3>
+                        <p>Click on a candidate to view their resume</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        if (!applicant.resume_path) {
+            return `
+                <div class="resume-card">
+                    <div class="resume-card-eyebrow">
+                        <span class="eyebrow-label">CANDIDATE</span>
+                        ${getMatchScoreHtml(applicant.match_score)}
+                    </div>
+                    <div class="resume-card-header">
+                        <div class="resume-card-avatar">${(applicant.full_name || applicant.email).charAt(0).toUpperCase()}</div>
+                        <div class="resume-card-info">
+                            <h3 class="resume-card-name">${escapeHtml(applicant.full_name || applicant.email.split('@')[0])}</h3>
+                            <p class="resume-card-email">${escapeHtml(applicant.email)}</p>
+                        </div>
+                    </div>
+                    <div class="resume-card-meta">
+                        <span class="meta-tag">${formatExpLevel(applicant.experience_level) || 'Not specified'}</span>
+                        <span class="meta-tag">${formatWorkPref(applicant.work_preference) || 'Flexible'}</span>
+                        <span class="meta-tag">Applied ${formatDate(applicant.applied_at)}</span>
+                    </div>
+                    <div class="resume-card-empty-content" style="padding: 60px 0;">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                        </svg>
+                        <p style="margin-top:16px;color:#737373;">No resume uploaded yet</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Build fit responses section
+        const fitResponsesHtml = renderFitResponses(applicant.fit_responses);
+
+        return `
+            <div class="resume-card">
+                <div class="resume-card-eyebrow">
+                    <span class="eyebrow-label">CANDIDATE</span>
+                    ${getMatchScoreHtml(applicant.match_score)}
+                </div>
+                <div class="resume-card-header">
+                    <div class="resume-card-avatar">${(applicant.full_name || applicant.email).charAt(0).toUpperCase()}</div>
+                    <div class="resume-card-info">
+                        <h3 class="resume-card-name">${escapeHtml(applicant.full_name || applicant.email.split('@')[0])}</h3>
+                        <p class="resume-card-email">${escapeHtml(applicant.email)}</p>
+                    </div>
+                    <a href="${API_BASE}/employer/download-resume/${applicant.application_id}?token=${state.token}"
+                       class="btn btn-small btn-secondary resume-download-btn" download>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        Download
+                    </a>
+                </div>
+                <div class="resume-card-meta">
+                    <span class="meta-tag">${formatExpLevel(applicant.experience_level) || 'Not specified'}</span>
+                    <span class="meta-tag">${formatWorkPref(applicant.work_preference) || 'Flexible'}</span>
+                    <span class="meta-tag">Applied ${formatDate(applicant.applied_at)}</span>
+                </div>
+                ${fitResponsesHtml}
+                <div class="resume-card-preview">
+                    <iframe src="${API_BASE}/employer/view-resume/${applicant.application_id}?token=${state.token}"
+                            title="Resume Preview"></iframe>
+                </div>
+            </div>
+        `;
+    };
+
+    // Helper to render fit responses section
+    const renderFitResponses = (responses) => {
+        if (!responses || responses.length === 0) return '';
+
+        const mcResponses = responses.filter(r => r.question_type === 'multiple_choice');
+        const frResponses = responses.filter(r => r.question_type === 'free_response');
+
+        return `
+            <div class="fit-responses-section">
+                <div class="fit-responses-header">
+                    <span class="fit-responses-label">Work Style Responses</span>
+                </div>
+                ${mcResponses.length > 0 ? `
+                    <div class="fit-responses-mc">
+                        ${mcResponses.map(r => `
+                            <div class="fit-response-item">
+                                <div class="fit-response-q">${escapeHtml(r.question_text)}</div>
+                                <div class="fit-response-a">
+                                    <span class="fit-response-badge">${r.response_value}</span>
+                                    ${escapeHtml(r.response_label || '')}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : ''}
+                ${frResponses.length > 0 ? `
+                    <div class="fit-responses-fr">
+                        ${frResponses.map(r => `
+                            <div class="fit-response-item fit-response-fr-item">
+                                <div class="fit-response-q">${escapeHtml(r.question_text)}</div>
+                                <div class="fit-response-text">"${escapeHtml(r.response_text || '')}"</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    };
+
     app.innerHTML = `
         <div class="main-layout">
             ${renderEmployerHeader()}
-            <div class="container page-content">
-                <button class="btn btn-secondary btn-small" id="back-to-employer" style="margin-bottom:24px;">← Back to Dashboard</button>
-                <h1>${role ? escapeHtml(role.title) : 'Candidates'}</h1>
-                <p style="color:#525252;margin-bottom:24px;">${role ? escapeHtml(role.company_name) : ''}</p>
-                <div id="applicants-list">
-                    <div class="loading">Loading candidates...</div>
+            <div class="applicants-split-view">
+                <!-- Left panel: Candidate list -->
+                <div class="candidates-panel">
+                    <div class="candidates-header">
+                        <button class="btn btn-secondary btn-small" id="back-to-employer">← Back</button>
+                        <div class="candidates-title">
+                            <h2>${role ? escapeHtml(role.title) : 'Candidates'}</h2>
+                            <span class="candidates-company">${role ? escapeHtml(role.company_name) : ''}</span>
+                        </div>
+                    </div>
+                    <div class="candidates-count">${state.applicants.length} candidate${state.applicants.length !== 1 ? 's' : ''}</div>
+                    <div class="candidates-list" id="candidates-list">
+                        ${state.applicants.length === 0 ? `
+                            <div class="empty-state" style="padding:40px 20px;">
+                                <h3>No candidates yet</h3>
+                                <p>Candidates who join the shortlist will appear here.</p>
+                            </div>
+                        ` : state.applicants.map(applicant => `
+                            <div class="candidate-card ${selectedApplicant && applicant.application_id === selectedApplicant.application_id ? 'selected' : ''}"
+                                 data-applicant-id="${applicant.application_id}">
+                                <div class="candidate-main">
+                                    <div class="candidate-name">${escapeHtml(applicant.full_name || applicant.email.split('@')[0])}</div>
+                                    <div class="candidate-email-small">${escapeHtml(applicant.email)}</div>
+                                </div>
+                                <div class="candidate-right">
+                                    ${applicant.match_score !== null && applicant.match_score !== undefined
+                                        ? `<span class="candidate-score ${applicant.match_score >= 75 ? 'high' : applicant.match_score >= 50 ? 'medium' : 'low'}">${applicant.match_score}%</span>`
+                                        : ''}
+                                    ${applicant.resume_path
+                                        ? '<span class="resume-indicator" title="Has resume">📄</span>'
+                                        : '<span class="no-resume-indicator" title="No resume">—</span>'}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <!-- Right panel: Resume preview card (Notion-style) -->
+                <div class="resume-panel" id="resume-panel">
+                    ${renderResumeCard(selectedApplicant)}
                 </div>
             </div>
         </div>
@@ -1166,45 +1707,21 @@ function renderApplicantsList() {
         navigate('employer');
     });
 
-    // Render applicants
-    const container = document.getElementById('applicants-list');
+    // Add click listeners to candidate cards
+    document.querySelectorAll('.candidate-card').forEach(card => {
+        card.addEventListener('click', () => {
+            const applicantId = parseInt(card.dataset.applicantId);
+            const applicant = state.applicants.find(a => a.application_id === applicantId);
 
-    if (!state.applicants.length) {
-        container.innerHTML = `
-            <div class="empty-state">
-                <h3>No candidates yet</h3>
-                <p>Candidates who join the shortlist will appear here.</p>
-            </div>
-        `;
-        return;
-    }
+            // Update selection
+            document.querySelectorAll('.candidate-card').forEach(c => c.classList.remove('selected'));
+            card.classList.add('selected');
 
-    container.innerHTML = `
-        <div class="applicants-table">
-            <div class="applicants-header">
-                <div class="col-email">Email</div>
-                <div class="col-level">Experience</div>
-                <div class="col-pref">Work Pref</div>
-                <div class="col-status">Status</div>
-                <div class="col-date">Applied</div>
-                <div class="col-actions">Resume</div>
-            </div>
-            ${state.applicants.map(applicant => `
-                <div class="applicant-row">
-                    <div class="col-email">${escapeHtml(applicant.email)}</div>
-                    <div class="col-level">${formatExpLevel(applicant.experience_level)}</div>
-                    <div class="col-pref">${formatWorkPref(applicant.work_preference)}</div>
-                    <div class="col-status"><span class="application-status ${applicant.status}">${applicant.status}</span></div>
-                    <div class="col-date">${formatDate(applicant.applied_at)}</div>
-                    <div class="col-actions">
-                        ${applicant.resume_path
-                            ? `<a href="${API_BASE}/employer/download-resume/${applicant.application_id}" class="btn btn-small btn-secondary" target="_blank">Download</a>`
-                            : '<span style="color:#a3a3a3;">No resume</span>'}
-                    </div>
-                </div>
-            `).join('')}
-        </div>
-    `;
+            // Update resume panel with the card
+            const resumePanel = document.getElementById('resume-panel');
+            resumePanel.innerHTML = renderResumeCard(applicant);
+        });
+    });
 }
 
 function renderEmployerHeader() {
@@ -1224,7 +1741,7 @@ function renderEmployerHeader() {
 function setupEmployerNavListeners() {
     document.getElementById('logo-link')?.addEventListener('click', (e) => {
         e.preventDefault();
-        navigate('employer');
+        navigate('home');
     });
 
     document.querySelectorAll('[data-nav]').forEach(link => {
@@ -1258,7 +1775,7 @@ function renderHeader() {
 function setupNavListeners() {
     document.getElementById('logo-link')?.addEventListener('click', (e) => {
         e.preventDefault();
-        navigate('browse');
+        navigate('home');
     });
 
     document.querySelectorAll('[data-nav]').forEach(link => {
@@ -1274,6 +1791,37 @@ function setupNavListeners() {
     });
 }
 
+// Success Modal
+function showSuccessModal(title, message) {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+        <div class="modal" style="max-width:400px;">
+            <div class="modal-header">
+                <h2>${escapeHtml(title)}</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body" style="text-align:center;padding:24px;">
+                <div style="font-size:48px;margin-bottom:16px;">&#10003;</div>
+                <p style="color:#525252;">${escapeHtml(message)}</p>
+            </div>
+            <div class="modal-footer" style="justify-content:center;">
+                <button class="btn btn-primary" id="success-ok">View My Shortlists</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const closeModal = () => {
+        modal.remove();
+        navigate('shortlist');
+    };
+
+    modal.querySelector('.modal-close').addEventListener('click', closeModal);
+    modal.querySelector('#success-ok').addEventListener('click', closeModal);
+}
+
 // Upload Modal
 function showUploadModal(applicationId) {
     const modal = document.createElement('div');
@@ -1281,11 +1829,12 @@ function showUploadModal(applicationId) {
     modal.innerHTML = `
         <div class="modal">
             <div class="modal-header">
-                <h2>Upload Your Resume</h2>
+                <h2>Upload Your Resume or CV</h2>
                 <button class="modal-close">&times;</button>
             </div>
             <div class="modal-body">
-                <p style="margin-bottom:16px;color:#525252;">Upload your resume to complete your application.</p>
+                <p style="margin-bottom:8px;color:#525252;">Upload your resume or CV to complete your application.</p>
+                <p style="margin-bottom:16px;font-size:13px;color:#737373;">Your document will be saved and automatically used for future applications.</p>
                 <div id="upload-error"></div>
                 <div class="file-upload" id="file-upload-area">
                     <input type="file" id="resume-file" accept=".pdf">
@@ -1341,6 +1890,10 @@ function showUploadModal(applicationId) {
 
         try {
             await uploadResume(applicationId, selectedFile);
+            // Update user state to reflect they now have a resume
+            if (state.user) {
+                state.user.has_resume = true;
+            }
             modal.remove();
             navigate('shortlist');
         } catch (err) {
@@ -1348,6 +1901,136 @@ function showUploadModal(applicationId) {
                 `<div class="alert alert-error">${err.message}</div>`;
             submitBtn.disabled = false;
             submitBtn.textContent = 'Submit Application';
+        }
+    });
+}
+
+// Fit Questions Modal
+function showFitQuestionsModal(applicationId, questions, hasResume) {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+
+    // Separate MC and free response questions
+    const mcQuestions = questions.filter(q => q.question_type === 'multiple_choice');
+    const frQuestions = questions.filter(q => q.question_type === 'free_response');
+
+    // State for responses
+    const responses = {};
+
+    // Build question HTML
+    const buildMCQuestion = (q, index) => `
+        <div class="fit-question" data-question-id="${q.id}">
+            <div class="fit-question-number">${index + 1}</div>
+            <div class="fit-question-content">
+                <p class="fit-question-text">${escapeHtml(q.question_text)}</p>
+                <div class="fit-options">
+                    ${q.options.map(opt => `
+                        <label class="fit-option">
+                            <input type="radio" name="q_${q.id}" value="${opt.value}">
+                            <span class="fit-option-label">${opt.value}</span>
+                            <span class="fit-option-text">${escapeHtml(opt.label)}</span>
+                        </label>
+                    `).join('')}
+                </div>
+            </div>
+        </div>
+    `;
+
+    const buildFRQuestion = (q, index) => `
+        <div class="fit-question fit-question-fr" data-question-id="${q.id}">
+            <div class="fit-question-number">${mcQuestions.length + index + 1}</div>
+            <div class="fit-question-content">
+                <p class="fit-question-text">${escapeHtml(q.question_text)}</p>
+                <textarea class="fit-textarea" name="q_${q.id}" placeholder="Your answer..." rows="3"></textarea>
+            </div>
+        </div>
+    `;
+
+    modal.innerHTML = `
+        <div class="modal fit-questions-modal">
+            <div class="modal-header">
+                <h2>A few quick questions</h2>
+                <p class="modal-subtitle">Help us understand your work style and preferences</p>
+            </div>
+            <div class="modal-body fit-questions-body">
+                <div class="fit-questions-section">
+                    ${mcQuestions.map((q, i) => buildMCQuestion(q, i)).join('')}
+                </div>
+                ${frQuestions.length > 0 ? `
+                    <div class="fit-questions-divider">
+                        <span>Short Answer</span>
+                    </div>
+                    <div class="fit-questions-section">
+                        ${frQuestions.map((q, i) => buildFRQuestion(q, i)).join('')}
+                    </div>
+                ` : ''}
+            </div>
+            <div class="modal-footer">
+                <div class="fit-progress">
+                    <span id="fit-answered">0</span> of ${questions.length} answered
+                </div>
+                <button class="btn btn-primary" id="submit-fit" disabled>Continue</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // Track responses
+    const updateProgress = () => {
+        const answered = Object.keys(responses).length;
+        modal.querySelector('#fit-answered').textContent = answered;
+        modal.querySelector('#submit-fit').disabled = answered < questions.length;
+    };
+
+    // MC radio listeners
+    modal.querySelectorAll('.fit-options input[type="radio"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            const questionId = e.target.closest('.fit-question').dataset.questionId;
+            responses[questionId] = { question_id: questionId, response_value: e.target.value };
+            updateProgress();
+        });
+    });
+
+    // FR textarea listeners
+    modal.querySelectorAll('.fit-textarea').forEach(textarea => {
+        textarea.addEventListener('input', (e) => {
+            const questionId = e.target.closest('.fit-question').dataset.questionId;
+            const value = e.target.value.trim();
+            if (value) {
+                responses[questionId] = { question_id: questionId, response_text: value };
+            } else {
+                delete responses[questionId];
+            }
+            updateProgress();
+        });
+    });
+
+    // Submit button
+    modal.querySelector('#submit-fit').addEventListener('click', async () => {
+        const submitBtn = modal.querySelector('#submit-fit');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Submitting...';
+
+        try {
+            const responseArray = Object.values(responses);
+            const result = await api(`/shortlist/submit-fit-responses/${applicationId}`, {
+                method: 'POST',
+                body: JSON.stringify({ responses: responseArray })
+            });
+
+            modal.remove();
+
+            // Check if resume is needed
+            if (result.needs_resume) {
+                showUploadModal(applicationId);
+            } else {
+                showSuccessModal('Application Submitted!', 'Your responses have been recorded and your resume was automatically attached.');
+            }
+        } catch (err) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Continue';
+            alert('Failed to submit responses: ' + err.message);
         }
     });
 }
