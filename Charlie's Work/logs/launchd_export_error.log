@@ -4,3 +4,6 @@ schedule_scraping.py: error: one of the arguments --setup-cron --setup-launchd -
 usage: schedule_scraping.py [-h]
                             (--setup-cron | --setup-launchd | --run-daily | --run-weekly | --run-loop | --status)
 schedule_scraping.py: error: one of the arguments --setup-cron --setup-launchd --run-daily --run-weekly --run-loop --status is required
+usage: schedule_scraping.py [-h]
+                            (--setup-cron | --setup-launchd | --run-daily | --run-weekly | --run-loop | --status)
+schedule_scraping.py: error: one of the arguments --setup-cron --setup-launchd --run-daily --run-weekly --run-loop --status is required

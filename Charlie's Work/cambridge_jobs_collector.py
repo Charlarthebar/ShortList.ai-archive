@@ -27,10 +27,29 @@ import hashlib
 import time
 import math
 import csv
+import re
+import html
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 import requests
+
+
+def strip_html(text: str) -> str:
+    """Remove HTML tags and clean up whitespace from text."""
+    if not text:
+        return ""
+    # Decode HTML entities
+    text = html.unescape(text)
+    # Replace block elements with newlines
+    text = re.sub(r'<br\s*/?>|</?p>|</?div>|</?li>|</?h[1-6]>|</?ul>|</?ol>', '\n', text, flags=re.IGNORECASE)
+    # Remove all remaining HTML tags
+    text = re.sub(r'<[^>]*>', '', text)
+    # Clean up whitespace
+    text = re.sub(r'[ \t]+', ' ', text)
+    text = re.sub(r' *\n *', '\n', text)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
 
 # Load .env file (check both current and parent directory)
 def load_env_file():
@@ -267,7 +286,7 @@ class AdzunaClient:
                         "longitude": job.get("longitude"),
                         "salary_min": job.get("salary_min"),
                         "salary_max": job.get("salary_max"),
-                        "description": job.get("description", "")[:1000],
+                        "description": job.get("description", ""),
                         "url": job.get("redirect_url", ""),
                         "posted_date": job.get("created", ""),
                         "source": "adzuna",
@@ -379,7 +398,7 @@ class USAJobsClient:
                         "longitude": position.get("Longitude"),
                         "salary_min": float(salary.get("MinimumRange", 0) or 0),
                         "salary_max": float(salary.get("MaximumRange", 0) or 0),
-                        "description": job.get("UserArea", {}).get("Details", {}).get("MajorDuties", [""])[0][:1000] if job.get("UserArea") else "",
+                        "description": job.get("UserArea", {}).get("Details", {}).get("MajorDuties", [""])[0] if job.get("UserArea") else "",
                         "url": job.get("PositionURI", ""),
                         "posted_date": job.get("PublicationStartDate", ""),
                         "source": "usajobs",
@@ -473,7 +492,7 @@ class TheMuseClient:
                         "longitude": None,
                         "salary_min": None,
                         "salary_max": None,
-                        "description": job.get("contents", "")[:1000] if job.get("contents") else "",
+                        "description": job.get("contents", "") if job.get("contents") else "",
                         "url": job.get("refs", {}).get("landing_page", ""),
                         "posted_date": job.get("publication_date", ""),
                         "source": "themuse",
@@ -636,7 +655,7 @@ class CoresignalClient:
                         "longitude": None,
                         "salary_min": None,
                         "salary_max": None,
-                        "description": (job.get("description") or "")[:1000],
+                        "description": job.get("description") or "",
                         "url": job.get("url", ""),
                         "posted_date": job.get("created", ""),
                         "source": "coresignal",
@@ -690,7 +709,7 @@ class RemoteOKClient:
                     "longitude": None,
                     "salary_min": self._parse_salary(job.get("salary_min")),
                     "salary_max": self._parse_salary(job.get("salary_max")),
-                    "description": job.get("description", "")[:1000] if job.get("description") else "",
+                    "description": job.get("description", "") if job.get("description") else "",
                     "url": job.get("url", ""),
                     "posted_date": job.get("date", ""),
                     "source": "remoteok",
@@ -742,7 +761,7 @@ class RemotiveClient:
                     "longitude": None,
                     "salary_min": None,
                     "salary_max": None,
-                    "description": job.get("description", "")[:1000] if job.get("description") else "",
+                    "description": job.get("description", "") if job.get("description") else "",
                     "url": job.get("url", ""),
                     "posted_date": job.get("publication_date", ""),
                     "source": "remotive",
@@ -797,7 +816,7 @@ class ArbeitnowClient:
                         "longitude": None,
                         "salary_min": None,
                         "salary_max": None,
-                        "description": job.get("description", "")[:1000] if job.get("description") else "",
+                        "description": job.get("description", "") if job.get("description") else "",
                         "url": job.get("url", ""),
                         "posted_date": job.get("created_at", ""),
                         "source": "arbeitnow",
@@ -854,7 +873,7 @@ class JobicyClient:
                     "longitude": None,
                     "salary_min": None,
                     "salary_max": None,
-                    "description": job.get("jobDescription", "")[:1000] if job.get("jobDescription") else "",
+                    "description": job.get("jobDescription", "") if job.get("jobDescription") else "",
                     "url": job.get("url", ""),
                     "posted_date": job.get("pubDate", ""),
                     "source": "jobicy",
@@ -927,7 +946,7 @@ class WeWorkRemotelyClient:
                             "longitude": None,
                             "salary_min": None,
                             "salary_max": None,
-                            "description": item.findtext("description", "")[:1000],
+                            "description": item.findtext("description", ""),
                             "url": url,
                             "posted_date": item.findtext("pubDate", ""),
                             "source": "weworkremotely",
@@ -1026,6 +1045,7 @@ class JobDatabase:
     def upsert_job(self, job: Dict) -> str:
         """Insert or update a job. Returns 'inserted', 'updated', or 'skipped'."""
         job_hash = self._hash_job(job)
+        clean_description = strip_html(job.get('description', ''))
 
         cursor = self.conn.execute(
             "SELECT id, status FROM jobs WHERE job_hash = ?", (job_hash,)
@@ -1034,8 +1054,8 @@ class JobDatabase:
 
         if existing:
             self.conn.execute(
-                "UPDATE jobs SET last_seen = CURRENT_TIMESTAMP, status = 'active' WHERE job_hash = ?",
-                (job_hash,)
+                "UPDATE jobs SET last_seen = CURRENT_TIMESTAMP, status = 'active', description = ? WHERE job_hash = ?",
+                (clean_description, job_hash)
             )
             return "updated"
         else:
@@ -1050,7 +1070,7 @@ class JobDatabase:
                 job.get('city', ''), job.get('state', ''),
                 job.get('latitude'), job.get('longitude'),
                 job.get('salary_min'), job.get('salary_max'),
-                job.get('description', ''), job['source'], job.get('source_id', ''),
+                clean_description, job['source'], job.get('source_id', ''),
                 job.get('url', ''), job.get('posted_date', ''), is_remote
             ))
             return "inserted"
@@ -1092,7 +1112,7 @@ class JobDatabase:
         cursor = self.conn.execute("""
             SELECT title, employer, location, city, state,
                    salary_min, salary_max, source, url, posted_date,
-                   is_remote, status, first_seen
+                   is_remote, status, first_seen, description
             FROM jobs
             ORDER BY source, employer, title
         """)
@@ -1101,7 +1121,7 @@ class JobDatabase:
             writer = csv.writer(f)
             writer.writerow(['title', 'employer', 'location', 'city', 'state',
                            'salary_min', 'salary_max', 'source', 'url', 'posted_date',
-                           'is_remote', 'status', 'first_seen'])
+                           'is_remote', 'status', 'first_seen', 'description'])
             writer.writerows(cursor.fetchall())
 
         print(f"Exported to {filepath}")

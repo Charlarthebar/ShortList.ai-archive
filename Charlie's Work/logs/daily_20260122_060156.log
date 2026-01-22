@@ -1,0 +1,185 @@
+=== Daily Scraper Run: 2026-01-22 06:01:56.010081 ===
+
+
+============================================================
+STEP 1: CAMBRIDGE AREA JOBS COLLECTOR
+============================================================
+
+STDOUT:
+
+======================================================================
+     CAMBRIDGE AREA JOBS COLLECTOR (MULTI-SOURCE)
+======================================================================
+
+Started: 2026-01-22 06:01:56
+
+Target: Cambridge, MA (02139) - 10.0 mile radius
+Sources: Adzuna, USAJOBS, The Muse, Coresignal, RemoteOK, Remotive, Arbeitnow, Jobicy, WWR
+Note: Remote jobs included (Cambridge residents can work them)
+
+API Status:
+  Adzuna: Configured
+  USAJOBS: Configured
+  Coresignal: Configured
+  The Muse: Available (no key needed)
+  RemoteOK: Available (no key needed)
+  Remotive: Available (no key needed)
+  Arbeitnow: Available (no key needed)
+  Jobicy: Available (no key needed)
+  We Work Remotely: Available (no key needed)
+
+======================================================================
+1. ADZUNA - Job Listings (filtered to Cambridge area)
+======================================================================
+  Fetching up to 5,000 jobs from Adzuna (MA)...
+    Total available in MA: 95,927 jobs
+    Error on page 2: HTTPSConnectionPool(host='api.adzuna.com', port=443): Read timed out. (read timeout=30)
+    Error on page 11: HTTPSConnectionPool(host='api.adzuna.com', port=443): Read timed out. (read timeout=30)
+    Error on page 22: HTTPSConnectionPool(host='api.adzuna.com', port=443): Read timed out. (read timeout=30)
+    Error on page 33: HTTPSConnectionPool(host='api.adzuna.com', port=443): Read timed out. (read timeout=30)
+    Error on page 38: HTTPSConnectionPool(host='api.adzuna.com', port=443): Read timed out. (read timeout=30)
+    Error on page 46: HTTPSConnectionPool(host='api.adzuna.com', port=443): Read timed out. (read timeout=30)
+    Page 50: 2,500 jobs fetched...
+    Error on page 57: HTTPSConnectionPool(host='api.adzuna.com', port=443): Read timed out.
+    Error on page 57: HTTPSConnectionPool(host='api.adzuna.com', port=443): Max retries exceeded with url: /v1/api/jobs/us/search/57?app_id=516145e7&app_key=34e6f3959d58461538354d674d48b881&results_per_page=50&where=massachusetts&sort_by=date&max_days_old=30 (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10c543890>: Failed to resolve 'api.adzuna.com' ([Errno 8] nodename nor servname provided, or not known)"))
+    Error on page 57: HTTPSConnectionPool(host='api.adzuna.com', port=443): Max retries exceeded with url: /v1/api/jobs/us/search/57?app_id=516145e7&app_key=34e6f3959d58461538354d674d48b881&results_per_page=50&where=massachusetts&sort_by=date&max_days_old=30 (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10c594d50>: Failed to resolve 'api.adzuna.com' ([Errno 8] nodename nor servname provided, or not known)"))
+    Page 100: 5,000 jobs fetched...
+    Filtering 5,000 MA jobs to Cambridge area...
+  Adzuna: 1,171 jobs in Cambridge area (from 5,000 MA jobs)
+  Saved: +741 new, 430 updated
+
+======================================================================
+2. USAJOBS - Federal Government Jobs
+======================================================================
+  Fetching federal jobs within 10 miles of 02139...
+    Total available: 138 federal jobs
+  USAJOBS: 138 federal jobs in Cambridge area
+  Saved: +5 new, 133 updated
+
+======================================================================
+3. THE MUSE - Career Platform Jobs
+======================================================================
+  Fetching jobs from The Muse (will filter to Cambridge area)...
+    Total in Boston area: 12,010 jobs across 601 pages
+    Page 50/601: 1,020 jobs fetched...
+    Filtering 2,000 jobs to Cambridge area...
+  The Muse: 444 jobs in Cambridge area
+  Saved: +0 new, 444 updated
+
+======================================================================
+4. CORESIGNAL - LinkedIn & Other Sources
+======================================================================
+  Fetching job IDs from Coresignal (Boston/Cambridge area)...
+    Retrieved 1,000 job IDs...
+    Retrieved 2,000 job IDs...
+    Retrieved 3,000 job IDs...
+    Retrieved 4,000 job IDs...
+    Retrieved 5,000 job IDs...
+  Found 5,000 job IDs, now collecting details...
+    API quota exceeded at job 0
+    Filtering 0 jobs to Cambridge area...
+  Coresignal: 0 jobs in Cambridge area
+  Saved: +0 new, 0 updated
+
+======================================================================
+5. REMOTEOK - Remote Jobs (all included)
+======================================================================
+  Fetching remote jobs from RemoteOK...
+  RemoteOK: 95 remote jobs (all available to Cambridge residents)
+  Saved: +30 new, 65 updated
+
+======================================================================
+6. REMOTIVE - Remote Jobs (all included)
+======================================================================
+  Fetching remote jobs from Remotive...
+  Remotive: 21 remote jobs (all available to Cambridge residents)
+  Saved: +21 new, 0 updated
+
+======================================================================
+7. ARBEITNOW - Remote Tech Jobs (all included)
+======================================================================
+  Fetching jobs from Arbeitnow...
+  Arbeitnow: 134 remote jobs (from 1000 total)
+  Saved: +9 new, 125 updated
+
+======================================================================
+8. JOBICY - Remote Jobs (all included)
+======================================================================
+  Fetching jobs from Jobicy...
+  Jobicy error: 403 Client Error: Forbidden for url: https://jobicy.com/api/v2/remote-jobs?count=50&geo=usa
+  Saved: +0 new, 0 updated
+
+======================================================================
+9. WE WORK REMOTELY - Remote Jobs (all included)
+======================================================================
+  Fetching jobs from We Work Remotely...
+  We Work Remotely: 171 remote jobs
+  Saved: +13 new, 158 updated
+Exported to cambridge_jobs.csv
+
+======================================================================
+COLLECTION COMPLETE
+======================================================================
+
+This run by source:
+  adzuna: +741 new, 430 updated
+  usajobs: +5 new, 133 updated
+  themuse: +0 new, 444 updated
+  coresignal: +0 new, 0 updated
+  remoteok: +30 new, 65 updated
+  remotive: +21 new, 0 updated
+  arbeitnow: +9 new, 125 updated
+  jobicy: +0 new, 0 updated
+  weworkremotely: +13 new, 158 updated
+
+Total this run:
+  New jobs inserted: 819
+  Existing jobs updated: 1,355
+
+Database totals:
+  Total jobs: 4,774
+  Active jobs: 4,742
+  Remote jobs: 424
+  Unique employers: 1,185
+
+Jobs by source:
+  themuse: 1,840
+  adzuna: 1,626
+  usajobs: 560
+  coresignal: 195
+  arbeitnow: 190
+  weworkremotely: 172
+  remoteok: 118
+  cambridge_city: 22
+  remotive: 21
+  himalayas: 20
+  ma_payroll: 10
+
+Top cities:
+  Boston: 2,041
+  US: 1,006
+  Cambridge: 116
+  Salt Lake City, Utah: 64
+  Arlington: 37
+  South Boston: 35
+  Waltham: 29
+  Somerville: 26
+  Pentagon, Arlington, Virginia: 25
+  Quincy: 25
+
+Output files:
+  Database: cambridge_jobs.db
+  CSV: cambridge_jobs.csv
+
+Finished: 2026-01-22 09:36:18
+
+
+STDERR:
+
+
+
+============================================================
+STEP 2: NATIONWIDE JOBS COLLECTOR
+============================================================
+
+ERROR: Nationwide collector timed out after 60 minutes
