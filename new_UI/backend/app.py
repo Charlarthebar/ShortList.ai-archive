@@ -423,7 +423,7 @@ def upload_profile_resume():
             # Save resume path to user profile
             cur.execute("""
                 UPDATE platform_users
-                SET resume_url = %s
+                SET resume_path = %s
                 WHERE id = %s
             """, (filename, g.user_id))
             conn.commit()
@@ -1743,7 +1743,7 @@ def process_resume():
     conn = get_db()
     with conn.cursor() as cur:
         cur.execute("""
-            UPDATE platform_users SET resume_url = %s WHERE id = %s
+            UPDATE platform_users SET resume_path = %s WHERE id = %s
         """, (filename, user_id))
         conn.commit()
 
@@ -1814,6 +1814,7 @@ def get_roles():
     salary_min_filter = request.args.get('salary_min', type=int)
     salary_max_filter = request.args.get('salary_max', type=int)
     exp_level_filter = request.args.get('experience_level', '').strip()
+    work_arrangement_filter = request.args.get('work_arrangement', '').strip()
 
     # Get user preferences and skills if authenticated
     user_prefs = None
@@ -1872,6 +1873,10 @@ def get_roles():
             query += " AND wp.experience_level = %s"
             params.append(exp_level_filter)
 
+        if work_arrangement_filter:
+            query += " AND wp.work_arrangement = %s"
+            params.append(work_arrangement_filter)
+
         query += " ORDER BY wp.salary_range IS NOT NULL DESC, wp.status = 'open' DESC, wp.company_name ASC LIMIT 200"
 
         if params:
@@ -1897,11 +1902,12 @@ def get_roles():
             role['match_score'] = calculate_match_score(role, user_prefs, user_skill_ids)
             filtered_roles.append(role)
 
-        # Sort by match score (highest first), then by salary presence
+        # Sort by status (open first), salary presence, then company name
+        # Note: Match scores are still calculated for use in role detail view
         filtered_roles.sort(key=lambda r: (
-            r.get('match_score') or 0,
+            r.get('status') == 'open',
             r.get('salary_range') is not None,
-            r.get('status') == 'open'
+            r.get('company_name') or ''
         ), reverse=True)
 
         return jsonify({'roles': filtered_roles[:100]})
@@ -1909,13 +1915,55 @@ def get_roles():
 
 @app.route('/api/roles/<int:role_id>', methods=['GET'])
 def get_role(role_id):
-    """Get single role details."""
+    """Get single role details with match score if authenticated."""
+    # Get user preferences if authenticated
+    user_prefs = None
+    user_skill_ids = None
+    user_embedding = None
+    auth_header = request.headers.get('Authorization', '')
+    if auth_header.startswith('Bearer '):
+        try:
+            token = auth_header.split(' ')[1]
+            payload = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+            user_id = payload.get('user_id')
+            if user_id:
+                conn = get_db()
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    # Get preferences and embedding
+                    cur.execute("""
+                        SELECT preferred_locations, salary_min, salary_max,
+                               open_to_roles, experience_level, work_preference,
+                               resume_embedding
+                        FROM seeker_profiles WHERE user_id = %s
+                    """, (user_id,))
+                    profile = cur.fetchone()
+                    if profile:
+                        user_prefs = {
+                            'preferred_locations': profile.get('preferred_locations'),
+                            'salary_min': profile.get('salary_min'),
+                            'salary_max': profile.get('salary_max'),
+                            'open_to_roles': profile.get('open_to_roles'),
+                            'experience_level': profile.get('experience_level'),
+                            'work_preference': profile.get('work_preference')
+                        }
+                        user_embedding = profile.get('resume_embedding')
+
+                    # Get user's extracted skills
+                    cur.execute("""
+                        SELECT skill_id FROM candidate_skills WHERE user_id = %s
+                    """, (user_id,))
+                    user_skill_ids = {row['skill_id'] for row in cur.fetchall()}
+        except:
+            pass  # Invalid token, continue without preferences
+
     conn = get_db()
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute("""
             SELECT
                 wp.id, wp.title, wp.company_name, wp.location, wp.department,
-                wp.status, wp.salary_range, wp.description, wp.role_type,
+                wp.status, wp.salary_range, wp.salary_min, wp.salary_max,
+                wp.description, wp.role_type, wp.experience_level,
+                wp.description_embedding as embedding,
                 (SELECT COUNT(*) FROM shortlist_applications sa WHERE sa.position_id = wp.id) as applicant_count
             FROM watchable_positions wp
             WHERE wp.id = %s
@@ -1924,6 +1972,53 @@ def get_role(role_id):
 
         if not role:
             return jsonify({'error': 'Role not found'}), 404
+
+        role = dict(role)
+
+        # Calculate match score if user is authenticated
+        if user_prefs or user_embedding:
+            # Use the same scoring logic as for-you page
+            has_preferences = any([
+                user_prefs.get('preferred_locations') if user_prefs else None,
+                user_prefs.get('open_to_roles') if user_prefs else None,
+                user_prefs.get('salary_min') if user_prefs else None,
+                user_prefs.get('experience_level') if user_prefs else None,
+                user_prefs.get('work_preference') if user_prefs else None
+            ])
+
+            pref_score = None
+            if has_preferences and user_prefs:
+                pref_score = calculate_preference_score(role, user_prefs)
+
+            semantic_score = 0
+            if user_embedding and role.get('embedding'):
+                try:
+                    import json
+                    user_emb = json.loads(user_embedding) if isinstance(user_embedding, str) else user_embedding
+                    role_emb = json.loads(role['embedding']) if isinstance(role['embedding'], str) else role['embedding']
+                    semantic_score = cosine_similarity(user_emb, role_emb) * 100
+                except:
+                    pass
+
+            # Combined scoring with preference-based ceiling
+            if has_preferences and pref_score is not None:
+                base_score = (semantic_score * 0.60) + (pref_score * 0.40)
+                if pref_score < 50:
+                    max_allowed = 75
+                elif pref_score < 70:
+                    max_allowed = 85
+                elif pref_score < 85:
+                    max_allowed = 92
+                else:
+                    max_allowed = 98
+                role['match_score'] = round(min(base_score, max_allowed))
+            elif semantic_score > 0:
+                role['match_score'] = round(min(semantic_score, 85))
+            else:
+                role['match_score'] = None
+
+        # Remove embedding from response (large)
+        role.pop('embedding', None)
 
         return jsonify({'role': role})
 

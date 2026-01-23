@@ -21,14 +21,18 @@ const state = {
     filters: {
         search: '',
         role_type: '',
-        experience_level: ''
+        experience_level: '',
+        location: '',
+        work_arrangement: ''
     },
     // Employer state
     employerRoles: [],
     selectedEmployerRole: null,
     applicants: [],
     // Signup state
-    signupAsEmployer: false
+    signupAsEmployer: false,
+    // Profile state
+    profilePreferences: null
 };
 
 // API Helper
@@ -163,6 +167,8 @@ async function loadRoles() {
         if (state.filters.search) params.append('search', state.filters.search);
         if (state.filters.role_type) params.append('role_type', state.filters.role_type);
         if (state.filters.experience_level) params.append('experience_level', state.filters.experience_level);
+        if (state.filters.location) params.append('location', state.filters.location);
+        if (state.filters.work_arrangement) params.append('work_arrangement', state.filters.work_arrangement);
 
         const data = await api(`/roles?${params}`);
         state.roles = data.roles || [];
@@ -264,9 +270,11 @@ function renderRecommendations() {
     });
 }
 
-async function loadRole(roleId) {
+async function loadRole(roleId, matchScoreOverride = null) {
     const data = await api(`/roles/${roleId}`);
     state.selectedRole = data.role;
+    // Override match score if provided (from For You page), or null to hide (from Explore)
+    state.selectedRole.match_score = matchScoreOverride;
     renderRoleDetail();
 }
 
@@ -324,6 +332,19 @@ async function loadMyApplications() {
     renderMyShortlist();
 }
 
+// Profile Functions
+async function loadProfileData() {
+    try {
+        const data = await api('/profile/preferences');
+        state.profilePreferences = data.preferences || {};
+        renderProfileContent();
+    } catch (err) {
+        console.error('Failed to load profile:', err);
+        state.profilePreferences = {};
+        renderProfileContent();
+    }
+}
+
 // Employer Functions
 async function loadEmployerRoles() {
     const data = await api('/employer/roles');
@@ -366,6 +387,8 @@ function navigate(page) {
         loadMyApplications();
     } else if (page === 'employer') {
         loadEmployerRoles();
+    } else if (page === 'profile') {
+        loadProfileData();
     }
 }
 
@@ -412,6 +435,9 @@ function render() {
             break;
         case 'applicants':
             renderApplicantsList();
+            break;
+        case 'profile':
+            renderProfile();
             break;
         default:
             app.innerHTML = '<div class="loading">Page not found</div>';
@@ -1393,6 +1419,11 @@ function renderResumeUpload() {
             uploadComplete = true;
             continueBtn.textContent = 'Continue to jobs';
 
+            // Update user state to reflect they now have a resume
+            if (state.user) {
+                state.user.has_resume = true;
+            }
+
             // Hide upload status and show success
             setTimeout(() => {
                 uploadStatus.style.display = 'none';
@@ -1535,13 +1566,15 @@ function renderForYouList() {
         }).join('')}
     `;
 
-    // Add click listeners - track that we came from For You page
+    // Add click listeners - track that we came from For You page and pass match score
     container.querySelectorAll('.role-card').forEach(card => {
         card.addEventListener('click', (e) => {
             if (!e.target.classList.contains('view-role-btn')) {
-                const roleId = card.dataset.roleId;
+                const roleId = parseInt(card.dataset.roleId);
+                const job = state.forYouJobs.find(j => j.id === roleId);
+                const matchScore = job ? Math.round(job.match_score) : null;
                 state.previousPage = 'for-you';
-                loadRole(roleId);
+                loadRole(roleId, matchScore);
                 state.currentPage = 'role';
             }
         });
@@ -1550,9 +1583,11 @@ function renderForYouList() {
     container.querySelectorAll('.view-role-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
-            const roleId = btn.dataset.roleId;
+            const roleId = parseInt(btn.dataset.roleId);
+            const job = state.forYouJobs.find(j => j.id === roleId);
+            const matchScore = job ? Math.round(job.match_score) : null;
             state.previousPage = 'for-you';
-            loadRole(roleId);
+            loadRole(roleId, matchScore);
             state.currentPage = 'role';
         });
     });
@@ -1626,6 +1661,17 @@ function renderExplore() {
                                 <option value="mid">Mid Level</option>
                                 <option value="senior">Senior</option>
                             </select>
+                            <div class="location-filter-wrapper">
+                                <input type="text" id="filter-location" class="filter-input" placeholder="Filter by location..." value="${escapeHtml(state.filters.location)}" autocomplete="off">
+                                <div id="filter-location-suggestions" class="autocomplete-suggestions"></div>
+                                ${state.filters.location ? `<button class="clear-filter-btn" id="clear-location-filter">&times;</button>` : ''}
+                            </div>
+                            <select id="filter-work-arrangement" class="filter-select">
+                                <option value="">All work types</option>
+                                <option value="onsite">On-site</option>
+                                <option value="remote">Remote</option>
+                                <option value="hybrid">Hybrid</option>
+                            </select>
                         </div>
                     </div>
                     <div class="roles-count" id="roles-count"></div>
@@ -1640,6 +1686,7 @@ function renderExplore() {
     // Set filter values
     document.getElementById('filter-role-type').value = state.filters.role_type;
     document.getElementById('filter-exp-level').value = state.filters.experience_level;
+    document.getElementById('filter-work-arrangement').value = state.filters.work_arrangement;
 
     // Event listeners
     document.getElementById('search-input').addEventListener('keypress', (e) => {
@@ -1657,6 +1704,79 @@ function renderExplore() {
     document.getElementById('filter-exp-level').addEventListener('change', (e) => {
         state.filters.experience_level = e.target.value;
         loadRoles();
+    });
+
+    document.getElementById('filter-work-arrangement').addEventListener('change', (e) => {
+        state.filters.work_arrangement = e.target.value;
+        loadRoles();
+    });
+
+    // Location filter with autocomplete
+    const locationFilterInput = document.getElementById('filter-location');
+    const locationFilterSuggestions = document.getElementById('filter-location-suggestions');
+    let locationFilterDebounce = null;
+
+    locationFilterInput.addEventListener('input', () => {
+        clearTimeout(locationFilterDebounce);
+        const query = locationFilterInput.value.trim();
+
+        if (query.length < 2) {
+            locationFilterSuggestions.style.display = 'none';
+            return;
+        }
+
+        locationFilterDebounce = setTimeout(async () => {
+            try {
+                const data = await api(`/locations?q=${encodeURIComponent(query)}`);
+                const locations = data.locations || [];
+
+                if (locations.length === 0) {
+                    locationFilterSuggestions.style.display = 'none';
+                    return;
+                }
+
+                locationFilterSuggestions.innerHTML = locations.map(l =>
+                    `<div class="autocomplete-item" data-value="${escapeHtml(l)}">${escapeHtml(l)}</div>`
+                ).join('');
+                locationFilterSuggestions.style.display = 'block';
+
+                locationFilterSuggestions.querySelectorAll('.autocomplete-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        state.filters.location = item.dataset.value;
+                        locationFilterInput.value = item.dataset.value;
+                        locationFilterSuggestions.style.display = 'none';
+                        loadRoles();
+                        // Re-render to show clear button
+                        renderExplore();
+                    });
+                });
+            } catch (err) {
+                console.error('Failed to fetch locations:', err);
+            }
+        }, 200);
+    });
+
+    // Allow pressing enter to search with typed location
+    locationFilterInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            state.filters.location = locationFilterInput.value.trim();
+            locationFilterSuggestions.style.display = 'none';
+            loadRoles();
+        }
+    });
+
+    // Clear location filter button
+    document.getElementById('clear-location-filter')?.addEventListener('click', () => {
+        state.filters.location = '';
+        loadRoles();
+        renderExplore();
+    });
+
+    // Close suggestions when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.location-filter-wrapper')) {
+            locationFilterSuggestions.style.display = 'none';
+        }
     });
 
     setupNavListeners();
@@ -1693,19 +1813,13 @@ function renderRolesList() {
     }
 
     container.innerHTML = state.roles.map(role => {
-        // Determine match score display
-        let matchScoreHtml = '';
-        if (role.match_score !== null && role.match_score !== undefined) {
-            const scoreClass = role.match_score >= 75 ? 'high' : role.match_score >= 50 ? 'medium' : 'low';
-            matchScoreHtml = `<div class="match-score ${scoreClass}">${role.match_score}% match</div>`;
-        }
-
+        // Match scores are NOT shown on Explore page cards (only in detail view)
+        // This keeps Explore focused on discovery rather than ranking
         return `
-            <div class="role-card" data-role-id="${role.id}">
+            <div class="role-card" data-role-id="${role.id}" data-match-score="${role.match_score || ''}">
                 <div class="role-card-header">
                     <div class="company-badge">${escapeHtml(role.company_name?.charAt(0) || 'C')}</div>
                     <div class="role-header-right">
-                        ${matchScoreHtml}
                         <div class="role-status-badge ${role.status === 'open' ? 'status-open' : 'status-closed'}">
                             ${role.status === 'open' ? 'Actively hiring' : 'Closed'}
                         </div>
@@ -1731,13 +1845,13 @@ function renderRolesList() {
         `;
     }).join('');
 
-    // Add click listeners - track that we came from Explore page
+    // Add click listeners - track that we came from Explore page (no match score shown)
     container.querySelectorAll('.role-card').forEach(card => {
         card.addEventListener('click', (e) => {
             if (!e.target.classList.contains('view-role-btn')) {
                 const roleId = card.dataset.roleId;
                 state.previousPage = 'explore';
-                loadRole(roleId);
+                loadRole(roleId, null);  // Don't show match score from Explore
                 state.currentPage = 'role';
             }
         });
@@ -1748,7 +1862,7 @@ function renderRolesList() {
             e.stopPropagation();
             const roleId = btn.dataset.roleId;
             state.previousPage = 'explore';
-            loadRole(roleId);
+            loadRole(roleId, null);  // Don't show match score from Explore
             state.currentPage = 'role';
         });
     });
@@ -1777,6 +1891,12 @@ function renderRoleDetail() {
                         <div class="company">${escapeHtml(role.company_name)}</div>
                     </div>
                     <div class="role-detail-meta">
+                        ${role.match_score !== null && role.match_score !== undefined ? `
+                        <div>
+                            <strong>Match</strong><br>
+                            <span class="match-score-detail ${role.match_score >= 75 ? 'high' : role.match_score >= 50 ? 'medium' : 'low'}">${role.match_score}%</span>
+                        </div>
+                        ` : ''}
                         <div>
                             <strong>Status</strong><br>
                             <span class="role-status">
@@ -1871,6 +1991,378 @@ function renderMyShortlist() {
             </div>
         </div>
     `).join('');
+}
+
+function renderProfile() {
+    const app = document.getElementById('app');
+    const initials = state.user ?
+        ((state.user.first_name?.[0] || '') + (state.user.last_name?.[0] || '')).toUpperCase() ||
+        (state.user.email?.[0] || 'U').toUpperCase()
+        : 'U';
+
+    app.innerHTML = `
+        <div class="main-layout">
+            ${renderHeader()}
+            <div class="container page-content profile-page">
+                <div class="profile-header-section">
+                    <div class="profile-avatar-large">${initials}</div>
+                    <div class="profile-header-info">
+                        <h1>${escapeHtml((state.user?.first_name || '') + ' ' + (state.user?.last_name || '')) || 'Your Profile'}</h1>
+                        <p class="profile-email">${escapeHtml(state.user?.email || '')}</p>
+                    </div>
+                </div>
+
+                <div id="profile-content">
+                    <div class="loading">Loading profile...</div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    setupNavListeners();
+}
+
+function renderProfileContent() {
+    const container = document.getElementById('profile-content');
+    if (!container) return;
+
+    const prefs = state.profilePreferences || {};
+    const hasResume = state.user?.has_resume || state.user?.resume_path;
+
+    // Format selected locations
+    const selectedLocations = prefs.preferred_locations || [];
+    const selectedRoles = prefs.open_to_roles || [];
+
+    // Role type display names
+    const roleTypeLabels = {
+        'software_engineer': 'Software Engineer',
+        'data_scientist': 'Data Science',
+        'data_analyst': 'Data Analyst',
+        'product_manager': 'Product Manager',
+        'engineering_manager': 'Engineering Manager',
+        'sales': 'Sales',
+        'marketing': 'Marketing',
+        'design': 'Design',
+        'operations': 'Operations',
+        'finance': 'Finance',
+        'hr': 'HR / People',
+        'support': 'Customer Support'
+    };
+
+    container.innerHTML = `
+        <div class="profile-sections">
+            <!-- Resume Section -->
+            <div class="profile-section">
+                <h2>Resume</h2>
+                <div class="resume-status-box ${hasResume ? 'has-resume' : 'no-resume'}">
+                    ${hasResume ? `
+                        <div class="resume-uploaded">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                            </svg>
+                            <div>
+                                <strong>Resume uploaded</strong>
+                                <p>Your resume is being used for job matching</p>
+                            </div>
+                        </div>
+                    ` : `
+                        <div class="no-resume-msg">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="8" x2="12" y2="12"></line>
+                                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                            </svg>
+                            <div>
+                                <strong>No resume uploaded</strong>
+                                <p>Upload your resume for better job matches</p>
+                            </div>
+                        </div>
+                    `}
+                    <div class="resume-upload-area">
+                        <input type="file" id="profile-resume-input" accept=".pdf,.doc,.docx" style="display:none;">
+                        <button class="btn ${hasResume ? 'btn-secondary' : 'btn-primary'}" id="profile-upload-resume-btn">
+                            ${hasResume ? 'Upload New Resume' : 'Upload Resume'}
+                        </button>
+                    </div>
+                    <div id="profile-resume-status"></div>
+                </div>
+            </div>
+
+            <!-- Preferences Section -->
+            <div class="profile-section">
+                <h2>Job Preferences</h2>
+                <p class="section-description">These preferences affect your "For You" recommendations and match scores.</p>
+
+                <div class="preference-group">
+                    <label>Preferred Locations</label>
+                    <div class="location-autocomplete profile-location-autocomplete">
+                        <div id="profile-selected-locations" class="selected-tags">
+                            ${selectedLocations.map(loc => `
+                                <span class="tag">${escapeHtml(loc)} <button class="tag-remove" data-location="${escapeHtml(loc)}">&times;</button></span>
+                            `).join('')}
+                        </div>
+                        <input type="text" id="profile-location-input" placeholder="Type a city..." autocomplete="off">
+                        <div id="profile-location-suggestions" class="autocomplete-suggestions"></div>
+                    </div>
+                </div>
+
+                <div class="preference-group">
+                    <label>Open to Roles</label>
+                    <div class="checkbox-grid">
+                        ${Object.entries(roleTypeLabels).map(([value, label]) => `
+                            <label class="checkbox-item">
+                                <input type="checkbox" name="profile-roles" value="${value}" ${selectedRoles.includes(value) ? 'checked' : ''}>
+                                <span>${label}</span>
+                            </label>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <div class="preference-row">
+                    <div class="preference-group">
+                        <label>Experience Level</label>
+                        <select id="profile-exp-level" class="profile-select">
+                            <option value="">Select level...</option>
+                            <option value="intern" ${prefs.experience_level === 'intern' ? 'selected' : ''}>Intern</option>
+                            <option value="entry" ${prefs.experience_level === 'entry' ? 'selected' : ''}>Entry Level</option>
+                            <option value="mid" ${prefs.experience_level === 'mid' ? 'selected' : ''}>Mid Level</option>
+                            <option value="senior" ${prefs.experience_level === 'senior' ? 'selected' : ''}>Senior</option>
+                        </select>
+                    </div>
+
+                    <div class="preference-group">
+                        <label>Work Preference</label>
+                        <select id="profile-work-pref" class="profile-select">
+                            <option value="">Select preference...</option>
+                            <option value="onsite" ${prefs.work_preference === 'onsite' ? 'selected' : ''}>On-site</option>
+                            <option value="remote" ${prefs.work_preference === 'remote' ? 'selected' : ''}>Remote</option>
+                            <option value="hybrid" ${prefs.work_preference === 'hybrid' ? 'selected' : ''}>Hybrid</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="preference-row">
+                    <div class="preference-group">
+                        <label>Minimum Salary</label>
+                        <input type="text" id="profile-salary-min" class="profile-input" placeholder="e.g. 80,000" value="${prefs.salary_min ? prefs.salary_min.toLocaleString() : ''}">
+                    </div>
+                    <div class="preference-group">
+                        <label>Maximum Salary</label>
+                        <input type="text" id="profile-salary-max" class="profile-input" placeholder="e.g. 150,000" value="${prefs.salary_max ? prefs.salary_max.toLocaleString() : ''}">
+                    </div>
+                </div>
+
+                <div class="profile-actions">
+                    <button class="btn btn-primary" id="save-preferences-btn">Save Preferences</button>
+                    <span id="save-status"></span>
+                </div>
+            </div>
+
+            <!-- Sign Out Section -->
+            <div class="profile-section sign-out-section">
+                <button class="btn btn-secondary" id="profile-logout-btn">Sign Out</button>
+            </div>
+        </div>
+    `;
+
+    setupProfileListeners();
+}
+
+function setupProfileListeners() {
+    // Resume upload
+    const resumeInput = document.getElementById('profile-resume-input');
+    const uploadBtn = document.getElementById('profile-upload-resume-btn');
+    const statusDiv = document.getElementById('profile-resume-status');
+
+    uploadBtn?.addEventListener('click', () => resumeInput?.click());
+
+    resumeInput?.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        statusDiv.innerHTML = '<div class="upload-progress">Uploading and processing...</div>';
+        uploadBtn.disabled = true;
+
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const response = await fetch(`${API_BASE}/profile/upload-resume`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${state.token}` },
+                body: formData
+            });
+
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Upload failed');
+
+            statusDiv.innerHTML = '<div class="upload-success">Resume uploaded successfully! Your job matches will be updated.</div>';
+
+            // Refresh user data and For You cache
+            const userData = await api('/auth/me');
+            state.user = userData.user;
+            state.forYouLoaded = false; // Force refresh of For You jobs
+
+            // Re-render profile content to show updated status
+            setTimeout(() => loadProfileData(), 1500);
+        } catch (err) {
+            statusDiv.innerHTML = `<div class="upload-error">Error: ${escapeHtml(err.message)}</div>`;
+        } finally {
+            uploadBtn.disabled = false;
+        }
+    });
+
+    // Location autocomplete
+    const locationInput = document.getElementById('profile-location-input');
+    const locationSuggestions = document.getElementById('profile-location-suggestions');
+    let locationDebounce = null;
+
+    // Get current selected locations
+    let selectedLocations = [...(state.profilePreferences?.preferred_locations || [])];
+
+    function renderSelectedLocations() {
+        const container = document.getElementById('profile-selected-locations');
+        if (!container) return;
+        container.innerHTML = selectedLocations.map(loc => `
+            <span class="tag">${escapeHtml(loc)} <button class="tag-remove" data-location="${escapeHtml(loc)}">&times;</button></span>
+        `).join('');
+
+        // Re-attach remove listeners
+        container.querySelectorAll('.tag-remove').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const loc = btn.dataset.location;
+                selectedLocations = selectedLocations.filter(l => l !== loc);
+                renderSelectedLocations();
+            });
+        });
+    }
+
+    // Initial render of remove listeners
+    document.querySelectorAll('#profile-selected-locations .tag-remove').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const loc = btn.dataset.location;
+            selectedLocations = selectedLocations.filter(l => l !== loc);
+            renderSelectedLocations();
+        });
+    });
+
+    locationInput?.addEventListener('input', () => {
+        clearTimeout(locationDebounce);
+        const query = locationInput.value.trim();
+
+        if (query.length < 2) {
+            locationSuggestions.style.display = 'none';
+            return;
+        }
+
+        locationDebounce = setTimeout(async () => {
+            try {
+                const data = await api(`/locations?q=${encodeURIComponent(query)}`);
+                const locations = (data.locations || []).filter(l => !selectedLocations.includes(l));
+
+                if (locations.length === 0) {
+                    locationSuggestions.style.display = 'none';
+                    return;
+                }
+
+                locationSuggestions.innerHTML = locations.map(l =>
+                    `<div class="autocomplete-item" data-value="${escapeHtml(l)}">${escapeHtml(l)}</div>`
+                ).join('');
+                locationSuggestions.style.display = 'block';
+
+                locationSuggestions.querySelectorAll('.autocomplete-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        selectedLocations.push(item.dataset.value);
+                        renderSelectedLocations();
+                        locationInput.value = '';
+                        locationSuggestions.style.display = 'none';
+                    });
+                });
+            } catch (err) {
+                console.error('Failed to fetch locations:', err);
+            }
+        }, 200);
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.profile-location-autocomplete')) {
+            locationSuggestions.style.display = 'none';
+        }
+    });
+
+    // Salary formatting
+    const salaryMin = document.getElementById('profile-salary-min');
+    const salaryMax = document.getElementById('profile-salary-max');
+
+    function formatSalaryInput(input) {
+        let value = input.value.replace(/[^0-9]/g, '');
+        if (value) {
+            value = parseInt(value).toLocaleString();
+        }
+        input.value = value;
+    }
+
+    salaryMin?.addEventListener('input', () => formatSalaryInput(salaryMin));
+    salaryMax?.addEventListener('input', () => formatSalaryInput(salaryMax));
+
+    // Save preferences
+    document.getElementById('save-preferences-btn')?.addEventListener('click', async () => {
+        const statusSpan = document.getElementById('save-status');
+        statusSpan.textContent = 'Saving...';
+        statusSpan.className = '';
+
+        try {
+            // Gather selected roles
+            const selectedRoles = [...document.querySelectorAll('input[name="profile-roles"]:checked')]
+                .map(cb => cb.value);
+
+            const expLevel = document.getElementById('profile-exp-level').value;
+            const workPref = document.getElementById('profile-work-pref').value;
+            const salaryMinVal = parseInt((salaryMin?.value || '').replace(/[^0-9]/g, '')) || null;
+            const salaryMaxVal = parseInt((salaryMax?.value || '').replace(/[^0-9]/g, '')) || null;
+
+            await api('/profile/preferences', {
+                method: 'PUT',
+                body: JSON.stringify({
+                    preferred_locations: selectedLocations.length > 0 ? selectedLocations : null,
+                    open_to_roles: selectedRoles.length > 0 ? selectedRoles : null,
+                    experience_level: expLevel || null,
+                    work_preference: workPref || null,
+                    salary_min: salaryMinVal,
+                    salary_max: salaryMaxVal
+                })
+            });
+
+            statusSpan.textContent = 'Saved!';
+            statusSpan.className = 'save-success';
+
+            // Invalidate For You cache so it refreshes with new preferences
+            state.forYouLoaded = false;
+            state.profilePreferences = {
+                ...state.profilePreferences,
+                preferred_locations: selectedLocations,
+                open_to_roles: selectedRoles,
+                experience_level: expLevel,
+                work_preference: workPref,
+                salary_min: salaryMinVal,
+                salary_max: salaryMaxVal
+            };
+
+            setTimeout(() => {
+                statusSpan.textContent = '';
+            }, 2000);
+        } catch (err) {
+            statusSpan.textContent = 'Error saving';
+            statusSpan.className = 'save-error';
+            console.error('Failed to save preferences:', err);
+        }
+    });
+
+    // Logout
+    document.getElementById('profile-logout-btn')?.addEventListener('click', logout);
 }
 
 function renderEmployerDashboard() {
@@ -2186,6 +2678,12 @@ function setupEmployerNavListeners() {
 }
 
 function renderHeader() {
+    // Get user initials for avatar
+    const initials = state.user ?
+        ((state.user.first_name?.[0] || '') + (state.user.last_name?.[0] || '')).toUpperCase() ||
+        (state.user.email?.[0] || 'U').toUpperCase()
+        : 'U';
+
     return `
         <header>
             <div class="container">
@@ -2194,7 +2692,9 @@ function renderHeader() {
                     <a href="#" class="${state.currentPage === 'for-you' ? 'active' : ''}" data-nav="for-you">For You</a>
                     <a href="#" class="${state.currentPage === 'explore' || state.currentPage === 'browse' ? 'active' : ''}" data-nav="explore">Explore</a>
                     <a href="#" class="${state.currentPage === 'shortlist' ? 'active' : ''}" data-nav="shortlist">My Shortlist</a>
-                    <a href="#" id="logout-link">Sign Out</a>
+                    <div class="profile-avatar ${state.currentPage === 'profile' ? 'active' : ''}" data-nav="profile" title="Profile">
+                        ${initials}
+                    </div>
                 </nav>
             </div>
         </header>
