@@ -24,12 +24,17 @@ from werkzeug.utils import secure_filename
 
 # Optional: OpenAI for embeddings
 try:
-    import openai
+    from openai import OpenAI as OpenAIClient
     OPENAI_AVAILABLE = bool(os.environ.get('OPENAI_API_KEY'))
-    if OPENAI_AVAILABLE:
-        openai.api_key = os.environ.get('OPENAI_API_KEY')
 except ImportError:
     OPENAI_AVAILABLE = False
+
+# Optional: Numpy for cosine similarity
+try:
+    import numpy as np
+    NUMPY_AVAILABLE = True
+except ImportError:
+    NUMPY_AVAILABLE = False
 
 app = Flask(__name__)
 CORS(app)
@@ -293,55 +298,73 @@ def update_profile():
 @app.route('/api/profile/preferences', methods=['PUT'])
 @require_auth
 def update_preferences():
-    """Update user job preferences."""
+    """Update user job preferences. Only updates fields that are explicitly provided."""
     data = request.json or {}
 
-    preferred_locations = data.get('preferred_locations') or []  # List of cities
-    salary_min = data.get('salary_min')  # Integer
-    salary_max = data.get('salary_max')  # Integer
-    open_to_roles = data.get('open_to_roles') or []  # List of role types
-    experience_level = data.get('experience_level')  # String
-    work_arrangement = data.get('work_arrangement')  # String: remote, hybrid, onsite
-    preferences_text = (data.get('preferences_text') or '').strip()  # Free text
+    # Build dynamic update query - only update fields that are in the request
+    updates = []
+    params = []
 
-    # Generate embedding for preferences text if OpenAI is available
-    preferences_embedding = None
-    if preferences_text and OPENAI_AVAILABLE:
-        try:
-            response = openai.embeddings.create(
-                model="text-embedding-3-small",
-                input=preferences_text
-            )
-            preferences_embedding = json.dumps(response.data[0].embedding)
-        except Exception as e:
-            print(f"Failed to generate embedding: {e}")
+    # Check each field - only update if key is present in request
+    if 'preferred_locations' in data:
+        updates.append("preferred_locations = %s")
+        locs = data['preferred_locations']
+        params.append(locs if locs else None)
+
+    if 'salary_min' in data:
+        updates.append("salary_min = %s")
+        params.append(data['salary_min'])
+
+    if 'salary_max' in data:
+        updates.append("salary_max = %s")
+        params.append(data['salary_max'])
+
+    if 'open_to_roles' in data:
+        updates.append("open_to_roles = %s")
+        roles = data['open_to_roles']
+        params.append(roles if roles else None)
+
+    if 'experience_level' in data:
+        updates.append("experience_level = %s")
+        params.append(data['experience_level'])
+
+    if 'work_arrangement' in data:
+        updates.append("work_preference = %s")
+        params.append(data['work_arrangement'])
+
+    if 'preferences_text' in data:
+        preferences_text = (data['preferences_text'] or '').strip()
+        updates.append("preferences_text = %s")
+        params.append(preferences_text if preferences_text else None)
+
+        # Generate embedding for preferences text if OpenAI is available
+        if preferences_text and OPENAI_AVAILABLE:
+            try:
+                response = openai.embeddings.create(
+                    model="text-embedding-3-small",
+                    input=preferences_text
+                )
+                updates.append("preferences_embedding = %s")
+                params.append(json.dumps(response.data[0].embedding))
+            except Exception as e:
+                print(f"Failed to generate embedding: {e}")
+
+    if 'profile_complete' in data:
+        updates.append("profile_complete = %s")
+        params.append(data['profile_complete'])
+
+    # Always update timestamp
+    updates.append("updated_at = NOW()")
+
+    if not updates:
+        return jsonify({'success': True, 'message': 'No fields to update'})
+
+    params.append(g.user_id)
 
     conn = get_db()
     with conn.cursor() as cur:
-        cur.execute("""
-            UPDATE seeker_profiles
-            SET preferred_locations = %s,
-                salary_min = %s,
-                salary_max = %s,
-                open_to_roles = %s,
-                experience_level = %s,
-                work_preference = %s,
-                preferences_text = %s,
-                preferences_embedding = %s,
-                profile_complete = TRUE,
-                updated_at = NOW()
-            WHERE user_id = %s
-        """, (
-            preferred_locations if preferred_locations else None,
-            salary_min,
-            salary_max,
-            open_to_roles if open_to_roles else None,
-            experience_level,
-            work_arrangement,
-            preferences_text if preferences_text else None,
-            preferences_embedding,
-            g.user_id
-        ))
+        query = f"UPDATE seeker_profiles SET {', '.join(updates)} WHERE user_id = %s"
+        cur.execute(query, params)
         conn.commit()
 
     return jsonify({'success': True})
@@ -371,50 +394,62 @@ def get_preferences():
 @require_auth
 def upload_profile_resume():
     """
-    Upload resume to user's profile and extract skills.
-    This is used during onboarding, separate from application-specific uploads.
+    Upload resume to user's profile and process it for semantic matching.
+    Extracts profile info and generates embedding for job recommendations.
     """
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file provided'}), 400
-
-    file = request.files['file']
-    if not file.filename:
-        return jsonify({'error': 'No file selected'}), 400
-
-    # Validate file type
-    if not file.filename.lower().endswith('.pdf'):
-        return jsonify({'error': 'Only PDF files are accepted'}), 400
-
-    # Save file with user-specific name
-    filename = secure_filename(f"{g.user_id}_resume.pdf")
-    filepath = os.path.join(UPLOAD_FOLDER, filename)
-    file.save(filepath)
-
-    conn = get_db()
-    with conn.cursor() as cur:
-        # Save resume path to user profile
-        cur.execute("""
-            UPDATE platform_users
-            SET resume_path = %s
-            WHERE id = %s
-        """, (filepath, g.user_id))
-        conn.commit()
-
-    # Extract skills from resume asynchronously
-    skills_result = {'skills_count': 0, 'skills': []}
     try:
-        from skill_extractor import process_resume
-        skills_result = process_resume(g.user_id, filepath)
-    except Exception as e:
-        print(f"Skill extraction error: {e}")
-        # Continue even if skill extraction fails
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
 
-    return jsonify({
-        'success': True,
-        'filename': filename,
-        'skills_extracted': skills_result.get('skills_count', 0),
-        'skills': [s.get('skill_name') for s in skills_result.get('skills', [])]
-    })
+        file = request.files['file']
+        if not file.filename:
+            return jsonify({'error': 'No file selected'}), 400
+
+        # Validate file type
+        if not file.filename.lower().endswith('.pdf'):
+            return jsonify({'error': 'Only PDF files are accepted'}), 400
+
+        # Read file contents
+        pdf_bytes = file.read()
+
+        # Save file with user-specific name
+        filename = secure_filename(f"{g.user_id}_resume.pdf")
+        filepath = os.path.join(UPLOAD_FOLDER, filename)
+        with open(filepath, 'wb') as f:
+            f.write(pdf_bytes)
+
+        conn = get_db()
+        with conn.cursor() as cur:
+            # Save resume path to user profile
+            cur.execute("""
+                UPDATE platform_users
+                SET resume_url = %s
+                WHERE id = %s
+            """, (filename, g.user_id))
+            conn.commit()
+
+        # Process resume with semantic matching system
+        print(f"Processing resume for user {g.user_id}...")
+        result = process_resume_and_get_matches(g.user_id, pdf_bytes)
+        print(f"Resume processing complete: {result.get('profile', {}).get('current_title', 'unknown')}")
+
+        if 'error' in result:
+            return jsonify({
+                'success': False,
+                'error': result['error'],
+                'filename': filename
+            }), 500
+
+        return jsonify({
+            'success': True,
+            'filename': filename,
+            'profile': result.get('profile', {})
+        })
+    except Exception as e:
+        import traceback
+        print(f"Error in upload_profile_resume: {e}")
+        traceback.print_exc()
+        return jsonify({'error': f'Server error: {str(e)}'}), 500
 
 
 @app.route('/api/profile/skills', methods=['GET'])
@@ -828,25 +863,96 @@ def has_any_preferences(user_prefs):
 def calculate_preference_score(role, user_prefs):
     """
     Calculate how well a role matches user preferences.
-    Returns score 0-100 based only on filled-in preferences.
+    Returns score 0-100 based on weighted preferences.
+
+    Weights (when preference is set):
+    - Location: 35% (most important - if user wants Boston, CA jobs should score lower)
+    - Role type: 25% (second most important)
+    - Salary: 15%
+    - Experience: 15%
+    - Work arrangement: 10% (remote/onsite/hybrid)
+
     Returns None if no preferences are set.
     """
     if not user_prefs or not has_any_preferences(user_prefs):
         return None
 
-    scores = []
+    weighted_scores = []
+    total_weight = 0
 
-    # Location match
+    # Location match - HIGHEST WEIGHT (50%)
     if user_prefs.get('preferred_locations'):
         location_score = 0
         role_location = (role.get('location') or '').lower()
+
+        # Extract state from job location (e.g., "Foster City, CA" -> "ca")
+        job_state = None
+        if ', ' in role_location:
+            parts = role_location.split(', ')
+            # Last part might be state abbreviation or full state name
+            potential_state = parts[-1].strip()
+            if len(potential_state) == 2:
+                job_state = potential_state
+            elif len(parts) >= 2:
+                # Try second to last (e.g., "City, MA, USA")
+                potential_state = parts[-2].strip() if len(parts[-2].strip()) == 2 else None
+                job_state = potential_state
+
+        # Check for exact or partial location match
         for pref_loc in user_prefs['preferred_locations']:
-            if pref_loc.lower() in role_location or role_location in pref_loc.lower():
+            pref_lower = pref_loc.lower()
+
+            # Exact city match
+            if pref_lower in role_location or role_location in pref_lower:
                 location_score = 100
                 break
-        scores.append(location_score)
 
-    # Salary match
+            # Check for state abbreviation match (e.g., user selected "MA")
+            if len(pref_lower) == 2 and f', {pref_lower}' in role_location:
+                location_score = 100
+                break
+
+            # Extract state from user's preferred location
+            pref_state = None
+            if ', ' in pref_loc:
+                pref_parts = pref_loc.split(', ')
+                potential_pref_state = pref_parts[-1].strip().lower()
+                if len(potential_pref_state) == 2:
+                    pref_state = potential_pref_state
+
+            # Same state but different city = 65% credit
+            if location_score == 0 and job_state and pref_state and job_state == pref_state:
+                location_score = 65
+                # Don't break - keep looking for exact match
+
+        # Remote jobs get partial credit if user didn't specifically select remote
+        if location_score == 0 and 'remote' in role_location:
+            location_score = 40  # Remote is ok but not as good as preferred location
+
+        weighted_scores.append((location_score, 35))
+        total_weight += 35
+
+    # Role type match - SECOND HIGHEST (25%)
+    if user_prefs.get('open_to_roles'):
+        role_type_score = 0
+        role_type = role.get('role_type')
+        if role_type and role_type in user_prefs['open_to_roles']:
+            role_type_score = 100
+        elif not role_type:
+            # No role type on job - check title for keywords
+            title = (role.get('title') or '').lower()
+            for pref_role in user_prefs['open_to_roles']:
+                if pref_role.replace('_', ' ') in title:
+                    role_type_score = 75
+                    break
+            # Give some credit if we can't determine role type
+            if role_type_score == 0:
+                role_type_score = 30
+
+        weighted_scores.append((role_type_score, 25))
+        total_weight += 25
+
+    # Salary match (15%)
     if user_prefs.get('salary_min') or user_prefs.get('salary_max'):
         salary_score = 0
         role_min, role_max = parse_salary_range(role.get('salary_range'))
@@ -862,41 +968,26 @@ def calculate_preference_score(role, user_prefs):
                 user_range = user_max - user_min if user_max != 999999 else role_max - user_min
                 if user_range > 0:
                     overlap = (overlap_max - overlap_min) / user_range
-                    salary_score = min(100, int(overlap * 100) + 50)  # At least 50 if there's overlap
+                    salary_score = min(100, int(overlap * 100) + 50)
                 else:
                     salary_score = 100
         elif role.get('salary_range'):
             # Has salary but couldn't parse - give partial credit
             salary_score = 50
-        scores.append(salary_score)
 
-    # Role type match
-    if user_prefs.get('open_to_roles'):
-        role_type_score = 0
-        role_type = role.get('role_type')
-        if role_type and role_type in user_prefs['open_to_roles']:
-            role_type_score = 100
-        elif not role_type:
-            # No role type on job - check title for keywords
-            title = (role.get('title') or '').lower()
-            for pref_role in user_prefs['open_to_roles']:
-                if pref_role.replace('_', ' ') in title:
-                    role_type_score = 75
-                    break
-        scores.append(role_type_score)
+        weighted_scores.append((salary_score, 15))
+        total_weight += 15
 
-    # Experience level match
+    # Experience level match (15%)
     if user_prefs.get('experience_level'):
         exp_score = 0
         title = (role.get('title') or '').lower()
         job_exp_level = role.get('experience_level')
         user_level = user_prefs['experience_level']
 
-        # First check if job has explicit experience_level that matches
         if job_exp_level and job_exp_level == user_level:
             exp_score = 100
         else:
-            # Map experience levels to title keywords
             level_keywords = {
                 'intern': ['intern', 'internship'],
                 'entry': ['entry', 'junior', 'associate', 'i ', ' i,', ' 1', 'new grad'],
@@ -904,21 +995,29 @@ def calculate_preference_score(role, user_prefs):
                 'senior': ['senior', 'sr', 'lead', 'principal', 'staff', 'iii', ' 4', ' 5']
             }
 
-            # Check if job title matches user's experience level
+            # Check if job title contains keywords for user's preferred level
             for keyword in level_keywords.get(user_level, []):
                 if keyword in title:
                     exp_score = 100
                     break
 
-            # If no explicit match but also no senior keywords for entry-level user, partial credit
-            if exp_score == 0 and user_level in ['entry', 'mid']:
+            # If user wants intern, non-intern jobs should score low
+            if exp_score == 0 and user_level == 'intern':
+                # Check if it's an entry-level job (partial credit)
+                for keyword in level_keywords['entry']:
+                    if keyword in title:
+                        exp_score = 40  # Entry-level is somewhat close to intern
+                        break
+                # If still 0, it's likely mid/senior - no credit
+            elif exp_score == 0 and user_level in ['entry', 'mid']:
                 has_senior_keywords = any(kw in title for kw in level_keywords['senior'])
                 if not has_senior_keywords:
                     exp_score = 50
 
-        scores.append(exp_score)
+        weighted_scores.append((exp_score, 15))
+        total_weight += 15
 
-    # Work arrangement match
+    # Work arrangement match (10%)
     if user_prefs.get('work_preference'):
         work_score = 0
         role_arrangement = (role.get('work_arrangement') or '').lower()
@@ -926,20 +1025,25 @@ def calculate_preference_score(role, user_prefs):
 
         if user_pref in role_arrangement or role_arrangement in user_pref:
             work_score = 100
+        elif 'hybrid' in role_arrangement and user_pref in ['remote', 'onsite', 'on-site']:
+            # Hybrid is a partial match for both remote and onsite preferences
+            work_score = 60
         elif role_arrangement:
             # Has arrangement but doesn't match
-            work_score = 25
+            work_score = 20
         else:
             # No arrangement specified on job - neutral
             work_score = 50
 
-        scores.append(work_score)
+        weighted_scores.append((work_score, 10))
+        total_weight += 10
 
-    # Calculate simple average of all filled-in preference scores
-    if not scores:
+    # Calculate weighted average
+    if not weighted_scores or total_weight == 0:
         return None
 
-    return int(sum(scores) / len(scores))
+    weighted_sum = sum(score * weight for score, weight in weighted_scores)
+    return int(weighted_sum / total_weight)
 
 
 def calculate_skills_score(role_id, user_skill_ids):
@@ -988,6 +1092,714 @@ def calculate_match_score(role, user_prefs, user_skill_ids=None):
         return skills_score
 
     return None
+
+
+# ============================================================================
+# SEMANTIC MATCHING HELPERS
+# ============================================================================
+
+def cosine_similarity(a, b):
+    """Calculate cosine similarity between two vectors."""
+    if not NUMPY_AVAILABLE:
+        # Fallback without numpy
+        dot = sum(x * y for x, y in zip(a, b))
+        norm_a = sum(x * x for x in a) ** 0.5
+        norm_b = sum(x * x for x in b) ** 0.5
+        return dot / (norm_a * norm_b) if norm_a and norm_b else 0
+    a = np.array(a)
+    b = np.array(b)
+    return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
+
+
+def normalize_similarity(raw_similarity):
+    """
+    Convert raw cosine similarity to a more intuitive 0-100 scale.
+    Calibrated based on observed similarity distributions for job-resume matching.
+
+    Observed ranges for text-embedding-3-small:
+    - Unrelated: 0.25-0.32
+    - Somewhat related: 0.32-0.38
+    - Related: 0.38-0.45
+    - Very related: 0.45+
+    """
+    # Adjusted thresholds based on actual similarity distributions
+    # These are calibrated for OpenAI text-embedding-3-small model
+    min_sim = 0.28  # Below this is essentially random/unrelated
+    max_sim = 0.50  # Above this is a very strong match
+
+    # Clamp and normalize
+    normalized = (raw_similarity - min_sim) / (max_sim - min_sim)
+    normalized = max(0, min(1, normalized))
+
+    # Apply slight curve to spread out middle values and reward stronger matches
+    # Using power < 1 stretches lower values, making differences more visible
+    score = normalized ** 0.85 * 100
+
+    return round(score, 1)
+
+
+def calculate_experience_match(user_level, job_level):
+    """
+    Calculate how well the user's experience level matches the job's requirements.
+    Returns a multiplier (0.5 to 1.2) that adjusts the match score.
+    """
+    if not user_level or not job_level:
+        return 1.0  # No penalty if unknown
+
+    # Define experience level ordering
+    levels = {'intern': 0, 'entry': 1, 'mid': 2, 'senior': 3}
+
+    user_idx = levels.get(user_level.lower(), 1)
+    job_idx = levels.get(job_level.lower(), 1)
+
+    diff = job_idx - user_idx
+
+    # Perfect match or one level difference is good
+    if diff == 0:
+        return 1.1  # Slight boost for exact match
+    elif diff == 1:
+        return 0.95  # Slightly underqualified - still good
+    elif diff == -1:
+        return 0.9  # Slightly overqualified - OK
+    elif diff == 2:
+        return 0.6  # Significantly underqualified
+    elif diff == -2:
+        return 0.7  # Significantly overqualified
+    else:
+        return 0.4  # Major mismatch
+
+
+def generate_match_reason(user_profile, job, match_score, exp_multiplier):
+    """
+    Generate a brief, human-readable reason for why a job matches (or doesn't).
+    """
+    reasons = []
+
+    # Experience level match
+    user_exp = user_profile.get('experience_level') if user_profile else None
+    job_exp = job.get('experience_level')
+
+    if user_exp and job_exp:
+        if user_exp == job_exp:
+            reasons.append(f"Great fit for {job_exp}-level candidates")
+        elif exp_multiplier >= 0.9:
+            reasons.append(f"Good fit for your experience level")
+        elif exp_multiplier >= 0.6:
+            reasons.append(f"May require more experience than you currently have")
+        else:
+            reasons.append(f"Typically requires {job_exp}-level experience")
+
+    # Skills match (if we have user skills)
+    user_skills = user_profile.get('skills', []) if user_profile else []
+    job_title_lower = job.get('title', '').lower()
+
+    # Check for skill-title alignment
+    tech_skills = ['python', 'javascript', 'java', 'sql', 'react', 'node', 'aws', 'machine learning', 'data']
+    user_tech = [s.lower() for s in user_skills if any(t in s.lower() for t in tech_skills)]
+
+    if user_tech and any(s in job_title_lower for s in ['engineer', 'developer', 'scientist', 'analyst']):
+        if match_score >= 60:
+            reasons.append("Your technical background aligns well")
+        elif match_score >= 40:
+            reasons.append("Some technical skill overlap")
+
+    # Company/industry match
+    user_industries = user_profile.get('industries', []) if user_profile else []
+    if 'technology' in [i.lower() for i in user_industries]:
+        if 'tech' in job.get('company_name', '').lower() or any(t in job_title_lower for t in ['software', 'data', 'ai', 'ml']):
+            if not any('technical' in r.lower() or 'skill' in r.lower() for r in reasons):
+                reasons.append("Matches your industry experience")
+
+    # Default reasons based on score
+    if not reasons:
+        if match_score >= 70:
+            reasons.append("Strong overall profile match")
+        elif match_score >= 50:
+            reasons.append("Moderate profile alignment")
+        elif match_score >= 30:
+            reasons.append("Some relevant background")
+        else:
+            reasons.append("Limited profile match")
+
+    return reasons[0] if reasons else None
+
+
+def get_semantic_matches(user_id=None, resume_embedding=None, filters=None, limit=50, user_profile=None):
+    """
+    Find jobs that semantically match a user's resume embedding.
+    Returns list of jobs with nuanced match scores.
+    """
+    conn = get_db()
+    extracted_profile = user_profile
+
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        # Get user's embedding and profile if not provided
+        if (resume_embedding is None or extracted_profile is None) and user_id:
+            cur.execute("""
+                SELECT resume_embedding, extracted_profile, experience_level
+                FROM seeker_profiles
+                WHERE user_id = %s
+            """, (user_id,))
+            row = cur.fetchone()
+            if row:
+                if row.get('resume_embedding') and resume_embedding is None:
+                    resume_embedding = row['resume_embedding']
+                    if isinstance(resume_embedding, str):
+                        resume_embedding = json.loads(resume_embedding)
+                if row.get('extracted_profile') and extracted_profile is None:
+                    extracted_profile = row['extracted_profile']
+                    if isinstance(extracted_profile, str):
+                        extracted_profile = json.loads(extracted_profile)
+                # Also get user's stated experience level
+                user_exp_level = row.get('experience_level')
+                if extracted_profile and not extracted_profile.get('experience_level'):
+                    extracted_profile['experience_level'] = user_exp_level
+
+        if resume_embedding is None:
+            return []
+
+        # Get user's experience level from profile
+        user_experience = None
+        if extracted_profile:
+            user_experience = extracted_profile.get('experience_level')
+
+        # Get all jobs with embeddings
+        query = """
+            SELECT id, title, company_name, location, description,
+                   role_type, experience_level, salary_range, salary_min, salary_max,
+                   work_arrangement, description_embedding
+            FROM watchable_positions
+            WHERE description_embedding IS NOT NULL
+        """
+
+        params = []
+        if filters:
+            if filters.get('role_types'):
+                query += " AND role_type = ANY(%s)"
+                params.append(filters['role_types'])
+
+            if filters.get('experience_levels'):
+                query += " AND experience_level = ANY(%s)"
+                params.append(filters['experience_levels'])
+
+            if filters.get('min_salary'):
+                query += " AND salary_max >= %s"
+                params.append(filters['min_salary'])
+
+            if filters.get('work_arrangements'):
+                query += " AND work_arrangement = ANY(%s)"
+                params.append(filters['work_arrangements'])
+
+        cur.execute(query, params) if params else cur.execute(query)
+        jobs = cur.fetchall()
+
+    # Calculate similarity scores with experience level adjustment
+    results = []
+    for job in jobs:
+        if job.get('description_embedding'):
+            job_embedding = job['description_embedding']
+            if isinstance(job_embedding, str):
+                job_embedding = json.loads(job_embedding)
+
+            # Calculate base semantic similarity
+            raw_similarity = cosine_similarity(resume_embedding, job_embedding)
+            base_score = normalize_similarity(raw_similarity)
+
+            # Apply experience level adjustment
+            exp_multiplier = calculate_experience_match(user_experience, job.get('experience_level'))
+            adjusted_score = base_score * exp_multiplier
+
+            # Cap at 98 to avoid perfect matches (nothing is perfect)
+            final_score = min(98, max(5, adjusted_score))
+
+            # Generate match reason
+            match_reason = generate_match_reason(extracted_profile, job, final_score, exp_multiplier)
+
+            results.append({
+                'id': job['id'],
+                'title': job['title'],
+                'company_name': job['company_name'],
+                'location': job['location'],
+                'role_type': job['role_type'],
+                'experience_level': job['experience_level'],
+                'salary_range': job['salary_range'],
+                'work_arrangement': job['work_arrangement'],
+                'match_score': round(final_score, 0),
+                'match_reason': match_reason,
+                'description': (job['description'][:500] + '...') if job.get('description') and len(job['description']) > 500 else job.get('description')
+            })
+
+    # Sort by match score
+    results.sort(key=lambda x: x['match_score'], reverse=True)
+
+    return results[:limit]
+
+
+def process_resume_and_get_matches(user_id, pdf_bytes):
+    """
+    Process a resume PDF and return matching jobs.
+    Stores the extracted profile and embedding for future use.
+    """
+    if not OPENAI_AVAILABLE:
+        return {'error': 'OpenAI not available for resume processing'}
+
+    import PyPDF2
+    import io
+
+    # Extract text from PDF
+    try:
+        reader = PyPDF2.PdfReader(io.BytesIO(pdf_bytes))
+        text_parts = []
+        for page in reader.pages:
+            text_parts.append(page.extract_text() or '')
+        resume_text = '\n'.join(text_parts)
+    except Exception as e:
+        return {'error': f'Could not read PDF: {str(e)}'}
+
+    if not resume_text.strip():
+        return {'error': 'Could not extract text from PDF'}
+
+    client = OpenAIClient(api_key=os.environ.get('OPENAI_API_KEY'))
+
+    # Extract structured profile using LLM
+    profile_prompt = f"""Analyze this resume and extract a structured profile. Return JSON with these fields:
+
+{{
+    "current_title": "their most recent job title",
+    "years_experience": "total years of professional experience (number)",
+    "experience_level": "intern/entry/mid/senior based on experience",
+    "education": {{
+        "highest_degree": "PhD/Masters/Bachelors/Associates/High School",
+        "field": "field of study",
+        "school": "school name if notable"
+    }},
+    "skills": ["list", "of", "technical", "and", "soft", "skills"],
+    "industries": ["industries they have experience in"],
+    "job_titles_held": ["previous job titles"],
+    "summary": "2-3 sentence summary of their background"
+}}
+
+Resume text:
+{resume_text[:8000]}
+
+Return ONLY valid JSON, no markdown."""
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": profile_prompt}],
+            temperature=0.1,
+            max_tokens=1000
+        )
+
+        result = response.choices[0].message.content.strip()
+        if result.startswith('```'):
+            result = re.sub(r'^```(?:json)?\n?', '', result)
+            result = re.sub(r'\n?```$', '', result)
+
+        profile = json.loads(result)
+    except Exception as e:
+        profile = {'error': str(e)}
+
+    # Create embedding text
+    embedding_parts = []
+    if profile.get('current_title'):
+        embedding_parts.append(f"Current Role: {profile['current_title']}")
+    if profile.get('summary'):
+        embedding_parts.append(f"Summary: {profile['summary']}")
+    if profile.get('skills'):
+        embedding_parts.append(f"Skills: {', '.join(profile['skills'])}")
+    if profile.get('industries'):
+        embedding_parts.append(f"Industries: {', '.join(profile['industries'])}")
+    embedding_parts.append(f"Full Background: {resume_text[:4000]}")
+
+    embedding_text = "\n".join(embedding_parts)
+
+    # Generate embedding
+    try:
+        emb_response = client.embeddings.create(
+            model="text-embedding-3-small",
+            input=embedding_text[:32000]
+        )
+        embedding = emb_response.data[0].embedding
+    except Exception as e:
+        return {'error': f'Could not generate embedding: {str(e)}'}
+
+    # Store in database
+    conn = get_db()
+    with conn.cursor() as cur:
+        cur.execute("""
+            UPDATE seeker_profiles
+            SET resume_text = %s,
+                extracted_profile = %s,
+                resume_embedding = %s,
+                skills_extracted = TRUE,
+                skills_extracted_at = NOW()
+            WHERE user_id = %s
+        """, (resume_text, json.dumps(profile), json.dumps(embedding), user_id))
+        conn.commit()
+
+    # Get matching jobs
+    matches = get_semantic_matches(resume_embedding=embedding, limit=20)
+
+    return {
+        'profile': profile,
+        'matches': matches
+    }
+
+
+# ============================================================================
+# SEMANTIC MATCHING ENDPOINTS
+# ============================================================================
+
+@app.route('/api/recommendations', methods=['GET'])
+@require_auth
+def get_recommendations():
+    """
+    Get semantically matched job recommendations for the authenticated user.
+    Uses the user's resume embedding and profile to find the best matching jobs.
+    Prioritizes jobs matching the user's experience level.
+    """
+    user_id = g.user_id
+    limit = request.args.get('limit', 20, type=int)
+    role_type = request.args.get('role_type')
+    location = request.args.get('location')
+
+    # Check if user has a resume embedding
+    conn = get_db()
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute("""
+            SELECT resume_embedding, extracted_profile, skills_extracted, experience_level
+            FROM seeker_profiles WHERE user_id = %s
+        """, (user_id,))
+        profile = cur.fetchone()
+
+    if not profile:
+        return jsonify({'error': 'Profile not found'}), 404
+
+    if not profile.get('resume_embedding'):
+        return jsonify({
+            'error': 'No resume processed yet',
+            'needs_resume': True,
+            'message': 'Please upload your resume to get personalized recommendations'
+        }), 400
+
+    # Get user's experience level from profile or extracted data
+    user_exp_level = profile.get('experience_level')
+    extracted_profile = profile.get('extracted_profile')
+    if isinstance(extracted_profile, str):
+        extracted_profile = json.loads(extracted_profile)
+    if extracted_profile and not user_exp_level:
+        user_exp_level = extracted_profile.get('experience_level')
+
+    # Build filters - prioritize experience-appropriate jobs
+    filters = {}
+    if role_type:
+        filters['role_types'] = [role_type]
+
+    # For interns, strongly prefer intern roles
+    if user_exp_level == 'intern':
+        filters['experience_levels'] = ['intern', 'entry']
+
+    # Get semantic matches with user profile for better scoring
+    matches = get_semantic_matches(
+        user_id=user_id,
+        resume_embedding=profile['resume_embedding'],
+        filters=filters,
+        limit=limit * 2,  # Get more to allow for filtering
+        user_profile=extracted_profile
+    )
+
+    # If user is intern/entry level, boost intern/entry roles to top
+    if user_exp_level in ['intern', 'entry']:
+        intern_matches = [m for m in matches if m.get('experience_level') in ['intern', 'entry']]
+        other_matches = [m for m in matches if m.get('experience_level') not in ['intern', 'entry']]
+        matches = intern_matches + other_matches
+
+    return jsonify({
+        'recommendations': matches[:limit],
+        'profile': extracted_profile,
+        'total': len(matches[:limit])
+    })
+
+
+@app.route('/api/for-you', methods=['GET'])
+@require_auth
+def get_for_you_jobs():
+    """
+    Get personalized job recommendations with combined scoring:
+    - 60% resume/semantic match + 40% preferences match
+    - Preference weights: location 35%, role 25%, salary 15%, experience 15%, work 10%
+    - Score ceiling based on preference match:
+      - Poor match (<50%): capped at 75%
+      - Moderate match (<70%): capped at 85%
+      - Good match (<85%): capped at 92%
+      - Excellent match (85%+): can reach 98%
+    Returns jobs above min_score threshold, sorted by match percentage.
+    """
+    user_id = g.user_id
+    limit = request.args.get('limit', 100, type=int)
+    min_score = request.args.get('min_score', 70, type=int)
+
+    conn = get_db()
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        # Get user's resume embedding and preferences
+        cur.execute("""
+            SELECT sp.resume_embedding, sp.extracted_profile, sp.experience_level,
+                   sp.preferred_locations, sp.salary_min, sp.salary_max,
+                   sp.open_to_roles, sp.work_preference
+            FROM seeker_profiles sp
+            WHERE sp.user_id = %s
+        """, (user_id,))
+        profile = cur.fetchone()
+
+    if not profile:
+        return jsonify({'error': 'Profile not found'}), 404
+
+    if not profile.get('resume_embedding'):
+        return jsonify({
+            'error': 'No resume processed yet',
+            'needs_resume': True,
+            'message': 'Please upload your resume to get personalized recommendations'
+        }), 400
+
+    resume_embedding = profile['resume_embedding']
+    if isinstance(resume_embedding, str):
+        resume_embedding = json.loads(resume_embedding)
+
+    extracted_profile = profile.get('extracted_profile')
+    if isinstance(extracted_profile, str):
+        extracted_profile = json.loads(extracted_profile)
+
+    # Get user preferences for scoring
+    # IMPORTANT: Only use explicitly set preferences, NOT extracted profile fallbacks
+    # The extracted_profile experience is used for the semantic scoring multiplier,
+    # but should NOT be used for preference matching unless user explicitly set it
+    user_prefs = {
+        'preferred_locations': profile.get('preferred_locations'),
+        'salary_min': profile.get('salary_min'),
+        'salary_max': profile.get('salary_max'),
+        'open_to_roles': profile.get('open_to_roles'),
+        'experience_level': profile.get('experience_level'),  # Only explicit user selection
+        'work_preference': profile.get('work_preference')
+    }
+
+    # DEBUG: Log user preferences
+    print(f"[FOR-YOU DEBUG] User {user_id} explicit preferences: {user_prefs}")
+
+    # For semantic scoring multiplier, use extracted profile experience if not set
+    user_experience = profile.get('experience_level') or (extracted_profile.get('experience_level') if extracted_profile else None)
+
+    # Fetch all jobs with embeddings
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute("""
+            SELECT id, title, company_name, location, description,
+                   role_type, experience_level, salary_range, salary_min, salary_max,
+                   work_arrangement, description_embedding
+            FROM watchable_positions
+            WHERE description_embedding IS NOT NULL
+        """)
+        jobs = cur.fetchall()
+
+    # Calculate combined scores for each job
+    results = []
+    for job in jobs:
+        if not job.get('description_embedding'):
+            continue
+
+        job_embedding = job['description_embedding']
+        if isinstance(job_embedding, str):
+            job_embedding = json.loads(job_embedding)
+
+        # Calculate semantic similarity (65% weight when preferences are set)
+        raw_similarity = cosine_similarity(resume_embedding, job_embedding)
+        semantic_score = normalize_similarity(raw_similarity)
+
+        # Apply experience level adjustment
+        exp_multiplier = calculate_experience_match(user_experience, job.get('experience_level'))
+        semantic_score = semantic_score * exp_multiplier
+
+        # Calculate preference score (35% weight when preferences are set)
+        pref_score = calculate_preference_score(job, user_prefs)
+
+        # If user has preferences set, use combined scoring
+        # If not, use semantic score only (don't penalize for missing preferences)
+        has_preferences = any([
+            user_prefs.get('preferred_locations'),
+            user_prefs.get('open_to_roles'),
+            user_prefs.get('salary_min'),
+            user_prefs.get('experience_level'),
+            user_prefs.get('work_preference')
+        ])
+
+        if has_preferences and pref_score is not None:
+            # Combined score with preference-based ceiling
+            # Base: 60% semantic/resume + 40% preferences
+            base_score = (semantic_score * 0.60) + (pref_score * 0.40)
+
+            # Apply a ceiling based on preference score
+            # If preferences don't match well, cap the maximum score
+            # This ensures 90%+ requires strong preference match
+            if pref_score < 50:
+                # Poor preference match - cap at 75%
+                max_allowed = 75
+            elif pref_score < 70:
+                # Moderate preference match - cap at 85%
+                max_allowed = 85
+            elif pref_score < 85:
+                # Good preference match - cap at 92%
+                max_allowed = 92
+            else:
+                # Excellent preference match - can reach 98%
+                max_allowed = 98
+
+            combined_score = min(base_score, max_allowed)
+
+            # DEBUG: Log scoring for jobs in non-Boston locations
+            job_loc = (job.get('location') or '').lower()
+            if 'boston' not in job_loc and 'ma' not in job_loc and combined_score >= 90:
+                print(f"[SCORING DEBUG] High score for non-Boston job: {job['title'][:40]} @ {job_loc}")
+                print(f"  semantic={semantic_score:.1f}, pref={pref_score}, base={base_score:.1f}, max_allowed={max_allowed}, final={combined_score:.1f}")
+        else:
+            # No preferences set - use semantic score directly
+            combined_score = semantic_score
+            print(f"[SCORING DEBUG] No preferences detected! has_preferences={has_preferences}, pref_score={pref_score}")
+
+        combined_score = min(98, max(5, combined_score))  # Final bounds
+
+        # Only include jobs with 70%+ match
+        if combined_score >= min_score:
+            # Generate match reason
+            match_reason = generate_match_reason(extracted_profile, job, combined_score, exp_multiplier)
+
+            results.append({
+                'id': job['id'],
+                'title': job['title'],
+                'company_name': job['company_name'],
+                'location': job['location'],
+                'role_type': job['role_type'],
+                'experience_level': job['experience_level'],
+                'salary_range': job['salary_range'],
+                'work_arrangement': job['work_arrangement'],
+                'match_score': round(combined_score, 0),
+                'semantic_score': round(semantic_score, 0),
+                'preference_score': round(pref_score, 0) if pref_score is not None else None,
+                'match_reason': match_reason,
+                'description': (job['description'][:500] + '...') if job.get('description') and len(job['description']) > 500 else job.get('description')
+            })
+
+    # Sort by combined match score descending
+    results.sort(key=lambda x: x['match_score'], reverse=True)
+
+    return jsonify({
+        'jobs': results[:limit],
+        'total': len(results),
+        'profile': extracted_profile,
+        'min_score_used': min_score
+    })
+
+
+@app.route('/api/process-resume', methods=['POST'])
+@require_auth
+def process_resume():
+    """
+    Process an uploaded resume and return matching jobs.
+    Extracts profile info, generates embedding, and returns top matches.
+    """
+    user_id = g.user_id
+
+    # Check for file upload
+    if 'resume' not in request.files:
+        return jsonify({'error': 'No resume file provided'}), 400
+
+    file = request.files['resume']
+    if not file.filename:
+        return jsonify({'error': 'No file selected'}), 400
+
+    # Check file extension
+    allowed_extensions = {'pdf'}
+    ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else ''
+    if ext not in allowed_extensions:
+        return jsonify({'error': 'Only PDF files are supported'}), 400
+
+    # Read file contents
+    pdf_bytes = file.read()
+
+    # Process resume and get matches
+    result = process_resume_and_get_matches(user_id, pdf_bytes)
+
+    if 'error' in result:
+        return jsonify({'error': result['error']}), 500
+
+    # Also save the resume file
+    filename = secure_filename(f"resume_{user_id}_{int(datetime.utcnow().timestamp())}.pdf")
+    filepath = os.path.join(UPLOAD_FOLDER, filename)
+    with open(filepath, 'wb') as f:
+        f.seek(0)
+        file.seek(0)
+        f.write(pdf_bytes)
+
+    # Update user's resume path
+    conn = get_db()
+    with conn.cursor() as cur:
+        cur.execute("""
+            UPDATE platform_users SET resume_url = %s WHERE id = %s
+        """, (filename, user_id))
+        conn.commit()
+
+    return jsonify({
+        'success': True,
+        'profile': result.get('profile'),
+        'recommendations': result.get('matches', []),
+        'message': 'Resume processed successfully'
+    })
+
+
+@app.route('/api/semantic-search', methods=['POST'])
+def semantic_search():
+    """
+    Search for jobs using a text query with semantic matching.
+    Useful for searching with natural language queries.
+    """
+    if not OPENAI_AVAILABLE:
+        return jsonify({'error': 'Semantic search not available'}), 503
+
+    data = request.json or {}
+    query = data.get('query', '').strip()
+    limit = data.get('limit', 20)
+    role_type = data.get('role_type')
+
+    if not query:
+        return jsonify({'error': 'Search query required'}), 400
+
+    # Generate embedding for the search query
+    try:
+        client = OpenAIClient()
+        response = client.embeddings.create(
+            model="text-embedding-3-small",
+            input=query[:8000]
+        )
+        query_embedding = response.data[0].embedding
+    except Exception as e:
+        return jsonify({'error': f'Could not process query: {str(e)}'}), 500
+
+    # Build filters
+    filters = {}
+    if role_type:
+        filters['role_type'] = role_type
+
+    # Get matches
+    matches = get_semantic_matches(
+        resume_embedding=query_embedding,
+        filters=filters,
+        limit=limit
+    )
+
+    return jsonify({
+        'results': matches,
+        'query': query,
+        'total': len(matches)
+    })
 
 
 @app.route('/api/roles', methods=['GET'])

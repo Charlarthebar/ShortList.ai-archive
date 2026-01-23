@@ -206,3 +206,35 @@ BEGIN
         ALTER TABLE seeker_profiles ADD COLUMN skills_extracted_at TIMESTAMP;
     END IF;
 END $$;
+
+-- ============================================================================
+-- EMBEDDING-BASED SEMANTIC MATCHING
+-- ============================================================================
+
+-- Add embedding column to watchable_positions for semantic job matching
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'watchable_positions' AND column_name = 'description_embedding') THEN
+        ALTER TABLE watchable_positions ADD COLUMN description_embedding JSONB;
+    END IF;
+END $$;
+
+-- Add structured profile data extracted from resume
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'seeker_profiles' AND column_name = 'resume_text') THEN
+        ALTER TABLE seeker_profiles ADD COLUMN resume_text TEXT;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'seeker_profiles' AND column_name = 'resume_embedding') THEN
+        ALTER TABLE seeker_profiles ADD COLUMN resume_embedding JSONB;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'seeker_profiles' AND column_name = 'extracted_profile') THEN
+        ALTER TABLE seeker_profiles ADD COLUMN extracted_profile JSONB;
+    END IF;
+END $$;
+
+-- Create index for faster embedding lookups (using GIN for JSONB)
+CREATE INDEX IF NOT EXISTS idx_jobs_embedding ON watchable_positions USING GIN (description_embedding);
+CREATE INDEX IF NOT EXISTS idx_seeker_embedding ON seeker_profiles USING GIN (resume_embedding);

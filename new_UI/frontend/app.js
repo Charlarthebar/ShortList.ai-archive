@@ -10,7 +10,12 @@ const state = {
     user: null,
     token: localStorage.getItem('shortlist_token'),
     currentPage: 'loading',
+    previousPage: null,   // Track where we came from for back navigation
     roles: [],
+    recommendations: [],  // Semantic-matched job recommendations
+    recommendationsLoaded: false,
+    forYouJobs: [],       // Personalized jobs for "For You" page
+    forYouLoaded: false,
     myApplications: [],
     selectedRole: null,
     filters: {
@@ -114,8 +119,12 @@ async function login(email, password) {
 
     if (!state.user.profile_complete) {
         navigate('setup');
+    } else if (state.user.has_resume) {
+        // User has resume - go to For You page
+        navigate('for-you');
     } else {
-        navigate('browse');
+        // No resume - go to Explore page
+        navigate('explore');
     }
 }
 
@@ -163,6 +172,96 @@ async function loadRoles() {
         state.roles = [];
         renderRolesList();
     }
+}
+
+async function loadRecommendations() {
+    // Only load if user is logged in and hasn't loaded recommendations yet
+    if (!state.token || state.recommendationsLoaded) {
+        return;
+    }
+
+    try {
+        const data = await api('/recommendations?limit=6');
+        state.recommendations = data.recommendations || [];
+        state.recommendationsLoaded = true;
+        renderRecommendations();
+    } catch (err) {
+        // User likely doesn't have a resume processed - that's OK
+        console.log('No recommendations available:', err.message);
+        state.recommendations = [];
+        state.recommendationsLoaded = true;
+        renderRecommendations();
+    }
+}
+
+async function loadForYouJobs() {
+    // Load personalized "For You" jobs with 75% resume / 25% preferences weighting
+    if (!state.token) {
+        return;
+    }
+
+    try {
+        const data = await api('/for-you?limit=100&min_score=60');
+        state.forYouJobs = data.jobs || [];
+        state.forYouLoaded = true;
+        renderForYouList();
+    } catch (err) {
+        console.log('Could not load For You jobs:', err.message);
+        state.forYouJobs = [];
+        state.forYouLoaded = true;
+        // If user needs resume, show message
+        if (err.message.includes('resume')) {
+            renderForYouNeedsResume();
+        } else {
+            renderForYouList();
+        }
+    }
+}
+
+function renderRecommendations() {
+    const container = document.getElementById('recommendations-section');
+    if (!container) return;
+
+    // Don't show if no recommendations
+    if (!state.recommendations.length) {
+        container.innerHTML = '';
+        return;
+    }
+
+    container.innerHTML = `
+        <div class="recommendations-header">
+            <h2>Recommended for you</h2>
+            <p>Based on your resume and profile</p>
+        </div>
+        <div class="recommendations-grid">
+            ${state.recommendations.map(role => `
+                <div class="recommendation-card" data-role-id="${role.id}">
+                    <div class="recommendation-match">
+                        <span class="match-percent">${Math.round(role.match_score)}%</span>
+                        <span class="match-label">match</span>
+                    </div>
+                    <div class="recommendation-content">
+                        <h3 class="recommendation-title">${escapeHtml(role.title)}</h3>
+                        <div class="recommendation-company">${escapeHtml(role.company_name)}</div>
+                        ${role.match_reason ? `<div class="recommendation-reason">${escapeHtml(role.match_reason)}</div>` : ''}
+                        <div class="recommendation-meta">
+                            <span>${escapeHtml(role.location || 'Boston Area')}</span>
+                            ${role.salary_range ? `<span class="salary">${escapeHtml(role.salary_range)}</span>` : ''}
+                        </div>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+
+    // Add click listeners
+    container.querySelectorAll('.recommendation-card').forEach(card => {
+        card.addEventListener('click', () => {
+            const roleId = card.dataset.roleId;
+            loadRole(roleId);
+            state.currentPage = 'role';
+        });
+    });
 }
 
 async function loadRole(roleId) {
@@ -250,7 +349,18 @@ function navigate(page) {
     render();
 
     // Load data for specific pages
-    if (page === 'browse') {
+    if (page === 'for-you') {
+        // Only fetch if not already loaded (cache results)
+        if (!state.forYouLoaded) {
+            loadForYouJobs();
+        } else {
+            // Already loaded - just render the list immediately
+            renderForYouList();
+        }
+    } else if (page === 'explore') {
+        loadRoles();
+    } else if (page === 'browse') {
+        // Legacy - redirect to explore
         loadRoles();
     } else if (page === 'shortlist') {
         loadMyApplications();
@@ -282,8 +392,14 @@ function render() {
         case 'resume-upload':
             renderResumeUpload();
             break;
+        case 'for-you':
+            renderForYou();
+            break;
+        case 'explore':
+            renderExplore();
+            break;
         case 'browse':
-            renderBrowse();
+            renderExplore();  // Legacy - redirect to explore
             break;
         case 'role':
             renderRoleDetail();
@@ -1177,14 +1293,15 @@ function renderResumeUpload() {
                         </div>
                         <p id="upload-status-text">Uploading...</p>
                     </div>
-                    <div id="skills-result" class="skills-result" style="display: none;">
-                        <div class="skills-header">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <polyline points="20 6 9 17 4 12"></polyline>
+                    <div id="upload-success" class="upload-success" style="display: none;">
+                        <div class="success-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                <polyline points="22 4 12 14.01 9 11.01"></polyline>
                             </svg>
-                            <span>Skills identified from your resume:</span>
                         </div>
-                        <div id="skills-list" class="skills-tags"></div>
+                        <h3>Resume uploaded!</h3>
+                        <p>We'll use this to find jobs that match your background.</p>
                     </div>
                 </div>
                 <div class="pref-actions" style="margin-top: 24px;">
@@ -1200,8 +1317,7 @@ function renderResumeUpload() {
     const uploadStatus = document.getElementById('upload-status');
     const uploadProgressBar = document.getElementById('upload-progress-bar');
     const uploadStatusText = document.getElementById('upload-status-text');
-    const skillsResult = document.getElementById('skills-result');
-    const skillsList = document.getElementById('skills-list');
+    const uploadSuccess = document.getElementById('upload-success');
     const continueBtn = document.getElementById('continue-btn');
     const skipBtn = document.getElementById('skip-btn');
 
@@ -1273,24 +1389,15 @@ function renderResumeUpload() {
             uploadProgressBar.style.width = '100%';
             uploadStatusText.textContent = 'Done!';
 
-            // Show extracted skills
-            if (data.skills && data.skills.length > 0) {
-                skillsResult.style.display = 'block';
-                skillsList.innerHTML = data.skills.slice(0, 15).map(skill =>
-                    `<span class="skill-tag">${escapeHtml(skill)}</span>`
-                ).join('');
-                if (data.skills.length > 15) {
-                    skillsList.innerHTML += `<span class="skill-tag more">+${data.skills.length - 15} more</span>`;
-                }
-            }
-
+            // Show success message
             uploadComplete = true;
             continueBtn.textContent = 'Continue to jobs';
 
-            // Hide upload status after a moment
+            // Hide upload status and show success
             setTimeout(() => {
                 uploadStatus.style.display = 'none';
-            }, 1500);
+                uploadSuccess.style.display = 'block';
+            }, 800);
 
         } catch (err) {
             uploadStatus.style.display = 'none';
@@ -1308,7 +1415,17 @@ function renderResumeUpload() {
             body: JSON.stringify({ profile_complete: true })
         });
         state.user.profile_complete = true;
-        navigate('browse');
+        // Reset recommendations so they're fetched fresh with new resume
+        state.recommendationsLoaded = false;
+        state.recommendations = [];
+        state.forYouLoaded = false;
+        state.forYouJobs = [];
+        // If resume was uploaded, go to For You page; otherwise go to Explore
+        if (uploadComplete) {
+            navigate('for-you');
+        } else {
+            navigate('explore');
+        }
     });
 
     // Skip button
@@ -1319,19 +1436,161 @@ function renderResumeUpload() {
             body: JSON.stringify({ profile_complete: true })
         });
         state.user.profile_complete = true;
-        navigate('browse');
+        // Without resume, go to Explore page
+        navigate('explore');
     });
 }
 
+// Legacy function - redirects to renderExplore
 function renderBrowse() {
+    renderExplore();
+}
+
+function renderForYou() {
+    const app = document.getElementById('app');
+
+    // Show loading only if jobs haven't been loaded yet
+    const showLoading = !state.forYouLoaded;
+
+    app.innerHTML = `
+        <div class="browse-layout">
+            ${renderHeader()}
+            <div class="browse-hero for-you-hero">
+                <div class="container">
+                    <h1>For You</h1>
+                    <p>Personalized job matches based on your resume and preferences</p>
+                </div>
+            </div>
+            <div class="browse-content">
+                <div class="container">
+                    <div id="for-you-list" class="roles-grid">
+                        ${showLoading ? '<div class="loading">Finding your best matches...</div>' : ''}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    setupNavListeners();
+}
+
+function renderForYouList() {
+    const container = document.getElementById('for-you-list');
+    if (!container) return;
+
+    if (!state.forYouJobs.length) {
+        container.innerHTML = `
+            <div class="empty-state" style="grid-column: 1/-1;">
+                <div class="empty-icon">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <path d="M21 21l-4.35-4.35"></path>
+                    </svg>
+                </div>
+                <h3>No strong matches found</h3>
+                <p>We couldn't find jobs with 60%+ match. Try exploring all roles or update your preferences.</p>
+                <button class="btn btn-primary" style="margin-top:16px;" id="go-explore-btn">Explore All Jobs</button>
+            </div>
+        `;
+        document.getElementById('go-explore-btn')?.addEventListener('click', () => navigate('explore'));
+        return;
+    }
+
+    container.innerHTML = `
+        <div class="for-you-header" style="grid-column: 1/-1; margin-bottom: 16px;">
+            <div class="for-you-count">${state.forYouJobs.length} jobs with 60%+ match</div>
+        </div>
+        ${state.forYouJobs.map(job => {
+            const scoreClass = job.match_score >= 85 ? 'high' : job.match_score >= 75 ? 'medium' : 'low';
+            return `
+                <div class="role-card for-you-card" data-role-id="${job.id}">
+                    <div class="role-card-header">
+                        <div class="company-badge">${escapeHtml(job.company_name?.charAt(0) || 'C')}</div>
+                        <div class="role-header-right">
+                            <div class="match-score ${scoreClass}">
+                                <span class="match-percent">${Math.round(job.match_score)}%</span>
+                                <span class="match-label">match</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="role-card-body">
+                        <h3 class="role-title">${escapeHtml(job.title)}</h3>
+                        <div class="role-company">${escapeHtml(job.company_name)}</div>
+                        ${job.match_reason ? `<div class="match-reason">${escapeHtml(job.match_reason)}</div>` : ''}
+                    </div>
+                    <div class="role-card-footer">
+                        <div class="role-tags">
+                            <span class="role-tag">${escapeHtml(job.location || 'Boston Area')}</span>
+                            ${job.salary_range ? `<span class="role-tag salary">${escapeHtml(job.salary_range)}</span>` : ''}
+                        </div>
+                        <button class="view-role-btn" data-role-id="${job.id}">
+                            <span>View</span>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M5 12h14M12 5l7 7-7 7"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            `;
+        }).join('')}
+    `;
+
+    // Add click listeners - track that we came from For You page
+    container.querySelectorAll('.role-card').forEach(card => {
+        card.addEventListener('click', (e) => {
+            if (!e.target.classList.contains('view-role-btn')) {
+                const roleId = card.dataset.roleId;
+                state.previousPage = 'for-you';
+                loadRole(roleId);
+                state.currentPage = 'role';
+            }
+        });
+    });
+
+    container.querySelectorAll('.view-role-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const roleId = btn.dataset.roleId;
+            state.previousPage = 'for-you';
+            loadRole(roleId);
+            state.currentPage = 'role';
+        });
+    });
+}
+
+function renderForYouNeedsResume() {
+    const container = document.getElementById('for-you-list');
+    if (!container) return;
+
+    container.innerHTML = `
+        <div class="empty-state" style="grid-column: 1/-1;">
+            <div class="empty-icon">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="12" y1="18" x2="12" y2="12"></line>
+                    <line x1="9" y1="15" x2="15" y2="15"></line>
+                </svg>
+            </div>
+            <h3>Upload your resume</h3>
+            <p>We need your resume to find personalized job matches for you.</p>
+            <button class="btn btn-primary" style="margin-top:16px;" id="upload-resume-btn">Upload Resume</button>
+            <button class="btn btn-secondary" style="margin-top:8px;" id="go-explore-btn">Explore Jobs Instead</button>
+        </div>
+    `;
+    document.getElementById('upload-resume-btn')?.addEventListener('click', () => navigate('resume-upload'));
+    document.getElementById('go-explore-btn')?.addEventListener('click', () => navigate('explore'));
+}
+
+function renderExplore() {
     const app = document.getElementById('app');
     app.innerHTML = `
         <div class="browse-layout">
             ${renderHeader()}
             <div class="browse-hero">
                 <div class="container">
-                    <h1>Explore opportunities</h1>
-                    <p>Discover roles at Boston's top companies before they go public</p>
+                    <h1>Explore</h1>
+                    <p>Discover all roles at Boston's top companies</p>
                 </div>
             </div>
             <div class="browse-content">
@@ -1472,11 +1731,12 @@ function renderRolesList() {
         `;
     }).join('');
 
-    // Add click listeners
+    // Add click listeners - track that we came from Explore page
     container.querySelectorAll('.role-card').forEach(card => {
         card.addEventListener('click', (e) => {
             if (!e.target.classList.contains('view-role-btn')) {
                 const roleId = card.dataset.roleId;
+                state.previousPage = 'explore';
                 loadRole(roleId);
                 state.currentPage = 'role';
             }
@@ -1487,6 +1747,7 @@ function renderRolesList() {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
             const roleId = btn.dataset.roleId;
+            state.previousPage = 'explore';
             loadRole(roleId);
             state.currentPage = 'role';
         });
@@ -1496,16 +1757,20 @@ function renderRolesList() {
 function renderRoleDetail() {
     const role = state.selectedRole;
     if (!role) {
-        navigate('browse');
+        navigate('explore');
         return;
     }
+
+    // Determine back navigation text and destination
+    const backPage = state.previousPage || 'explore';
+    const backText = backPage === 'for-you' ? '← Back to For You' : '← Back to Explore';
 
     const app = document.getElementById('app');
     app.innerHTML = `
         <div class="main-layout">
             ${renderHeader()}
             <div class="container page-content">
-                <button class="btn btn-secondary btn-small" id="back-to-browse" style="margin-bottom:24px;">← Back to Browse</button>
+                <button class="btn btn-secondary btn-small" id="back-to-browse" style="margin-bottom:24px;">${backText}</button>
                 <div class="role-detail">
                     <div class="role-detail-header">
                         <h1>${escapeHtml(role.title)}</h1>
@@ -1548,7 +1813,8 @@ function renderRoleDetail() {
     `;
 
     document.getElementById('back-to-browse').addEventListener('click', () => {
-        navigate('browse');
+        const backPage = state.previousPage || 'explore';
+        navigate(backPage);
     });
 
     document.getElementById('join-shortlist-btn').addEventListener('click', () => {
@@ -1925,7 +2191,8 @@ function renderHeader() {
             <div class="container">
                 <a href="#" class="logo" id="logo-link">Short<span>List</span></a>
                 <nav>
-                    <a href="#" class="${state.currentPage === 'browse' ? 'active' : ''}" data-nav="browse">Browse</a>
+                    <a href="#" class="${state.currentPage === 'for-you' ? 'active' : ''}" data-nav="for-you">For You</a>
+                    <a href="#" class="${state.currentPage === 'explore' || state.currentPage === 'browse' ? 'active' : ''}" data-nav="explore">Explore</a>
                     <a href="#" class="${state.currentPage === 'shortlist' ? 'active' : ''}" data-nav="shortlist">My Shortlist</a>
                     <a href="#" id="logout-link">Sign Out</a>
                 </nav>
