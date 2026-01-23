@@ -26,6 +26,7 @@ import wave
 import io
 import tempfile
 import threading
+import random
 
 # Load environment variables from .env file
 try:
@@ -603,7 +604,7 @@ class VoiceInput(InputSource):
             f.write(f"[{speaker}]: {text}\n\n")
 
     def _record_audio(self) -> bytes:
-        """Record audio from microphone until silence is detected or Enter is pressed."""
+        """Record audio from microphone until Enter is pressed."""
         try:
             import sounddevice as sd
             import numpy as np
@@ -613,12 +614,10 @@ class VoiceInput(InputSource):
                 "Install with: pip install sounddevice numpy"
             )
 
-        print("\n🎤 Recording... (Press Enter when done speaking, or wait for auto-stop)")
+        print("\n🎤 Recording... (Press ENTER when you're done speaking)")
 
         recording = []
         is_recording = True
-        silence_samples = 0
-        samples_for_silence = int(self.silence_duration * self.sample_rate)
 
         # Thread to detect Enter key press
         enter_pressed = threading.Event()
@@ -630,19 +629,8 @@ class VoiceInput(InputSource):
         enter_thread.start()
 
         def audio_callback(indata, frames, time_info, status):
-            nonlocal silence_samples, is_recording
             if status:
                 print(f"Audio status: {status}")
-
-            # Check for silence
-            volume = np.abs(indata).mean()
-            if volume < self.silence_threshold:
-                silence_samples += frames
-                if silence_samples >= samples_for_silence:
-                    is_recording = False
-            else:
-                silence_samples = 0
-
             recording.append(indata.copy())
 
         # Start recording
@@ -712,14 +700,16 @@ class VoiceInput(InputSource):
 
     def get_response(self, prompt: str) -> str:
         """Speak the prompt and capture voice response."""
-        # Also print the question
-        print(f"\n{prompt}")
-        print("-" * 40)
-
-        # Speak the prompt
-        print("🔊 Speaking question...")
-        audio = self.tts.synthesize(prompt)
-        self._play_audio(audio)
+        # Only speak if there's something to say
+        if prompt and prompt.strip():
+            print(f"\n{prompt}")
+            print("-" * 40)
+            print("🔊 Speaking question...")
+            try:
+                audio = self.tts.synthesize(prompt)
+                self._play_audio(audio)
+            except Exception as e:
+                print(f"  [Speech error: {e}]")
 
         # Record response
         audio_response = self._record_audio()
@@ -1302,6 +1292,39 @@ class AIInterviewer:
         self.start_time: Optional[float] = None
         self.end_time: Optional[float] = None
 
+    def _generate_conversational_response(
+        self,
+        context: str,
+        candidate_said: str,
+        next_action: str = ""
+    ) -> str:
+        """Generate a natural, conversational response based on what the candidate said."""
+        system_prompt = """You are a friendly, professional interviewer having a natural conversation.
+Generate a brief, warm response to what the candidate just said. Keep it natural and human-like.
+
+Guidelines:
+- Be empathetic and responsive to their tone and content
+- Keep responses concise (1-2 sentences max)
+- Sound like a real person, not a robot
+- If they seem nervous, be reassuring
+- If they're enthusiastic, match their energy
+- Never be condescending or overly formal
+- Don't use filler words excessively
+- If transitioning to a question, make it flow naturally"""
+
+        user_prompt = f"""Context: {context}
+Candidate said: "{candidate_said}"
+{f"Next: {next_action}" if next_action else ""}
+
+Generate a natural response (1-2 sentences only):"""
+
+        try:
+            response = self.llm_client.complete(system_prompt, user_prompt, max_tokens=100)
+            return response.strip().strip('"')
+        except Exception as e:
+            # Fallback to generic response
+            return "Thanks for sharing that."
+
     def run(self) -> ScreeningOutput:
         """Run the complete interview flow."""
         self.start_time = time.time()
@@ -1317,11 +1340,8 @@ class AIInterviewer:
         self.end_time = time.time()
         duration = int(self.end_time - self.start_time)
 
-        # Generate evaluation
-        self.input_source.display_message(
-            "\nThank you for completing the interview. "
-            "Please wait while I prepare your evaluation..."
-        )
+        # Generate evaluation (only show in terminal, don't speak)
+        print("\n[Generating evaluation...]")
 
         output = evaluate_interview(
             job_title=self.job_title,
@@ -1342,13 +1362,16 @@ class AIInterviewer:
         print(f"AI SCREENING INTERVIEW - {self.job_title}")
         print("=" * 60 + "\n")
 
-        # Speak a shorter intro
+        # Warm, natural greeting
         self.input_source.display_message(
-            f"Hello! I'll be conducting a screening interview for the {self.job_title} position. "
-            f"Please provide clear answers with specific examples. Let me prepare the questions."
+            f"Hi! Thanks so much for taking the time to chat with me today. How are you doing?"
         )
 
-        # Generate interview plan
+        # Get their response to the greeting
+        greeting_response = self.input_source.get_response("")
+
+        # Generate interview plan in background
+        print("  [Preparing questions based on the role...]")
         self.plan = create_interview_plan(
             job_title=self.job_title,
             job_description=self.job_description,
@@ -1356,9 +1379,30 @@ class AIInterviewer:
             llm_client=self.llm_client
         )
 
-        self.input_source.display_message(
-            f"\nI have {len(self.plan.questions)} questions prepared. Let's begin.\n"
+        # Generate dynamic response to their greeting
+        response = self._generate_conversational_response(
+            context="Starting a job interview, just asked how they're doing",
+            candidate_said=greeting_response,
+            next_action=f"Transitioning to introduce the {self.job_title} interview"
         )
+        self.input_source.display_message(response)
+
+        # Transition to the interview
+        self.input_source.display_message(
+            f"So, I'll be chatting with you about the {self.job_title} role today. "
+            f"Just relax and tell me about your experiences - there's no right or wrong answers. Ready?"
+        )
+
+        # Get their ready response
+        ready_response = self.input_source.get_response("")
+
+        # Dynamic response to their readiness
+        ready_ack = self._generate_conversational_response(
+            context="Asked if they're ready to start the interview",
+            candidate_said=ready_response,
+            next_action="About to ask the first interview question"
+        )
+        self.input_source.display_message(ready_ack)
 
         self.state = InterviewState.QUESTIONS
 
@@ -1372,12 +1416,13 @@ class AIInterviewer:
         while self.current_question_index < len(self.plan.questions):
             question = self.plan.questions[self.current_question_index]
 
-            # Ask the main question
+            # For terminal display, show progress quietly
             q_num = self.current_question_index + 1
             total = len(self.plan.questions)
-            prompt = f"Question {q_num} of {total}:\n{question.text}"
+            print(f"\n[Question {q_num}/{total}]")
 
-            answer = self.input_source.get_response(prompt)
+            # Just ask the question naturally (no numbering in speech)
+            answer = self.input_source.get_response(question.text)
 
             # Check if follow-up is needed
             follow_up_q = None
@@ -1392,9 +1437,15 @@ class AIInterviewer:
             )
 
             if follow_up_q:
-                follow_up_a = self.input_source.get_response(
-                    f"Follow-up: {follow_up_q}"
+                # Generate a brief acknowledgment before the follow-up
+                follow_up_intro = self._generate_conversational_response(
+                    context=f"Asked: {question.text}",
+                    candidate_said=answer,
+                    next_action="Acknowledge briefly, then will ask a follow-up question"
                 )
+                # Speak acknowledgment first, then ask the follow-up
+                self.input_source.display_message(follow_up_intro)
+                follow_up_a = self.input_source.get_response(follow_up_q)
 
             # Record response
             self.responses.append(QuestionResponse(
@@ -1407,30 +1458,59 @@ class AIInterviewer:
 
             self.current_question_index += 1
 
+            # Add a natural, dynamic transition if not the last question
+            if self.current_question_index < len(self.plan.questions):
+                last_answer = follow_up_a if follow_up_a else answer
+                next_question = self.plan.questions[self.current_question_index]
+
+                transition = self._generate_conversational_response(
+                    context=f"In a job interview, candidate just answered a question about {question.question_type}",
+                    candidate_said=last_answer,
+                    next_action=f"Moving on to ask about: {next_question.text[:50]}..."
+                )
+                self.input_source.display_message(transition)
+
         self.state = InterviewState.WRAP_UP
 
     def _handle_wrap_up(self):
         """Wrap up the interview."""
+        # Get the last answer to respond to naturally
+        last_response = self.responses[-1] if self.responses else None
+        last_answer = ""
+        if last_response:
+            last_answer = last_response.follow_up_answer or last_response.answer
+
+        # Generate dynamic closing based on how the interview went
+        closing = self._generate_conversational_response(
+            context=f"Finishing a job interview for {self.job_title}. Asked {len(self.responses)} questions.",
+            candidate_said=last_answer,
+            next_action="Wrapping up the interview and asking if they have questions"
+        )
+        self.input_source.display_message(closing)
+
         self.input_source.display_message(
-            "\n" + "=" * 60 + "\n"
-            "That concludes our questions.\n\n"
-            "Thank you for taking the time to speak with me today. "
-            "A member of our team will be in touch regarding next steps.\n\n"
-            "Do you have any questions about the role or the process?\n"
-            "(Type 'DONE' to finish, or enter your questions)"
-            + "\n" + "=" * 60
+            "Before we wrap up, do you have any questions for me about the role or the process?"
         )
 
-        # Allow candidate to ask questions (captured but not evaluated)
-        candidate_questions = self.input_source.get_response(
-            "Your questions (optional):"
-        )
+        # Allow candidate to ask questions
+        candidate_questions = self.input_source.get_response("")
 
-        if candidate_questions.strip():
-            self.input_source.display_message(
-                "\nThank you for your questions. The hiring team will "
-                "address these during the next stage of the process."
+        # Respond dynamically to their questions
+        if candidate_questions.strip() and len(candidate_questions) > 5:
+            question_response = self._generate_conversational_response(
+                context="End of interview, candidate asked a question about the role or process",
+                candidate_said=candidate_questions,
+                next_action="Acknowledge their question and let them know the hiring team will follow up"
             )
+            self.input_source.display_message(question_response)
+
+        # Generate a warm, personalized goodbye
+        goodbye = self._generate_conversational_response(
+            context=f"Ending the interview for {self.job_title}",
+            candidate_said=candidate_questions if candidate_questions.strip() else "No questions",
+            next_action="Say goodbye warmly and mention next steps"
+        )
+        self.input_source.display_message(goodbye)
 
         self.state = InterviewState.COMPLETE
 
