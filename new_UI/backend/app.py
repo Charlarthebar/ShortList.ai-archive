@@ -367,6 +367,74 @@ def get_preferences():
         return jsonify({'preferences': dict(prefs)})
 
 
+@app.route('/api/profile/upload-resume', methods=['POST'])
+@require_auth
+def upload_profile_resume():
+    """
+    Upload resume to user's profile and extract skills.
+    This is used during onboarding, separate from application-specific uploads.
+    """
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+
+    file = request.files['file']
+    if not file.filename:
+        return jsonify({'error': 'No file selected'}), 400
+
+    # Validate file type
+    if not file.filename.lower().endswith('.pdf'):
+        return jsonify({'error': 'Only PDF files are accepted'}), 400
+
+    # Save file with user-specific name
+    filename = secure_filename(f"{g.user_id}_resume.pdf")
+    filepath = os.path.join(UPLOAD_FOLDER, filename)
+    file.save(filepath)
+
+    conn = get_db()
+    with conn.cursor() as cur:
+        # Save resume path to user profile
+        cur.execute("""
+            UPDATE platform_users
+            SET resume_path = %s
+            WHERE id = %s
+        """, (filepath, g.user_id))
+        conn.commit()
+
+    # Extract skills from resume asynchronously
+    skills_result = {'skills_count': 0, 'skills': []}
+    try:
+        from skill_extractor import process_resume
+        skills_result = process_resume(g.user_id, filepath)
+    except Exception as e:
+        print(f"Skill extraction error: {e}")
+        # Continue even if skill extraction fails
+
+    return jsonify({
+        'success': True,
+        'filename': filename,
+        'skills_extracted': skills_result.get('skills_count', 0),
+        'skills': [s.get('skill_name') for s in skills_result.get('skills', [])]
+    })
+
+
+@app.route('/api/profile/skills', methods=['GET'])
+@require_auth
+def get_user_skills():
+    """Get skills extracted from user's resume."""
+    conn = get_db()
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute("""
+            SELECT os.skill_name, cs.confidence
+            FROM candidate_skills cs
+            JOIN onet_skills os ON cs.skill_id = os.id
+            WHERE cs.user_id = %s
+            ORDER BY cs.confidence DESC
+        """, (g.user_id,))
+        skills = [dict(row) for row in cur.fetchall()]
+
+    return jsonify({'skills': skills})
+
+
 @app.route('/api/locations', methods=['GET'])
 def get_locations():
     """Get location suggestions for autocomplete."""
@@ -757,7 +825,7 @@ def has_any_preferences(user_prefs):
     )
 
 
-def calculate_match_score(role, user_prefs):
+def calculate_preference_score(role, user_prefs):
     """
     Calculate how well a role matches user preferences.
     Returns score 0-100 based only on filled-in preferences.
@@ -821,27 +889,32 @@ def calculate_match_score(role, user_prefs):
     if user_prefs.get('experience_level'):
         exp_score = 0
         title = (role.get('title') or '').lower()
+        job_exp_level = role.get('experience_level')
         user_level = user_prefs['experience_level']
 
-        # Map experience levels to title keywords
-        level_keywords = {
-            'intern': ['intern', 'internship'],
-            'entry': ['entry', 'junior', 'associate', 'i ', ' i,', ' 1', 'new grad'],
-            'mid': ['mid', 'ii ', ' ii,', ' 2', ' 3'],
-            'senior': ['senior', 'sr', 'lead', 'principal', 'staff', 'iii', ' 4', ' 5']
-        }
+        # First check if job has explicit experience_level that matches
+        if job_exp_level and job_exp_level == user_level:
+            exp_score = 100
+        else:
+            # Map experience levels to title keywords
+            level_keywords = {
+                'intern': ['intern', 'internship'],
+                'entry': ['entry', 'junior', 'associate', 'i ', ' i,', ' 1', 'new grad'],
+                'mid': ['mid', 'ii ', ' ii,', ' 2', ' 3'],
+                'senior': ['senior', 'sr', 'lead', 'principal', 'staff', 'iii', ' 4', ' 5']
+            }
 
-        # Check if job title matches user's experience level
-        for keyword in level_keywords.get(user_level, []):
-            if keyword in title:
-                exp_score = 100
-                break
+            # Check if job title matches user's experience level
+            for keyword in level_keywords.get(user_level, []):
+                if keyword in title:
+                    exp_score = 100
+                    break
 
-        # If no explicit match but also no senior keywords for entry-level user, partial credit
-        if exp_score == 0 and user_level in ['entry', 'mid']:
-            has_senior_keywords = any(kw in title for kw in level_keywords['senior'])
-            if not has_senior_keywords:
-                exp_score = 50
+            # If no explicit match but also no senior keywords for entry-level user, partial credit
+            if exp_score == 0 and user_level in ['entry', 'mid']:
+                has_senior_keywords = any(kw in title for kw in level_keywords['senior'])
+                if not has_senior_keywords:
+                    exp_score = 50
 
         scores.append(exp_score)
 
@@ -869,6 +942,54 @@ def calculate_match_score(role, user_prefs):
     return int(sum(scores) / len(scores))
 
 
+def calculate_skills_score(role_id, user_skill_ids):
+    """
+    Calculate how well user's skills match job requirements.
+    Returns 0-100 based on skill overlap.
+    """
+    if not user_skill_ids:
+        return None  # No skills = no score
+
+    conn = get_db()
+    with conn.cursor() as cur:
+        # Get job's required skills
+        cur.execute("""
+            SELECT skill_id FROM job_required_skills WHERE position_id = %s
+        """, (role_id,))
+        job_skill_ids = {row[0] for row in cur.fetchall()}
+
+    if not job_skill_ids:
+        return 100  # No skills required = full match
+
+    # Calculate overlap
+    matched = len(user_skill_ids & job_skill_ids)
+    return int((matched / len(job_skill_ids)) * 100)
+
+
+def calculate_match_score(role, user_prefs, user_skill_ids=None):
+    """
+    Calculate overall match score: 50% preferences + 50% skills.
+    If user has no skills extracted, uses 100% preferences.
+    Returns score 0-100 or None if no data.
+    """
+    preference_score = calculate_preference_score(role, user_prefs)
+    skills_score = calculate_skills_score(role.get('id'), user_skill_ids) if user_skill_ids else None
+
+    # If we have both scores, use 50/50 weighting
+    if preference_score is not None and skills_score is not None:
+        return int((preference_score * 0.5) + (skills_score * 0.5))
+
+    # If only preferences, use that
+    if preference_score is not None:
+        return preference_score
+
+    # If only skills, use that
+    if skills_score is not None:
+        return skills_score
+
+    return None
+
+
 @app.route('/api/roles', methods=['GET'])
 def get_roles():
     """
@@ -882,8 +1003,9 @@ def get_roles():
     salary_max_filter = request.args.get('salary_max', type=int)
     exp_level_filter = request.args.get('experience_level', '').strip()
 
-    # Get user preferences if authenticated
+    # Get user preferences and skills if authenticated
     user_prefs = None
+    user_skill_ids = None
     auth_header = request.headers.get('Authorization', '')
     if auth_header.startswith('Bearer '):
         try:
@@ -893,12 +1015,19 @@ def get_roles():
             if user_id:
                 conn = get_db()
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    # Get preferences
                     cur.execute("""
                         SELECT preferred_locations, salary_min, salary_max,
-                               open_to_roles, experience_level, preferences_text
+                               open_to_roles, experience_level, work_preference
                         FROM seeker_profiles WHERE user_id = %s
                     """, (user_id,))
                     user_prefs = cur.fetchone()
+
+                    # Get user's extracted skills
+                    cur.execute("""
+                        SELECT skill_id FROM candidate_skills WHERE user_id = %s
+                    """, (user_id,))
+                    user_skill_ids = {row['skill_id'] for row in cur.fetchall()}
         except:
             pass  # Invalid token, continue without preferences
 
@@ -952,8 +1081,8 @@ def get_roles():
                 if salary_max_filter and role_min and role_min > salary_max_filter:
                     continue
 
-            # Calculate match score
-            role['match_score'] = calculate_match_score(role, user_prefs)
+            # Calculate match score (50% preferences + 50% skills if user has skills)
+            role['match_score'] = calculate_match_score(role, user_prefs, user_skill_ids)
             filtered_roles.append(role)
 
         # Sort by match score (highest first), then by salary presence

@@ -130,3 +130,79 @@ END $$;
 -- Create indexes for faster lookups
 CREATE INDEX IF NOT EXISTS idx_fit_responses_app ON application_fit_responses(application_id);
 CREATE INDEX IF NOT EXISTS idx_fit_questions_role ON fit_questions(role_type);
+
+-- ============================================================================
+-- ONET SKILLS & RESUME-BASED MATCHING TABLES
+-- ============================================================================
+
+-- ONET skills reference table
+CREATE TABLE IF NOT EXISTS onet_skills (
+    id SERIAL PRIMARY KEY,
+    skill_name VARCHAR(200) UNIQUE NOT NULL,
+    skill_type VARCHAR(50)  -- 'Core Skill', etc.
+);
+
+-- Candidate skills extracted from resumes
+CREATE TABLE IF NOT EXISTS candidate_skills (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES platform_users(id) ON DELETE CASCADE,
+    skill_id INTEGER REFERENCES onet_skills(id) ON DELETE CASCADE,
+    confidence FLOAT DEFAULT 1.0,  -- AI confidence score (0-1)
+    source VARCHAR(50) DEFAULT 'resume',  -- 'resume', 'manual', etc.
+    extracted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, skill_id)
+);
+
+-- Job required skills (linking jobs to ONET skills)
+CREATE TABLE IF NOT EXISTS job_required_skills (
+    id SERIAL PRIMARY KEY,
+    position_id INTEGER REFERENCES watchable_positions(id) ON DELETE CASCADE,
+    skill_id INTEGER REFERENCES onet_skills(id) ON DELETE CASCADE,
+    UNIQUE(position_id, skill_id)
+);
+
+-- Create indexes for skill matching performance
+CREATE INDEX IF NOT EXISTS idx_candidate_skills_user ON candidate_skills(user_id);
+CREATE INDEX IF NOT EXISTS idx_candidate_skills_skill ON candidate_skills(skill_id);
+CREATE INDEX IF NOT EXISTS idx_job_skills_position ON job_required_skills(position_id);
+CREATE INDEX IF NOT EXISTS idx_job_skills_skill ON job_required_skills(skill_id);
+
+-- Add additional columns to watchable_positions for better job matching
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'watchable_positions' AND column_name = 'experience_level') THEN
+        ALTER TABLE watchable_positions ADD COLUMN experience_level VARCHAR(20);
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'watchable_positions' AND column_name = 'work_arrangement') THEN
+        ALTER TABLE watchable_positions ADD COLUMN work_arrangement VARCHAR(20);
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'watchable_positions' AND column_name = 'salary_min') THEN
+        ALTER TABLE watchable_positions ADD COLUMN salary_min INTEGER;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'watchable_positions' AND column_name = 'salary_max') THEN
+        ALTER TABLE watchable_positions ADD COLUMN salary_max INTEGER;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'watchable_positions' AND column_name = 'source_url') THEN
+        ALTER TABLE watchable_positions ADD COLUMN source_url TEXT;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'watchable_positions' AND column_name = 'posted_date') THEN
+        ALTER TABLE watchable_positions ADD COLUMN posted_date TIMESTAMP;
+    END IF;
+END $$;
+
+-- Add skills_extracted flag to seeker_profiles to track resume processing
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'seeker_profiles' AND column_name = 'skills_extracted') THEN
+        ALTER TABLE seeker_profiles ADD COLUMN skills_extracted BOOLEAN DEFAULT FALSE;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'seeker_profiles' AND column_name = 'skills_extracted_at') THEN
+        ALTER TABLE seeker_profiles ADD COLUMN skills_extracted_at TIMESTAMP;
+    END IF;
+END $$;

@@ -132,9 +132,9 @@ async function savePreferences(preferences) {
         body: JSON.stringify(preferences)
     });
 
-    state.user.profile_complete = true;
     state.user.preferences = preferences;
-    navigate('browse');
+    // Go to resume upload step (profile_complete will be set after resume or skip)
+    navigate('resume-upload');
 }
 
 async function loadPreferences() {
@@ -278,6 +278,9 @@ function render() {
             break;
         case 'setup':
             renderSetup();
+            break;
+        case 'resume-upload':
+            renderResumeUpload();
             break;
         case 'browse':
             renderBrowse();
@@ -984,21 +987,6 @@ function renderSetup() {
                         </div>
                     </div>
 
-                    <!-- What else are you looking for -->
-                    <div class="pref-section">
-                        <label class="pref-label">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
-                                <polyline points="14 2 14 8 20 8"></polyline>
-                                <line x1="16" y1="13" x2="8" y2="13"></line>
-                                <line x1="16" y1="17" x2="8" y2="17"></line>
-                            </svg>
-                            Anything else you're looking for?
-                        </label>
-                        <textarea id="pref-text" placeholder="e.g., &quot;I want to work on AI/ML products at a startup with a strong engineering culture.&quot;" rows="3"></textarea>
-                        <div class="pref-hint" style="margin-top:6px;font-size:12px;color:#737373;">We'll use AI to match you with jobs that fit what you describe.</div>
-                    </div>
-
                     <div class="pref-actions">
                         <button type="submit" class="btn btn-primary" style="width:100%;">Continue</button>
                     </div>
@@ -1140,7 +1128,6 @@ function renderSetup() {
 
         const salaryMin = salaryMinInput.value ? parseInt(salaryMinInput.value.replace(/[^0-9]/g, '')) : null;
         const salaryMax = salaryMaxInput.value ? parseInt(salaryMaxInput.value.replace(/[^0-9]/g, '')) : null;
-        const preferencesText = document.getElementById('pref-text').value.trim();
 
         const preferences = {
             preferred_locations: selectedLocations.length > 0 ? selectedLocations : null,
@@ -1148,8 +1135,7 @@ function renderSetup() {
             salary_max: salaryMax,
             open_to_roles: selectedRoles.length > 0 ? selectedRoles : null,
             experience_level: selectedExpLevel,
-            work_arrangement: selectedWorkArrangement,
-            preferences_text: preferencesText || null
+            work_arrangement: selectedWorkArrangement
         };
 
         try {
@@ -1158,6 +1144,182 @@ function renderSetup() {
             document.getElementById('setup-error').innerHTML =
                 `<div class="alert alert-error">${err.message}</div>`;
         }
+    });
+}
+
+function renderResumeUpload() {
+    const app = document.getElementById('app');
+    app.innerHTML = `
+        <div class="preferences-page">
+            <div class="preferences-container">
+                <div class="preferences-header">
+                    <h1>Get smarter recommendations</h1>
+                    <p>Upload your resume or CV and we'll match your skills to the best opportunities.</p>
+                </div>
+                <div id="upload-error"></div>
+                <div class="resume-upload-section">
+                    <div class="upload-dropzone" id="resume-dropzone">
+                        <div class="dropzone-content">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                                <line x1="12" y1="18" x2="12" y2="12"></line>
+                                <line x1="9" y1="15" x2="15" y2="15"></line>
+                            </svg>
+                            <p class="dropzone-text">Drag and drop your resume here</p>
+                            <p class="dropzone-subtext">or click to browse (PDF only)</p>
+                        </div>
+                        <input type="file" id="resume-file-input" accept=".pdf" style="display: none;">
+                    </div>
+                    <div id="upload-status" class="upload-status" style="display: none;">
+                        <div class="upload-progress">
+                            <div class="progress-bar" id="upload-progress-bar"></div>
+                        </div>
+                        <p id="upload-status-text">Uploading...</p>
+                    </div>
+                    <div id="skills-result" class="skills-result" style="display: none;">
+                        <div class="skills-header">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                            <span>Skills identified from your resume:</span>
+                        </div>
+                        <div id="skills-list" class="skills-tags"></div>
+                    </div>
+                </div>
+                <div class="pref-actions" style="margin-top: 24px;">
+                    <button type="button" class="btn btn-primary" id="continue-btn" style="width: 100%;">Continue</button>
+                    <button type="button" class="btn btn-link" id="skip-btn" style="width: 100%; margin-top: 12px;">Skip for now</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    const dropzone = document.getElementById('resume-dropzone');
+    const fileInput = document.getElementById('resume-file-input');
+    const uploadStatus = document.getElementById('upload-status');
+    const uploadProgressBar = document.getElementById('upload-progress-bar');
+    const uploadStatusText = document.getElementById('upload-status-text');
+    const skillsResult = document.getElementById('skills-result');
+    const skillsList = document.getElementById('skills-list');
+    const continueBtn = document.getElementById('continue-btn');
+    const skipBtn = document.getElementById('skip-btn');
+
+    let uploadComplete = false;
+
+    // Click to upload
+    dropzone.addEventListener('click', () => fileInput.click());
+
+    // Drag and drop handlers
+    dropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropzone.classList.add('dragover');
+    });
+
+    dropzone.addEventListener('dragleave', () => {
+        dropzone.classList.remove('dragover');
+    });
+
+    dropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropzone.classList.remove('dragover');
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            handleFileUpload(files[0]);
+        }
+    });
+
+    // File input change
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+            handleFileUpload(e.target.files[0]);
+        }
+    });
+
+    async function handleFileUpload(file) {
+        if (!file.name.toLowerCase().endsWith('.pdf')) {
+            document.getElementById('upload-error').innerHTML =
+                '<div class="alert alert-error">Please upload a PDF file</div>';
+            return;
+        }
+
+        // Show upload status
+        dropzone.style.display = 'none';
+        uploadStatus.style.display = 'block';
+        uploadProgressBar.style.width = '30%';
+        uploadStatusText.textContent = 'Uploading resume...';
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            uploadProgressBar.style.width = '60%';
+            uploadStatusText.textContent = 'Analyzing skills...';
+
+            const response = await fetch(`${API_BASE}/profile/upload-resume`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${state.token}`
+                },
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Upload failed');
+            }
+
+            uploadProgressBar.style.width = '100%';
+            uploadStatusText.textContent = 'Done!';
+
+            // Show extracted skills
+            if (data.skills && data.skills.length > 0) {
+                skillsResult.style.display = 'block';
+                skillsList.innerHTML = data.skills.slice(0, 15).map(skill =>
+                    `<span class="skill-tag">${escapeHtml(skill)}</span>`
+                ).join('');
+                if (data.skills.length > 15) {
+                    skillsList.innerHTML += `<span class="skill-tag more">+${data.skills.length - 15} more</span>`;
+                }
+            }
+
+            uploadComplete = true;
+            continueBtn.textContent = 'Continue to jobs';
+
+            // Hide upload status after a moment
+            setTimeout(() => {
+                uploadStatus.style.display = 'none';
+            }, 1500);
+
+        } catch (err) {
+            uploadStatus.style.display = 'none';
+            dropzone.style.display = 'block';
+            document.getElementById('upload-error').innerHTML =
+                `<div class="alert alert-error">${err.message}</div>`;
+        }
+    }
+
+    // Continue button
+    continueBtn.addEventListener('click', async () => {
+        // Mark profile as complete
+        await api('/profile/preferences', {
+            method: 'PUT',
+            body: JSON.stringify({ profile_complete: true })
+        });
+        state.user.profile_complete = true;
+        navigate('browse');
+    });
+
+    // Skip button
+    skipBtn.addEventListener('click', async () => {
+        // Mark profile as complete even without resume
+        await api('/profile/preferences', {
+            method: 'PUT',
+            body: JSON.stringify({ profile_complete: true })
+        });
+        state.user.profile_complete = true;
+        navigate('browse');
     });
 }
 
@@ -1371,7 +1533,7 @@ function renderRoleDetail() {
                     ${role.description ? `
                     <div style="margin-top:24px;">
                         <h3 style="font-size:14px;font-weight:600;margin-bottom:12px;">About this role</h3>
-                        <div class="role-description">${role.description}</div>
+                        <div class="role-description">${formatDescription(role.description)}</div>
                     </div>
                     ` : ''}
                     <div class="role-detail-actions">
@@ -2041,6 +2203,67 @@ function escapeHtml(str) {
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+}
+
+function formatDescription(text) {
+    if (!text) return '';
+
+    // Escape HTML first for security
+    let html = escapeHtml(text);
+
+    // Convert **bold** to <strong>
+    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+
+    // Split into lines
+    const lines = html.split('\n');
+    let result = [];
+    let inList = false;
+
+    for (let i = 0; i < lines.length; i++) {
+        let line = lines[i].trim();
+
+        // Skip empty lines but close list if open
+        if (!line) {
+            if (inList) {
+                result.push('</ul>');
+                inList = false;
+            }
+            continue;
+        }
+
+        // Check if line is a bullet point
+        if (line.startsWith('•') || line.startsWith('-') || line.startsWith('*')) {
+            // Remove bullet character and trim
+            let content = line.replace(/^[•\-\*]\s*/, '').trim();
+
+            // Start list if not already in one
+            if (!inList) {
+                result.push('<ul>');
+                inList = true;
+            }
+            result.push(`<li>${content}</li>`);
+        } else {
+            // Close list if open
+            if (inList) {
+                result.push('</ul>');
+                inList = false;
+            }
+
+            // Check if it's a section header (ends with : and is short, or contains <strong>)
+            if ((line.endsWith(':') && line.length < 50) || line.includes('<strong>')) {
+                result.push(`<p><strong>${line.replace(/<\/?strong>/g, '')}</strong></p>`);
+            } else {
+                result.push(`<p>${line}</p>`);
+            }
+        }
+    }
+
+    // Close list if still open
+    if (inList) {
+        result.push('</ul>');
+    }
+
+    return result.join('\n');
 }
 
 function formatExpLevel(level) {
