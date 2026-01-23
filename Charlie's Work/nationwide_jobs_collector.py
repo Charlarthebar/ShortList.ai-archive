@@ -26,6 +26,7 @@ from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 import requests
 import csv
+import re
 
 # Load .env file (check both current and parent directory)
 def load_env_file():
@@ -78,6 +79,76 @@ class Config:
 
 config = Config()
 
+# =========================================================
+# SKILL EXTRACTION
+# =========================================================
+
+def load_onet_skills() -> List[str]:
+    """Load skill names from onet_skills.csv."""
+    skills_path = os.path.join(os.path.dirname(__file__), 'onet_skills.csv')
+    skills = []
+
+    if os.path.exists(skills_path):
+        try:
+            with open(skills_path, 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    skill_name = row.get('skill_name', '').strip()
+                    if skill_name:
+                        skills.append(skill_name)
+            print(f"Loaded {len(skills):,} skills from onet_skills.csv")
+        except Exception as e:
+            print(f"Warning: Could not load onet_skills.csv: {e}")
+    else:
+        print(f"Warning: onet_skills.csv not found at {skills_path}")
+
+    return skills
+
+# Load skills at module level for efficiency
+ONET_SKILLS = load_onet_skills()
+
+# Pre-compile skill patterns for faster matching (case-insensitive)
+SKILL_PATTERNS = {}
+for skill in ONET_SKILLS:
+    # Create word-boundary pattern to avoid partial matches
+    # Escape special regex characters in skill names
+    escaped = re.escape(skill)
+    SKILL_PATTERNS[skill] = re.compile(r'\b' + escaped + r'\b', re.IGNORECASE)
+
+
+def extract_skills(text: str) -> str:
+    """
+    Extract matching skills from text using onet_skills.
+    Returns semicolon-separated list of matched skills.
+    """
+    if not text or not ONET_SKILLS:
+        return ""
+
+    matched_skills = []
+    text_lower = text.lower()
+
+    for skill, pattern in SKILL_PATTERNS.items():
+        if pattern.search(text):
+            matched_skills.append(skill)
+
+    return "; ".join(matched_skills)
+
+
+def is_remote_job(job: Dict) -> int:
+    """Determine if a job is remote based on location and description."""
+    location = (job.get('location', '') or '').lower()
+    title = (job.get('title', '') or '').lower()
+    description = (job.get('description', '') or '').lower()
+
+    remote_keywords = ['remote', 'work from home', 'wfh', 'telecommute', 'virtual', 'anywhere']
+
+    for keyword in remote_keywords:
+        if keyword in location or keyword in title or keyword in description[:500]:
+            return 1
+
+    return 0
+
+
 # Adzuna job categories
 ADZUNA_CATEGORIES = [
     "accounting-finance-jobs",
@@ -109,6 +180,56 @@ ADZUNA_CATEGORIES = [
     "maintenance-jobs",
     "part-time-jobs",
     "other-general-jobs",
+]
+
+# US States for location-based queries (to bypass per-query limits)
+US_STATES = [
+    "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado",
+    "Connecticut", "Delaware", "Florida", "Georgia", "Hawaii", "Idaho",
+    "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky", "Louisiana",
+    "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota",
+    "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada",
+    "New Hampshire", "New Jersey", "New Mexico", "New York",
+    "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon",
+    "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota",
+    "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington",
+    "West Virginia", "Wisconsin", "Wyoming", "District of Columbia"
+]
+
+# Expanded search keywords for better coverage
+EXPANDED_KEYWORDS = [
+    # Tech
+    "software engineer", "developer", "programmer", "data scientist", "data analyst",
+    "machine learning", "devops", "cloud engineer", "cybersecurity", "IT support",
+    "web developer", "mobile developer", "full stack", "backend", "frontend",
+    # Business
+    "sales", "marketing", "business analyst", "project manager", "product manager",
+    "account manager", "business development", "consultant", "strategy",
+    # Finance
+    "accountant", "financial analyst", "controller", "bookkeeper", "auditor",
+    "tax", "finance manager", "investment", "banking",
+    # Healthcare
+    "nurse", "physician", "medical assistant", "pharmacist", "therapist",
+    "healthcare", "clinical", "dental", "mental health",
+    # Operations
+    "operations", "logistics", "supply chain", "warehouse", "manufacturing",
+    "quality assurance", "production", "inventory",
+    # HR & Admin
+    "human resources", "recruiter", "administrative assistant", "office manager",
+    "executive assistant", "receptionist",
+    # Creative
+    "designer", "graphic design", "UX", "UI", "content writer", "copywriter",
+    "video editor", "photographer", "creative director",
+    # Education
+    "teacher", "professor", "instructor", "tutor", "training",
+    # Customer Service
+    "customer service", "customer support", "call center", "client services",
+    # Legal
+    "paralegal", "attorney", "lawyer", "legal assistant", "compliance",
+    # Construction & Trades
+    "electrician", "plumber", "carpenter", "hvac", "construction", "mechanic",
+    # Retail & Food
+    "retail", "store manager", "cashier", "restaurant", "chef", "server",
 ]
 
 # =========================================================
@@ -162,7 +283,7 @@ class AdzunaClient:
                     "app_key": self.app_key,
                     "results_per_page": results_per_page,
                     "sort_by": "date",
-                    "max_days_old": 30,  # Only jobs from last 30 days
+                    # Removed max_days_old filter to get ALL current openings
                 }
 
                 response = requests.get(f"{self.BASE_URL}/{page}", params=params, timeout=30)
@@ -214,7 +335,7 @@ class AdzunaClient:
                         "state": state,
                         "salary_min": job.get("salary_min"),
                         "salary_max": job.get("salary_max"),
-                        "description": job.get("description", "")[:1000],
+                        "description": job.get("description", ""),
                         "url": job.get("redirect_url", ""),
                         "posted_date": job.get("created", ""),
                         "source": "adzuna",
@@ -281,7 +402,7 @@ class AdzunaClient:
                     "results_per_page": results_per_page,
                     "category": category,
                     "sort_by": "date",
-                    "max_days_old": 30,
+                    # Removed max_days_old filter to get ALL current openings
                 }
 
                 response = requests.get(f"{self.BASE_URL}/{page}", params=params, timeout=30)
@@ -332,7 +453,7 @@ class AdzunaClient:
                         "state": state,
                         "salary_min": job.get("salary_min"),
                         "salary_max": job.get("salary_max"),
-                        "description": job.get("description", "")[:1000],
+                        "description": job.get("description", ""),
                         "url": job.get("redirect_url", ""),
                         "posted_date": job.get("created", ""),
                         "source": "adzuna",
@@ -361,9 +482,105 @@ class AdzunaClient:
 
         return jobs[:max_results] if max_results > 0 else jobs
 
+    def search_by_state(self, state: str, max_results: int = 0, delay: float = 0.25) -> List[Dict]:
+        """
+        Search for jobs in a specific state to bypass per-query limits.
+
+        Args:
+            state: US state name (e.g., 'California', 'New York')
+            max_results: Maximum jobs to fetch (0 = unlimited, up to 50K API limit)
+            delay: Seconds between requests
+        """
+        if not self.is_configured():
+            return []
+
+        jobs = []
+        page = 1
+        results_per_page = 50
+        total_available = None
+        consecutive_errors = 0
+
+        while True:
+            if max_results > 0 and len(jobs) >= max_results:
+                break
+
+            try:
+                params = {
+                    "app_id": self.app_id,
+                    "app_key": self.app_key,
+                    "results_per_page": results_per_page,
+                    "where": state,  # Location filter
+                    "sort_by": "date",
+                }
+
+                response = requests.get(f"{self.BASE_URL}/{page}", params=params, timeout=30)
+
+                if response.status_code == 429:
+                    consecutive_errors += 1
+                    if consecutive_errors >= 10:
+                        break
+                    time.sleep(30)
+                    continue
+
+                if response.status_code != 200:
+                    consecutive_errors += 1
+                    if consecutive_errors >= 5:
+                        break
+                    time.sleep(5)
+                    continue
+
+                consecutive_errors = 0
+                data = response.json()
+
+                if total_available is None:
+                    total_available = data.get("count", 0)
+
+                results = data.get("results", [])
+                if not results:
+                    break
+
+                for job in results:
+                    location_area = job.get("location", {}).get("area", [])
+                    job_state = ""
+                    city = ""
+                    if location_area:
+                        if len(location_area) >= 1:
+                            city = location_area[0]
+                        if len(location_area) >= 3:
+                            job_state = location_area[2]
+
+                    jobs.append({
+                        "title": job.get("title", ""),
+                        "employer": job.get("company", {}).get("display_name", "Unknown"),
+                        "location": job.get("location", {}).get("display_name", ""),
+                        "city": city,
+                        "state": job_state,
+                        "salary_min": job.get("salary_min"),
+                        "salary_max": job.get("salary_max"),
+                        "description": job.get("description", ""),
+                        "url": job.get("redirect_url", ""),
+                        "posted_date": job.get("created", ""),
+                        "source": "adzuna",
+                        "source_id": job.get("id", ""),
+                    })
+
+                page += 1
+                time.sleep(delay)
+
+                if page > 1000:  # Adzuna limit
+                    break
+
+            except Exception as e:
+                consecutive_errors += 1
+                if consecutive_errors >= 5:
+                    break
+                time.sleep(5)
+
+        return jobs[:max_results] if max_results > 0 else jobs
+
     def search(self, state: str, max_results: int = 100) -> List[Dict]:
-        """Search for jobs in a state (deprecated - use search_nationwide instead)."""
-        return []
+        """Search for jobs in a state (deprecated - use search_by_state instead)."""
+        return self.search_by_state(state, max_results)
 
 
 class TheMuseClient:
@@ -434,7 +651,7 @@ class TheMuseClient:
                         "state": state,
                         "salary_min": None,
                         "salary_max": None,
-                        "description": job.get("contents", "")[:1000] if job.get("contents") else "",
+                        "description": job.get("contents", "") if job.get("contents") else "",
                         "url": job.get("refs", {}).get("landing_page", ""),
                         "posted_date": job.get("publication_date", ""),
                         "source": "themuse",
@@ -491,7 +708,7 @@ class RemoteOKClient:
                     "state": "",
                     "salary_min": self._parse_salary(job.get("salary_min")),
                     "salary_max": self._parse_salary(job.get("salary_max")),
-                    "description": job.get("description", "")[:1000] if job.get("description") else "",
+                    "description": job.get("description", "") if job.get("description") else "",
                     "url": job.get("url", ""),
                     "posted_date": job.get("date", ""),
                     "source": "remoteok",
@@ -541,7 +758,7 @@ class RemotiveClient:
                     "state": "",
                     "salary_min": None,
                     "salary_max": None,
-                    "description": job.get("description", "")[:1000] if job.get("description") else "",
+                    "description": job.get("description", "") if job.get("description") else "",
                     "url": job.get("url", ""),
                     "posted_date": job.get("publication_date", ""),
                     "source": "remotive",
@@ -611,7 +828,7 @@ class ArbeitnowClient:
                             "state": "",
                             "salary_min": None,
                             "salary_max": None,
-                            "description": job.get("description", "")[:1000] if job.get("description") else "",
+                            "description": job.get("description", "") if job.get("description") else "",
                             "url": job.get("url", ""),
                             "posted_date": job.get("created_at", ""),
                             "source": "arbeitnow",
@@ -686,7 +903,7 @@ class HimalayasClient:
                         "state": "",
                         "salary_min": job.get("minSalary"),
                         "salary_max": job.get("maxSalary"),
-                        "description": job.get("description", "")[:1000] if job.get("description") else "",
+                        "description": job.get("description", "") if job.get("description") else "",
                         "url": job.get("applicationLink", "") or f"https://himalayas.app/jobs/{job.get('slug', '')}",
                         "posted_date": job.get("pubDate", ""),
                         "source": "himalayas",
@@ -747,7 +964,7 @@ class JobicyClient:
                         "state": "",
                         "salary_min": None,
                         "salary_max": None,
-                        "description": job.get("jobExcerpt", "")[:1000] if job.get("jobExcerpt") else "",
+                        "description": job.get("jobExcerpt", "") if job.get("jobExcerpt") else "",
                         "url": job.get("url", ""),
                         "posted_date": job.get("pubDate", ""),
                         "source": "jobicy",
@@ -805,19 +1022,9 @@ class JSearchClient:
         page = 1
         consecutive_errors = 0
 
-        # Search multiple queries to maximize coverage
-        queries = [
-            "software engineer USA",
-            "data analyst USA",
-            "marketing USA",
-            "sales USA",
-            "healthcare USA",
-            "accounting USA",
-            "engineering USA",
-            "customer service USA",
-            "operations USA",
-            "human resources USA",
-        ]
+        # Use expanded keywords for maximum coverage
+        # Each keyword gets its own query, bypassing per-query limits
+        queries = [f"{keyword} USA" for keyword in EXPANDED_KEYWORDS]
 
         headers = {
             "X-RapidAPI-Key": self.api_key,
@@ -842,7 +1049,7 @@ class JSearchClient:
                         "query": query,
                         "page": str(page),
                         "num_pages": "1",
-                        "date_posted": "month"  # Last 30 days
+                        # Removed date_posted filter to get ALL current openings
                     }
 
                     response = requests.get(self.BASE_URL, headers=headers, params=params, timeout=30)
@@ -882,7 +1089,7 @@ class JSearchClient:
                             "state": state,
                             "salary_min": job.get("job_min_salary"),
                             "salary_max": job.get("job_max_salary"),
-                            "description": job.get("job_description", "")[:1000] if job.get("job_description") else "",
+                            "description": job.get("job_description", "") if job.get("job_description") else "",
                             "url": job.get("job_apply_link", ""),
                             "posted_date": job.get("job_posted_at_datetime_utc", ""),
                             "source": "jsearch",
@@ -923,11 +1130,8 @@ class LinkedInJobsClient:
         start = 0
         consecutive_errors = 0
 
-        # Multiple search terms to maximize coverage
-        keywords_list = [
-            "software", "engineer", "developer", "analyst", "manager",
-            "sales", "marketing", "finance", "healthcare", "data"
-        ]
+        # Use expanded keywords for maximum coverage
+        keywords_list = EXPANDED_KEYWORDS
 
         headers = {
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
@@ -949,7 +1153,7 @@ class LinkedInJobsClient:
                         "keywords": keyword,
                         "location": "United States",
                         "start": start,
-                        "f_TPR": "r2592000",  # Last 30 days
+                        # Removed f_TPR time filter to get ALL current openings
                     }
 
                     response = requests.get(self.BASE_URL, params=params, headers=headers, timeout=30)
@@ -1176,7 +1380,7 @@ class CoresignalClient:
                         "state": state,
                         "salary_min": None,
                         "salary_max": None,
-                        "description": (job.get("description") or "")[:1000],
+                        "description": job.get("description") or "",
                         "url": job.get("url", ""),
                         "posted_date": job.get("created", ""),
                         "source": "coresignal",
@@ -1244,7 +1448,7 @@ class USAJobsClient:
                 params = {
                     "Page": page,
                     "ResultsPerPage": 500,  # Max allowed by USAJOBS
-                    "DatePosted": 30,  # Last 30 days
+                    # Removed DatePosted filter to get ALL current openings
                     "SortField": "DatePosted",
                     "SortDirection": "Desc",
                 }
@@ -1281,7 +1485,7 @@ class USAJobsClient:
                         "state": position.get("CountrySubDivisionCode", ""),
                         "salary_min": float(salary.get("MinimumRange", 0) or 0),
                         "salary_max": float(salary.get("MaximumRange", 0) or 0),
-                        "description": job.get("UserArea", {}).get("Details", {}).get("MajorDuties", [""])[0][:1000] if job.get("UserArea") else "",
+                        "description": job.get("UserArea", {}).get("Details", {}).get("MajorDuties", [""])[0] if job.get("UserArea") else "",
                         "url": job.get("PositionURI", ""),
                         "posted_date": job.get("PublicationStartDate", ""),
                         "source": "usajobs",
@@ -1323,6 +1527,7 @@ class JobDatabase:
 
     def _init_schema(self):
         """Create tables if they don't exist."""
+        # First create the basic table structure
         self.conn.executescript("""
             CREATE TABLE IF NOT EXISTS jobs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1352,6 +1557,28 @@ class JobDatabase:
         """)
         self.conn.commit()
 
+        # Add new columns if they don't exist (for existing databases)
+        try:
+            self.conn.execute("ALTER TABLE jobs ADD COLUMN is_remote INTEGER DEFAULT 0")
+            print("  Added is_remote column to database")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+
+        try:
+            self.conn.execute("ALTER TABLE jobs ADD COLUMN skills TEXT")
+            print("  Added skills column to database")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+
+        self.conn.commit()
+
+        # Now create index on is_remote (after column exists)
+        try:
+            self.conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_is_remote ON jobs(is_remote)")
+        except:
+            pass
+        self.conn.commit()
+
     def _hash_job(self, job: Dict) -> str:
         """Create unique hash for a job."""
         unique_str = f"{job['title']}|{job['employer']}|{job['location']}|{job['source']}"
@@ -1366,23 +1593,32 @@ class JobDatabase:
         )
         existing = cursor.fetchone()
 
+        # Calculate is_remote and extract skills
+        job_is_remote = is_remote_job(job)
+        description = job.get('description', '') or ''
+        title = job.get('title', '') or ''
+        job_skills = extract_skills(f"{title} {description}")
+
         if existing:
+            # Update existing job with new info
             self.conn.execute(
-                "UPDATE jobs SET last_seen = CURRENT_TIMESTAMP, status = 'active' WHERE job_hash = ?",
-                (job_hash,)
+                """UPDATE jobs SET last_seen = CURRENT_TIMESTAMP, status = 'active',
+                   is_remote = ?, skills = ?
+                   WHERE job_hash = ?""",
+                (job_is_remote, job_skills, job_hash)
             )
             return "updated"
         else:
             self.conn.execute("""
                 INSERT INTO jobs (job_hash, title, employer, location, city, state,
                                   salary_min, salary_max, description, source, source_id,
-                                  url, posted_date)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                  url, posted_date, is_remote, skills)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 job_hash, job['title'], job['employer'], job['location'],
                 job['city'], job['state'], job.get('salary_min'), job.get('salary_max'),
-                job.get('description', ''), job['source'], job.get('source_id', ''),
-                job.get('url', ''), job.get('posted_date', '')
+                description, job['source'], job.get('source_id', ''),
+                job.get('url', ''), job.get('posted_date', ''), job_is_remote, job_skills
             ))
             return "inserted"
 
@@ -1415,18 +1651,22 @@ class JobDatabase:
         }
 
     def export_csv(self, filepath: str):
-        """Export jobs to CSV."""
+        """Export jobs to CSV in cambridge_jobs format."""
         cursor = self.conn.execute("""
             SELECT title, employer, location, city, state,
-                   salary_min, salary_max, source, url, posted_date, status
+                   salary_min, salary_max, source, url, posted_date,
+                   is_remote, status, first_seen, description, skills
             FROM jobs
+            WHERE status = 'active'
             ORDER BY state, city, employer
         """)
 
         with open(filepath, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
+            # Match cambridge_jobs.csv header exactly
             writer.writerow(['title', 'employer', 'location', 'city', 'state',
-                           'salary_min', 'salary_max', 'source', 'url', 'posted_date', 'status'])
+                           'salary_min', 'salary_max', 'source', 'url', 'posted_date',
+                           'is_remote', 'status', 'first_seen', 'description', 'skills'])
             writer.writerows(cursor.fetchall())
 
         print(f"Exported to {filepath}")
@@ -1542,7 +1782,38 @@ def collect_nationwide():
             print(f"      Collected {len(jobs):,} jobs, +{ins:,} new")
 
     results['adzuna'] = {'inserted': adzuna_total_inserted, 'updated': adzuna_total_updated}
-    print(f"\n  Adzuna total: +{adzuna_total_inserted:,} new, {adzuna_total_updated:,} updated")
+    print(f"\n  Adzuna (by category) total: +{adzuna_total_inserted:,} new, {adzuna_total_updated:,} updated")
+
+    # =========================================================
+    # 2b. ADZUNA BY STATE (Additional coverage - bypasses per-query limits)
+    # =========================================================
+    print(f"\n{'='*70}")
+    print("2b. ADZUNA - Jobs by State (51 states/territories)")
+    print("=" * 70)
+    print("  Searching each state separately to bypass 50K per-query limit")
+
+    adzuna_state_inserted = 0
+    adzuna_state_updated = 0
+
+    for i, state in enumerate(US_STATES):
+        print(f"\n  [{i+1}/{len(US_STATES)}] State: {state}")
+
+        jobs = adzuna.search_by_state(
+            state=state,
+            max_results=0,  # Get all available
+            delay=config.adzuna_delay
+        )
+
+        if jobs:
+            ins, upd = save_jobs_to_db(db, jobs, f"adzuna:state:{state}")
+            adzuna_state_inserted += ins
+            adzuna_state_updated += upd
+            print(f"      Collected {len(jobs):,} jobs, +{ins:,} new")
+
+    # Add state results to adzuna totals
+    results['adzuna']['inserted'] += adzuna_state_inserted
+    results['adzuna']['updated'] += adzuna_state_updated
+    print(f"\n  Adzuna (by state) total: +{adzuna_state_inserted:,} new, {adzuna_state_updated:,} updated")
 
     # =========================================================
     # 3. CORESIGNAL (LinkedIn jobs + more)

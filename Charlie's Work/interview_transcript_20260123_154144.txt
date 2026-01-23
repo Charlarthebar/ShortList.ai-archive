@@ -1,0 +1,39 @@
+Interview Transcript - 2026-01-23T15:41:44.055510
+============================================================
+
+[Interviewer]: Hello! I'll be conducting a screening interview for the Sales Support Specialist position. Please provide clear answers with specific examples. Let me prepare the questions.
+
+[Interviewer]: 
+I have 7 questions prepared. Let's begin.
+
+
+[Interviewer]: Question 1 of 7:
+Can you describe a time when you had to manage multiple tasks with tight deadlines? How did you ensure everything was completed accurately?
+
+[Candidate]: you
+
+[Interviewer]: Follow-up: Can you provide an example of a situation where you had to handle several tasks with strict deadlines? What strategies did you use to manage your time and ensure accuracy in your work?
+
+[Candidate]: You
+
+[Interviewer]: Question 2 of 7:
+Tell us about a situation where you successfully supported a sales team. What was your role and what outcomes did you achieve?
+
+[Candidate]: You
+
+[Interviewer]: 
+============================================================
+That concludes our questions.
+
+Thank you for taking the time to speak with me today. A member of our team will be in touch regarding next steps.
+
+Do you have any questions about the role or the process?
+(Type 'DONE' to finish, or enter your questions)
+============================================================
+
+[Interviewer]: 
+Thank you for your questions. The hiring team will address these during the next stage of the process.
+
+[Interviewer]: 
+Thank you for completing the interview. Please wait while I prepare your evaluation...
+

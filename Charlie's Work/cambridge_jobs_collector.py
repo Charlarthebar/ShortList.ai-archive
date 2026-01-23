@@ -237,7 +237,7 @@ class AdzunaClient:
                     "results_per_page": results_per_page,
                     "where": "massachusetts",  # Search entire state
                     "sort_by": "date",
-                    "max_days_old": 30,
+                    # No max_days_old limit - fetch all available jobs
                 }
 
                 response = requests.get(f"{self.BASE_URL}/{page}", params=params, timeout=30)
@@ -360,7 +360,7 @@ class USAJobsClient:
                     "Radius": radius_miles,
                     "Page": page,
                     "ResultsPerPage": min(500, max_results - len(jobs)),
-                    "DatePosted": 30,
+                    # No DatePosted limit - fetch all available jobs
                     "SortField": "DatePosted",
                     "SortDirection": "Desc",
                 }
@@ -1108,23 +1108,33 @@ class JobDatabase:
         }
 
     def export_csv(self, filepath: str):
-        """Export jobs to CSV."""
+        """Export jobs to CSV with full descriptions and skills."""
         cursor = self.conn.execute("""
             SELECT title, employer, location, city, state,
                    salary_min, salary_max, source, url, posted_date,
-                   is_remote, status, first_seen, description
+                   is_remote, status, first_seen, description, skills
             FROM jobs
             ORDER BY source, employer, title
         """)
 
+        rows = cursor.fetchall()
+
         with open(filepath, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
+            writer = csv.writer(f, quoting=csv.QUOTE_ALL)
             writer.writerow(['title', 'employer', 'location', 'city', 'state',
                            'salary_min', 'salary_max', 'source', 'url', 'posted_date',
-                           'is_remote', 'status', 'first_seen', 'description'])
-            writer.writerows(cursor.fetchall())
+                           'is_remote', 'status', 'first_seen', 'description', 'skills'])
 
-        print(f"Exported to {filepath}")
+            for row in rows:
+                # Convert to list to clean description
+                row_list = list(row)
+                # Clean description - replace newlines with spaces for CSV
+                if row_list[13]:
+                    row_list[13] = re.sub(r'[\r\n]+', ' ', row_list[13])
+                    row_list[13] = re.sub(r'\s+', ' ', row_list[13]).strip()
+                writer.writerow(row_list)
+
+        print(f"Exported {len(rows):,} jobs to {filepath}")
 
 
 # =========================================================
@@ -1145,6 +1155,113 @@ def save_jobs_to_db(db: JobDatabase, jobs: List[Dict], source_name: str) -> tupl
             db.commit()
     db.commit()
     return inserted, updated
+
+
+def extract_skills_for_all_jobs(db_path: str):
+    """Extract skills from job descriptions using onet_skills.csv taxonomy."""
+    import os
+
+    onet_path = os.path.join(os.path.dirname(__file__), "onet_skills.csv")
+
+    # Build skills taxonomy
+    core_skills = set()
+    all_skills = set()
+
+    if os.path.exists(onet_path):
+        with open(onet_path, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                skill = row.get('skill_name', '').strip().lower()
+                skill_type = row.get('skill_type', '').strip()
+                if skill:
+                    all_skills.add(skill)
+                    if skill_type == 'Core Skill':
+                        core_skills.add(skill)
+
+    # Add common skills not in O*NET
+    common_skills = {
+        "python", "java", "javascript", "typescript", "c++", "c#", "ruby", "go",
+        "rust", "scala", "kotlin", "swift", "php", "sql", "react", "angular", "vue",
+        "node.js", "django", "flask", "aws", "azure", "gcp", "docker", "kubernetes",
+        "machine learning", "data science", "data analysis", "tensorflow", "pytorch",
+        "project management", "agile", "scrum", "leadership", "communication",
+        "clinical research", "regulatory affairs", "biotechnology", "healthcare",
+        "marketing", "sales", "customer service", "financial analysis", "accounting",
+    }
+    all_skills.update(common_skills)
+
+    print(f"\nExtracting skills for all jobs...")
+    print(f"  Skills taxonomy: {len(all_skills)} skills ({len(core_skills)} core)")
+
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    # Add skills column if it doesn't exist
+    try:
+        cursor.execute("ALTER TABLE jobs ADD COLUMN skills TEXT")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+
+    # Get all jobs
+    cursor.execute("SELECT id, description FROM jobs")
+    jobs = cursor.fetchall()
+
+    updated = 0
+    with_skills = 0
+
+    for job_id, description in jobs:
+        if not description:
+            continue
+
+        desc_lower = description.lower()
+        found_skills = []
+
+        for skill in all_skills:
+            # Use word boundary matching for short skills
+            if len(skill) <= 3:
+                pattern = r'\b' + re.escape(skill) + r'\b'
+                if re.search(pattern, desc_lower):
+                    # Skip single letter 'r' unless clearly programming context
+                    if skill == "r" and not re.search(r'\br\s+(programming|language|studio)', desc_lower):
+                        continue
+                    found_skills.append(skill)
+            else:
+                if skill in desc_lower:
+                    found_skills.append(skill)
+
+        # Deduplicate and format
+        found_skills = list(set(found_skills))
+        # Prioritize core skills
+        core_found = [s for s in found_skills if s in core_skills]
+        other_found = [s for s in found_skills if s not in core_skills]
+        found_skills = (core_found + other_found)[:25]
+
+        # Format properly (title case, uppercase for short acronyms)
+        formatted = []
+        for s in found_skills:
+            if len(s) <= 3:
+                formatted.append(s.upper())
+            else:
+                formatted.append(s.title())
+
+        skills_str = "; ".join(formatted)
+
+        if skills_str:
+            with_skills += 1
+
+        cursor.execute("UPDATE jobs SET skills = ? WHERE id = ?", (skills_str, job_id))
+        updated += 1
+
+        if updated % 5000 == 0:
+            conn.commit()
+            print(f"    Processed {updated:,} jobs...")
+
+    conn.commit()
+    conn.close()
+
+    print(f"  Skills extracted: {with_skills:,} of {updated:,} jobs have skills")
+    return with_skills
 
 
 def collect_cambridge():
@@ -1313,6 +1430,15 @@ def collect_cambridge():
     ins, upd = save_jobs_to_db(db, wwr_jobs, "weworkremotely")
     results['weworkremotely'] = {'inserted': ins, 'updated': upd}
     print(f"  Saved: +{ins:,} new, {upd:,} updated")
+
+    # =========================================================
+    # EXTRACT SKILLS FOR ALL JOBS
+    # =========================================================
+    print(f"\n{'='*70}")
+    print("EXTRACTING SKILLS FROM JOB DESCRIPTIONS")
+    print("=" * 70)
+
+    jobs_with_skills = extract_skills_for_all_jobs(config.db_path)
 
     # =========================================================
     # EXPORT AND SUMMARY

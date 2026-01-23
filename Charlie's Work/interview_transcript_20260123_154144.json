@@ -1,0 +1,60 @@
+{
+  "transcript": [
+    {
+      "speaker": "Interviewer",
+      "text": "Hello! I'll be conducting a screening interview for the Sales Support Specialist position. Please provide clear answers with specific examples. Let me prepare the questions.",
+      "timestamp": "2026-01-23T15:44:32.951044"
+    },
+    {
+      "speaker": "Interviewer",
+      "text": "\nI have 7 questions prepared. Let's begin.\n",
+      "timestamp": "2026-01-23T15:44:57.529825"
+    },
+    {
+      "speaker": "Interviewer",
+      "text": "Question 1 of 7:\nCan you describe a time when you had to manage multiple tasks with tight deadlines? How did you ensure everything was completed accurately?",
+      "timestamp": "2026-01-23T15:45:21.728804"
+    },
+    {
+      "speaker": "Candidate",
+      "text": "you",
+      "timestamp": "2026-01-23T15:45:21.729150"
+    },
+    {
+      "speaker": "Interviewer",
+      "text": "Follow-up: Can you provide an example of a situation where you had to handle several tasks with strict deadlines? What strategies did you use to manage your time and ensure accuracy in your work?",
+      "timestamp": "2026-01-23T15:46:14.083983"
+    },
+    {
+      "speaker": "Candidate",
+      "text": "You",
+      "timestamp": "2026-01-23T15:46:14.084714"
+    },
+    {
+      "speaker": "Interviewer",
+      "text": "Question 2 of 7:\nTell us about a situation where you successfully supported a sales team. What was your role and what outcomes did you achieve?",
+      "timestamp": "2026-01-23T15:46:43.406593"
+    },
+    {
+      "speaker": "Candidate",
+      "text": "You",
+      "timestamp": "2026-01-23T15:46:43.407272"
+    },
+    {
+      "speaker": "Interviewer",
+      "text": "\n============================================================\nThat concludes our questions.\n\nThank you for taking the time to speak with me today. A member of our team will be in touch regarding next steps.\n\nDo you have any questions about the role or the process?\n(Type 'DONE' to finish, or enter your questions)\n============================================================",
+      "timestamp": "2026-01-23T15:49:39.276752"
+    },
+    {
+      "speaker": "Interviewer",
+      "text": "\nThank you for your questions. The hiring team will address these during the next stage of the process.",
+      "timestamp": "2026-01-23T15:49:52.064019"
+    },
+    {
+      "speaker": "Interviewer",
+      "text": "\nThank you for completing the interview. Please wait while I prepare your evaluation...",
+      "timestamp": "2026-01-23T15:50:00.518547"
+    }
+  ],
+  "recorded_at": "2026-01-23T15:50:18.609054"
+}

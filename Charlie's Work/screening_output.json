@@ -1,0 +1,128 @@
+{
+  "candidate_summary": {
+    "name": "Ebony Moore",
+    "current_role": "Attorney at Portland Association of Attorneys",
+    "years_experience": null,
+    "location": "Portland, ME",
+    "key_strengths": [
+      "Client relationship management",
+      "Communication",
+      "Experience with contract drafting"
+    ],
+    "key_gaps": [
+      "No sales support experience",
+      "No CRM proficiency",
+      "No relevant experience in commercial services or field service coordination"
+    ],
+    "one_line_summary": "Candidate has a legal background with strengths in client management and communication but lacks relevant experience in sales support and CRM systems."
+  },
+  "competency_scores": [
+    {
+      "competency_id": "1",
+      "competency_name": "Sales Support Experience",
+      "is_must_have": true,
+      "score": 1,
+      "evidence": [
+        "Resume only lists legal roles with no direct sales support or customer service experience relevant to job requirements."
+      ],
+      "notes": "There is no indication of relevant experience in sales support roles."
+    },
+    {
+      "competency_id": "2",
+      "competency_name": "CRM Proficiency",
+      "is_must_have": true,
+      "score": 1,
+      "evidence": [
+        "No evidence of CRM system use on the resume."
+      ],
+      "notes": "No CRM system experience mentioned, including Salesforce."
+    },
+    {
+      "competency_id": "3",
+      "competency_name": "Organizational Skills",
+      "is_must_have": true,
+      "score": 3,
+      "evidence": [
+        "Managed attorney calendars and client files as a Legal Secretary."
+      ],
+      "notes": "Demonstrates some organizational skills in previous role, but depth related to job specific tasks is unclear."
+    },
+    {
+      "competency_id": "4",
+      "competency_name": "Communication Skills",
+      "is_must_have": true,
+      "score": 4,
+      "evidence": [
+        "Role as Attorney and Legal Secretary relied heavily on excellent written and verbal communication skills."
+      ],
+      "notes": "Strong evidence from legal roles indicates good communication skills."
+    },
+    {
+      "competency_id": "5",
+      "competency_name": "Multitasking Ability",
+      "is_must_have": true,
+      "score": 3,
+      "evidence": [
+        "Handled multiple legal case preparations as a Legal Secretary."
+      ],
+      "notes": "Some multitasking ability is evident, further specific examples would be useful."
+    },
+    {
+      "competency_id": "6",
+      "competency_name": "Commercial Services Experience",
+      "is_must_have": false,
+      "score": 1,
+      "evidence": [
+        "No relevant industry experience in resume."
+      ],
+      "notes": "No mention of commercial services or related industries."
+    },
+    {
+      "competency_id": "7",
+      "competency_name": "Preventative Maintenance Knowledge",
+      "is_must_have": false,
+      "score": 1,
+      "evidence": [
+        "Not mentioned in the resume."
+      ],
+      "notes": "No relevant knowledge indicated."
+    },
+    {
+      "competency_id": "8",
+      "competency_name": "Field Technician Coordination Experience",
+      "is_must_have": false,
+      "score": 1,
+      "evidence": [
+        "Resume lacks any relevant experience coordinating field technicians."
+      ],
+      "notes": "No related experience is listed."
+    }
+  ],
+  "red_flags": [
+    {
+      "flag": "Lack of sales support and CRM experience",
+      "severity": "high",
+      "evidence": "Candidate's legal-focused experience does not include sales support or CRM system proficiency."
+    }
+  ],
+  "follow_up_questions_for_human_interviewer": [
+    "Can you explain if and how any of your legal experience might translate to a sales support environment?",
+    "Do you have any experience or exposure to CRM systems, even if not listed on your resume?",
+    "Are you willing to relocate to Worcester, MA for this onsite role?"
+  ],
+  "final_screening_category": "Do Not Proceed",
+  "confidence": {
+    "level": "high",
+    "reasons": [
+      "No relevant evidence in the resume of sales support or CRM experience",
+      "Key competencies required for the role are missing from the candidate's background"
+    ]
+  },
+  "metadata": {
+    "interview_date": "2026-01-23T15:50:18.606609",
+    "job_title": "Sales Support Specialist",
+    "questions_asked": 7,
+    "follow_ups_asked": 7,
+    "duration_seconds": 488
+  }
+}

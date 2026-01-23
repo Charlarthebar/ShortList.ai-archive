@@ -1,0 +1,69 @@
+{
+  "job_title": "Sales Support Specialist",
+  "questions": [
+    {
+      "id": "q1",
+      "type": "behavioral",
+      "text": "Can you tell me about a time when you had to manage multiple client requests simultaneously? How did you prioritize and handle the situation?",
+      "competency_ids": [
+        "exp_sales_support",
+        "org_skills_detail"
+      ],
+      "probing_guidance": "Look for examples of prioritization and multitasking. Assess ability to handle stress and maintain quality."
+    },
+    {
+      "id": "q2",
+      "type": "behavioral",
+      "text": "Describe an experience where effective communication significantly impacted the outcome of a project.",
+      "competency_ids": [
+        "comm_skills"
+      ],
+      "probing_guidance": "Seek evidence of strong communication skills and ability to influence others positively."
+    },
+    {
+      "id": "q3",
+      "type": "technical",
+      "text": "What CRM systems have you used in the past, and how have they been beneficial in your role?",
+      "competency_ids": [
+        "crm_proficiency"
+      ],
+      "probing_guidance": "Determine familiarity with CRM systems, particularly how they utilize them to track customer interactions and manage information."
+    },
+    {
+      "id": "q4",
+      "type": "technical",
+      "text": "Have you had any experience with pricing or quoting systems? Can you describe the process you followed?",
+      "competency_ids": [
+        "quote_system_exp"
+      ],
+      "probing_guidance": "Identify understanding and experience with systems for managing quotes and pricing, especially in service contexts."
+    },
+    {
+      "id": "q5",
+      "type": "project_deep_dive",
+      "text": "Can you walk us through a significant project you managed from start to finish in a support role? What were the key challenges and successes?",
+      "competency_ids": [
+        "exp_sales_support",
+        "org_skills_detail"
+      ],
+      "probing_guidance": "Explore project management skills, challenges handled, and the candidate's role in driving success."
+    },
+    {
+      "id": "q6",
+      "type": "situational",
+      "text": "How would you handle a situation where a client is upset due to a service scheduling error?",
+      "competency_ids": [
+        "comm_skills",
+        "org_skills_detail"
+      ],
+      "probing_guidance": "Evaluate problem resolution, customer service approach, and communication effectiveness in adverse situations."
+    },
+    {
+      "id": "q7",
+      "type": "logistics_availability",
+      "text": "Are you available to work onsite in Worcester, MA during the specified hours?",
+      "competency_ids": [],
+      "probing_guidance": "Confirm candidate's ability to meet the logistical and employment conditions of the job."
+    }
+  ]
+}
