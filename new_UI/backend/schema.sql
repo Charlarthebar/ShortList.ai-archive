@@ -59,6 +59,14 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'shortlist_applications' AND column_name = 'applied_at') THEN
         ALTER TABLE shortlist_applications ADD COLUMN applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
     END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'shortlist_applications' AND column_name = 'eligibility_data') THEN
+        ALTER TABLE shortlist_applications ADD COLUMN eligibility_data JSONB;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'shortlist_applications' AND column_name = 'interview_status') THEN
+        ALTER TABLE shortlist_applications ADD COLUMN interview_status VARCHAR(20) DEFAULT 'pending';
+    END IF;
 END $$;
 
 -- Create shortlist_applications table if it doesn't exist
@@ -71,6 +79,8 @@ CREATE TABLE IF NOT EXISTS shortlist_applications (
     resume_path VARCHAR(500),
     status VARCHAR(20) DEFAULT 'pending',
     applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    eligibility_data JSONB,
+    interview_status VARCHAR(20) DEFAULT 'pending',
     UNIQUE(user_id, position_id)
 );
 

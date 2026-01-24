@@ -281,29 +281,679 @@ async function loadRole(roleId, matchScoreOverride = null) {
 // Shortlist Functions
 async function applyToShortlist(roleId) {
     try {
-        const data = await api('/shortlist/apply', {
-            method: 'POST',
-            body: JSON.stringify({ role_id: roleId })
-        });
+        // First, just get the questions and role info without creating an application
+        const data = await api(`/shortlist/prepare/${roleId}`);
 
-        // Always show fit questions first (they are required)
-        if (data.questions && data.questions.length > 0) {
-            showFitQuestionsModal(data.application_id, data.questions, data.has_resume);
-        } else {
-            // Fallback: No questions configured, proceed directly
-            if (data.has_resume) {
-                showSuccessModal('Application Submitted!', 'Your resume was automatically attached from your profile.');
-            } else {
-                showUploadModal(data.application_id);
-            }
-        }
+        // Show the comprehensive 3-step application flow (application created on submit)
+        showApplicationFlow(roleId, data.questions || [], data.has_resume, data.role_type || 'other');
     } catch (err) {
         if (err.message.includes('INCOMPLETE_PROFILE')) {
             navigate('setup');
+        } else if (err.message.includes('Already on this shortlist')) {
+            alert('You have already applied to this role.');
         } else {
             alert(err.message);
         }
     }
+}
+
+// 3-Step Application Flow Modal
+function showApplicationFlow(roleId, fitQuestions, hasResume, roleType) {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay application-flow-overlay';
+
+    // Application ID will be set when we actually submit
+    let applicationId = null;
+
+    // State management
+    let currentStep = 1;
+    const eligibilityData = {
+        authorized_us: null,
+        needs_sponsorship: null,
+        hybrid_onsite: null,
+        start_date: '',
+        seniority_band: '',
+        must_have_skills: [
+            { checked: false, evidence: '' },
+            { checked: false, evidence: '' }
+        ],
+        portfolio_link: ''
+    };
+    const fitResponses = {};
+
+    // Only show portfolio link for tech roles
+    const isTechRole = ['software_engineer', 'data_scientist', 'data_analyst', 'engineering_manager', 'designer'].includes(roleType);
+
+    // Determine context-aware link label (only for tech roles)
+    const linkLabel = roleType === 'software_engineer' ? 'GitHub' :
+                      roleType === 'data_scientist' ? 'GitHub / Kaggle' :
+                      roleType === 'designer' ? 'Portfolio / Dribbble' : 'GitHub / Portfolio';
+
+    const linkPlaceholder = roleType === 'software_engineer' ? 'https://github.com/username' :
+                            roleType === 'data_scientist' ? 'https://github.com/username or kaggle.com/username' :
+                            roleType === 'designer' ? 'https://dribbble.com/username' : 'https://github.com/username';
+
+    // Must-have skills based on role type
+    const mustHaveSkills = roleType === 'software_engineer' ?
+        ['Proficiency in a core language (Python, JS, Java, etc.)', 'Experience with production systems'] :
+        roleType === 'data_scientist' ?
+        ['Statistical modeling / ML experience', 'SQL and data pipeline experience'] :
+        roleType === 'sales' ?
+        ['Quota-carrying experience', 'Full-cycle sales experience'] :
+        ['Relevant domain expertise', 'Proven track record in similar role'];
+
+    function render() {
+        modal.innerHTML = `
+            <div class="application-flow-modal">
+                <!-- Pinned Progress Header -->
+                <div class="flow-header">
+                    <div class="flow-progress-bar">
+                        <div class="flow-step ${currentStep >= 1 ? 'active' : ''} ${currentStep > 1 ? 'complete' : ''}" data-step="1">
+                            <div class="flow-step-indicator">
+                                ${currentStep > 1 ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : '1'}
+                            </div>
+                            <span class="flow-step-label">Eligibility</span>
+                        </div>
+                        <div class="flow-step-connector ${currentStep > 1 ? 'complete' : ''}"></div>
+                        <div class="flow-step ${currentStep >= 2 ? 'active' : ''} ${currentStep > 2 ? 'complete' : ''}" data-step="2">
+                            <div class="flow-step-indicator">
+                                ${currentStep > 2 ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : '2'}
+                            </div>
+                            <span class="flow-step-label">Fit</span>
+                        </div>
+                        <div class="flow-step-connector ${currentStep > 2 ? 'complete' : ''}"></div>
+                        <div class="flow-step ${currentStep >= 3 ? 'active' : ''}" data-step="3">
+                            <div class="flow-step-indicator">3</div>
+                            <span class="flow-step-label">Interview</span>
+                        </div>
+                    </div>
+                    <button class="flow-close-btn" id="close-flow">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Step Content -->
+                <div class="flow-content">
+                    ${currentStep === 1 ? renderStep1() : ''}
+                    ${currentStep === 2 ? renderStep2() : ''}
+                    ${currentStep === 3 ? renderStep3() : ''}
+                </div>
+
+                <!-- Footer -->
+                <div class="flow-footer">
+                    ${currentStep > 1 ? '<button class="btn btn-secondary" id="flow-back">Back</button>' : '<div></div>'}
+                    ${renderFooterButton()}
+                </div>
+            </div>
+        `;
+
+        attachListeners();
+    }
+
+    function renderStep1() {
+        return `
+            <div class="flow-step-content step-1">
+                <div class="flow-section-header">
+                    <h2>Quick eligibility check</h2>
+                    <p>Just a few questions to make sure this role is a good fit</p>
+                </div>
+
+                <!-- Authorization Card -->
+                <div class="eligibility-card">
+                    <div class="eligibility-question">
+                        <span class="eligibility-label">Authorized to work in the US?</span>
+                        <div class="pill-toggle" data-field="authorized_us">
+                            <button class="pill-option ${eligibilityData.authorized_us === true ? 'selected' : ''}" data-value="true">Yes</button>
+                            <button class="pill-option ${eligibilityData.authorized_us === false ? 'selected' : ''}" data-value="false">No</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sponsorship Card -->
+                <div class="eligibility-card">
+                    <div class="eligibility-question">
+                        <span class="eligibility-label">Need visa sponsorship now or in the future?</span>
+                        <div class="pill-toggle" data-field="needs_sponsorship">
+                            <button class="pill-option ${eligibilityData.needs_sponsorship === true ? 'selected' : ''}" data-value="true">Yes</button>
+                            <button class="pill-option ${eligibilityData.needs_sponsorship === false ? 'selected' : ''}" data-value="false">No</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hybrid/On-site Card -->
+                <div class="eligibility-card">
+                    <div class="eligibility-question">
+                        <span class="eligibility-label">Open to hybrid or on-site in Boston?</span>
+                        <div class="pill-toggle" data-field="hybrid_onsite">
+                            <button class="pill-option ${eligibilityData.hybrid_onsite === true ? 'selected' : ''}" data-value="true">Yes</button>
+                            <button class="pill-option ${eligibilityData.hybrid_onsite === false ? 'selected' : ''}" data-value="false">No</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Start Date Card -->
+                <div class="eligibility-card">
+                    <div class="eligibility-question vertical">
+                        <span class="eligibility-label">When can you start?</span>
+                        <select class="flow-select" data-field="start_date">
+                            <option value="">Select start window...</option>
+                            <option value="immediately" ${eligibilityData.start_date === 'immediately' ? 'selected' : ''}>Immediately</option>
+                            <option value="2_weeks" ${eligibilityData.start_date === '2_weeks' ? 'selected' : ''}>2 weeks notice</option>
+                            <option value="1_month" ${eligibilityData.start_date === '1_month' ? 'selected' : ''}>1 month</option>
+                            <option value="2_months" ${eligibilityData.start_date === '2_months' ? 'selected' : ''}>2 months</option>
+                            <option value="3_months" ${eligibilityData.start_date === '3_months' ? 'selected' : ''}>3+ months</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Seniority Card -->
+                <div class="eligibility-card">
+                    <div class="eligibility-question vertical">
+                        <span class="eligibility-label">Years of relevant experience</span>
+                        <div class="seniority-pills">
+                            ${['0-1', '1-3', '3-5', '5+'].map(band => `
+                                <button class="seniority-pill ${eligibilityData.seniority_band === band ? 'selected' : ''}" data-band="${band}">
+                                    ${band} years
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Must-Have Skills Card -->
+                <div class="eligibility-card skills-card">
+                    <div class="eligibility-question vertical">
+                        <span class="eligibility-label">Confirm must-have skills</span>
+                        <p class="eligibility-helper">Check each skill you have and provide brief evidence</p>
+                    </div>
+                    <div class="must-have-skills">
+                        ${mustHaveSkills.map((skill, i) => `
+                            <div class="must-have-item ${eligibilityData.must_have_skills[i].checked ? 'checked' : ''}">
+                                <label class="must-have-checkbox">
+                                    <input type="checkbox" data-skill-index="${i}" ${eligibilityData.must_have_skills[i].checked ? 'checked' : ''}>
+                                    <span class="checkbox-custom"></span>
+                                    <span class="must-have-label">${skill}</span>
+                                </label>
+                                <div class="evidence-input ${eligibilityData.must_have_skills[i].checked ? 'visible' : ''}">
+                                    <input type="text"
+                                        placeholder="Project/company — what you did"
+                                        data-evidence-index="${i}"
+                                        value="${escapeHtml(eligibilityData.must_have_skills[i].evidence)}"
+                                        maxlength="100">
+                                    <span class="char-count">${eligibilityData.must_have_skills[i].evidence.length}/100</span>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
+                ${isTechRole ? `
+                <!-- Portfolio Link Card (Tech roles only) -->
+                <div class="eligibility-card">
+                    <div class="eligibility-question vertical">
+                        <span class="eligibility-label">${linkLabel} <span class="optional-badge">Optional</span></span>
+                        <input type="url"
+                            class="flow-input"
+                            placeholder="${linkPlaceholder}"
+                            data-field="portfolio_link"
+                            value="${escapeHtml(eligibilityData.portfolio_link)}">
+                        <p class="eligibility-helper">Add a link to showcase your work</p>
+                    </div>
+                </div>
+                ` : ''}
+            </div>
+        `;
+    }
+
+    function renderStep2() {
+        // Separate MC and free response questions
+        const mcQuestions = fitQuestions.filter(q => q.question_type === 'multiple_choice');
+        const frQuestions = fitQuestions.filter(q => q.question_type === 'free_response');
+
+        return `
+            <div class="flow-step-content step-2">
+                <div class="flow-section-header">
+                    <h2>Culture & fit</h2>
+                    <p>Help us match you with teams that share your working style</p>
+                </div>
+
+                ${mcQuestions.length > 0 ? `
+                    <div class="fit-questions-grid">
+                        ${mcQuestions.map((q, index) => `
+                            <div class="fit-card" data-question-id="${q.id}">
+                                <div class="fit-card-header">
+                                    <span class="fit-card-number">${index + 1}</span>
+                                    <p class="fit-card-question">${escapeHtml(q.question_text)}</p>
+                                </div>
+                                <div class="fit-card-options">
+                                    ${q.options.map(opt => `
+                                        <label class="fit-option-card ${fitResponses[q.id]?.response_value === opt.value ? 'selected' : ''}">
+                                            <input type="radio" name="fit_${q.id}" value="${opt.value}" ${fitResponses[q.id]?.response_value === opt.value ? 'checked' : ''}>
+                                            <span class="fit-option-letter">${opt.value}</span>
+                                            <span class="fit-option-text">${escapeHtml(opt.label)}</span>
+                                        </label>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : ''}
+
+                ${frQuestions.length > 0 ? `
+                    <div class="fit-freeform-section">
+                        <div class="fit-section-divider">
+                            <span>Short answers</span>
+                        </div>
+                        ${frQuestions.map((q, index) => `
+                            <div class="fit-freeform-card" data-question-id="${q.id}">
+                                <p class="fit-freeform-question">${escapeHtml(q.question_text)}</p>
+                                <textarea
+                                    class="fit-freeform-input"
+                                    placeholder="Your answer..."
+                                    rows="2"
+                                    maxlength="300"
+                                    data-question-id="${q.id}"
+                                >${fitResponses[q.id]?.response_text || ''}</textarea>
+                                <div class="fit-freeform-footer">
+                                    <span class="char-count">${(fitResponses[q.id]?.response_text || '').length}/300</span>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : ''}
+
+                ${fitQuestions.length === 0 ? `
+                    <div class="no-fit-questions">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                        </svg>
+                        <p>No additional questions for this role</p>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }
+
+    function renderStep3() {
+        return `
+            <div class="flow-step-content step-3">
+                <div class="flow-section-header">
+                    <h2>AI Interview</h2>
+                    <p>A short conversation to assess communication and role fit</p>
+                </div>
+
+                <!-- Interview Preview Card -->
+                <div class="interview-preview-card">
+                    <div class="interview-expectations">
+                        <div class="expectation-item">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="12 6 12 12 16 14"></polyline>
+                            </svg>
+                            <span>~8 minutes</span>
+                        </div>
+                        <div class="expectation-item">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                            </svg>
+                            <span>4 prompts</span>
+                        </div>
+                        <div class="expectation-item">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path>
+                                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                                <line x1="12" y1="19" x2="12" y2="22"></line>
+                            </svg>
+                            <span>Audio responses</span>
+                        </div>
+                    </div>
+
+                    <!-- Readiness Checklist -->
+                    <div class="readiness-checklist">
+                        <div class="readiness-item">
+                            <div class="readiness-icon">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polygon points="23 7 16 12 23 17 23 7"></polygon>
+                                    <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+                                </svg>
+                            </div>
+                            <span class="readiness-label">Camera</span>
+                            <span class="readiness-status pending">
+                                <span class="status-dot"></span>
+                                Needs permission
+                            </span>
+                        </div>
+                        <div class="readiness-item">
+                            <div class="readiness-icon">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path>
+                                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                                    <line x1="12" y1="19" x2="12" y2="22"></line>
+                                </svg>
+                            </div>
+                            <span class="readiness-label">Microphone</span>
+                            <span class="readiness-status pending">
+                                <span class="status-dot"></span>
+                                Needs permission
+                            </span>
+                        </div>
+                        <div class="readiness-item">
+                            <div class="readiness-icon">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
+                                    <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
+                                </svg>
+                            </div>
+                            <span class="readiness-label">Quiet environment</span>
+                            <span class="readiness-status ready">
+                                <span class="status-dot"></span>
+                                Ready
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Interview Timeline Preview -->
+                    <div class="interview-timeline">
+                        <div class="timeline-label">Interview outline</div>
+                        <div class="timeline-chips">
+                            <span class="timeline-chip">Intro</span>
+                            <span class="timeline-chip">Project deep dive</span>
+                            <span class="timeline-chip">Scenario question</span>
+                            <span class="timeline-chip">Wrap-up</span>
+                        </div>
+                    </div>
+
+                    <p class="interview-note">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="16" x2="12" y2="12"></line>
+                            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                        </svg>
+                        You can pause and return anytime. Your progress is saved.
+                    </p>
+                </div>
+
+                <!-- Defer Option -->
+                <div class="defer-option">
+                    <p class="defer-text">Not ready right now? You can still join the shortlist and complete the interview later.</p>
+                    <button class="btn btn-link" id="defer-interview">Do this later</button>
+                    <p class="defer-note">Candidates who complete the interview may be ranked higher</p>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderFooterButton() {
+        if (currentStep === 1) {
+            const isStep1Valid = validateStep1();
+            return `<button class="btn btn-primary" id="flow-next" ${!isStep1Valid ? 'disabled' : ''}>
+                ${fitQuestions.length > 0 ? 'Next' : 'Continue'}
+            </button>`;
+        } else if (currentStep === 2) {
+            const isStep2Valid = validateStep2();
+            return `<button class="btn btn-primary" id="flow-next" ${!isStep2Valid ? 'disabled' : ''}>Continue</button>`;
+        } else {
+            return `<button class="btn btn-primary" id="start-interview">Start Interview</button>`;
+        }
+    }
+
+    function validateStep1() {
+        return eligibilityData.authorized_us !== null &&
+               eligibilityData.needs_sponsorship !== null &&
+               eligibilityData.hybrid_onsite !== null &&
+               eligibilityData.start_date !== '' &&
+               eligibilityData.seniority_band !== '';
+    }
+
+    function validateStep2() {
+        if (fitQuestions.length === 0) return true;
+        return Object.keys(fitResponses).length === fitQuestions.length;
+    }
+
+    function updateNextButtonState() {
+        const nextBtn = modal.querySelector('#flow-next');
+        if (nextBtn) {
+            if (currentStep === 1) {
+                nextBtn.disabled = !validateStep1();
+            } else if (currentStep === 2) {
+                nextBtn.disabled = !validateStep2();
+            }
+        }
+    }
+
+    function attachListeners() {
+        // Close button - works immediately without confirm on click
+        modal.querySelector('#close-flow')?.addEventListener('click', () => {
+            modal.remove();
+        });
+
+        // Also close on overlay click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.remove();
+            }
+        });
+
+        // Close on Escape key
+        const escapeHandler = (e) => {
+            if (e.key === 'Escape') {
+                modal.remove();
+                document.removeEventListener('keydown', escapeHandler);
+            }
+        };
+        document.addEventListener('keydown', escapeHandler);
+
+        // Back button
+        modal.querySelector('#flow-back')?.addEventListener('click', () => {
+            currentStep--;
+            render();
+        });
+
+        // Next button
+        modal.querySelector('#flow-next')?.addEventListener('click', async () => {
+            if (currentStep === 1) {
+                currentStep = 2;
+                render();
+            } else if (currentStep === 2) {
+                // Submit eligibility and fit responses before moving to step 3
+                await submitApplicationData();
+                currentStep = 3;
+                render();
+            }
+        });
+
+        // Start Interview button
+        modal.querySelector('#start-interview')?.addEventListener('click', () => {
+            // For now, show a placeholder message
+            alert('AI Interview feature coming soon! You have been added to the shortlist.');
+            modal.remove();
+            // Update the job card status
+            refreshCurrentRole();
+        });
+
+        // Defer interview
+        modal.querySelector('#defer-interview')?.addEventListener('click', async () => {
+            await submitApplicationData();
+            modal.remove();
+            showSuccessModal('Added to Shortlist!', 'You can complete the AI interview later from your dashboard to improve your ranking.');
+            refreshCurrentRole();
+        });
+
+        // Step 1 listeners - update UI locally without re-render
+        if (currentStep === 1) {
+            // Pill toggles
+            modal.querySelectorAll('.pill-toggle').forEach(toggle => {
+                toggle.querySelectorAll('.pill-option').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const field = toggle.dataset.field;
+                        const value = btn.dataset.value === 'true';
+                        eligibilityData[field] = value;
+
+                        // Update UI locally
+                        toggle.querySelectorAll('.pill-option').forEach(b => b.classList.remove('selected'));
+                        btn.classList.add('selected');
+
+                        // Handle conditional commute field
+                        if (field === 'hybrid_onsite') {
+                            const conditionalField = toggle.closest('.eligibility-card').querySelector('.conditional-field');
+                            if (conditionalField) {
+                                if (value) {
+                                    conditionalField.classList.add('expanded');
+                                } else {
+                                    conditionalField.classList.remove('expanded');
+                                }
+                            }
+                        }
+
+                        updateNextButtonState();
+                    });
+                });
+            });
+
+            // Selects
+            modal.querySelectorAll('.flow-select').forEach(select => {
+                select.addEventListener('change', (e) => {
+                    const field = e.target.dataset.field;
+                    eligibilityData[field] = e.target.value;
+                    updateNextButtonState();
+                });
+            });
+
+            // Seniority pills
+            modal.querySelectorAll('.seniority-pill').forEach(pill => {
+                pill.addEventListener('click', () => {
+                    eligibilityData.seniority_band = pill.dataset.band;
+
+                    // Update UI locally
+                    modal.querySelectorAll('.seniority-pill').forEach(p => p.classList.remove('selected'));
+                    pill.classList.add('selected');
+
+                    updateNextButtonState();
+                });
+            });
+
+            // Must-have skill checkboxes
+            modal.querySelectorAll('.must-have-checkbox input').forEach(checkbox => {
+                checkbox.addEventListener('change', (e) => {
+                    const index = parseInt(e.target.dataset.skillIndex);
+                    const isChecked = e.target.checked;
+                    eligibilityData.must_have_skills[index].checked = isChecked;
+
+                    // Update UI locally
+                    const item = e.target.closest('.must-have-item');
+                    const evidenceInput = item.querySelector('.evidence-input');
+
+                    if (isChecked) {
+                        item.classList.add('checked');
+                        evidenceInput.classList.add('visible');
+                    } else {
+                        item.classList.remove('checked');
+                        evidenceInput.classList.remove('visible');
+                        eligibilityData.must_have_skills[index].evidence = '';
+                        evidenceInput.querySelector('input').value = '';
+                    }
+                });
+            });
+
+            // Evidence inputs
+            modal.querySelectorAll('.evidence-input input').forEach(input => {
+                input.addEventListener('input', (e) => {
+                    const index = parseInt(e.target.dataset.evidenceIndex);
+                    eligibilityData.must_have_skills[index].evidence = e.target.value;
+                    // Update char count without full re-render
+                    const charCount = input.parentElement.querySelector('.char-count');
+                    if (charCount) charCount.textContent = `${e.target.value.length}/100`;
+                });
+            });
+
+            // Portfolio link
+            modal.querySelector('[data-field="portfolio_link"]')?.addEventListener('input', (e) => {
+                eligibilityData.portfolio_link = e.target.value;
+            });
+        }
+
+        // Step 2 listeners - update UI locally without re-render
+        if (currentStep === 2) {
+            // MC options
+            modal.querySelectorAll('.fit-option-card input').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    const questionId = e.target.closest('.fit-card').dataset.questionId;
+                    fitResponses[questionId] = { question_id: questionId, response_value: e.target.value };
+
+                    // Update UI locally
+                    const card = e.target.closest('.fit-card');
+                    card.querySelectorAll('.fit-option-card').forEach(opt => opt.classList.remove('selected'));
+                    e.target.closest('.fit-option-card').classList.add('selected');
+
+                    updateNextButtonState();
+                });
+            });
+
+            // Free response
+            modal.querySelectorAll('.fit-freeform-input').forEach(textarea => {
+                textarea.addEventListener('input', (e) => {
+                    const questionId = e.target.dataset.questionId;
+                    const value = e.target.value.trim();
+                    if (value) {
+                        fitResponses[questionId] = { question_id: questionId, response_text: value };
+                    } else {
+                        delete fitResponses[questionId];
+                    }
+                    // Update char count
+                    const footer = e.target.parentElement.querySelector('.char-count');
+                    if (footer) footer.textContent = `${e.target.value.length}/300`;
+
+                    updateNextButtonState();
+                });
+            });
+        }
+    }
+
+    async function submitApplicationData() {
+        try {
+            // Create the application now (deferred from initial click)
+            if (!applicationId) {
+                const result = await api('/shortlist/apply', {
+                    method: 'POST',
+                    body: JSON.stringify({ role_id: roleId })
+                });
+                applicationId = result.application_id;
+            }
+
+            // Submit eligibility data
+            await api(`/shortlist/submit-eligibility/${applicationId}`, {
+                method: 'POST',
+                body: JSON.stringify(eligibilityData)
+            });
+
+            // Submit fit responses if any
+            if (Object.keys(fitResponses).length > 0) {
+                await api(`/shortlist/submit-fit-responses/${applicationId}`, {
+                    method: 'POST',
+                    body: JSON.stringify({ responses: Object.values(fitResponses) })
+                });
+            }
+        } catch (err) {
+            console.error('Failed to submit application data:', err);
+            throw err; // Re-throw so we can handle it in the caller
+        }
+    }
+
+    function refreshCurrentRole() {
+        // Refresh the current role view if we're on the role detail page
+        if (state.currentRole) {
+            renderRoleDetail();
+        }
+        // Also refresh applications list
+        loadMyApplications();
+    }
+
+    render();
+    document.body.appendChild(modal);
 }
 
 async function uploadResume(applicationId, file) {
@@ -484,21 +1134,315 @@ function renderLanding() {
 
             <!-- Hero Section -->
             <section class="hero">
+                <div class="hero-gradient-bg"></div>
                 <div class="container">
-                    <div class="hero-badge">Early Access to Top Roles</div>
-                    <h1>Get hired <span>before</span><br>the job is posted</h1>
-                    <p class="hero-subtitle">
-                        ShortList connects you with Boston's best tech opportunities before they hit the job boards.
-                        Be first in line for roles at companies that matter.
-                    </p>
-                    <div class="hero-ctas">
-                        ${isLoggedIn
-                            ? (isEmployer
-                                ? `<button class="btn btn-gradient" id="cta-dashboard">Go to Dashboard</button>`
-                                : `<button class="btn btn-gradient" id="cta-browse">Browse Roles</button>`)
-                            : `<button class="btn btn-gradient" id="cta-get-started">Get Started</button>
-                               <button class="btn btn-outline" id="cta-hiring">I'm Hiring</button>`
-                        }
+                    <div class="hero-content reveal-hero">
+                        <div class="hero-badge">Early Access to Top Roles</div>
+                        <h1>Get hired <span>before</span><br>the job is posted</h1>
+                        <p class="hero-subtitle">
+                            ShortList connects you with Boston's best tech opportunities before they hit the job boards.
+                            Be first in line for roles at companies that matter.
+                        </p>
+                        <div class="hero-ctas">
+                            ${isLoggedIn
+                                ? (isEmployer
+                                    ? `<button class="btn btn-gradient" id="cta-dashboard">Go to Dashboard</button>`
+                                    : `<button class="btn btn-gradient" id="cta-browse">Browse Roles</button>`)
+                                : `<button class="btn btn-gradient" id="cta-get-started">Get Started</button>
+                                   <button class="btn btn-outline" id="cta-hiring">I'm Hiring</button>`
+                            }
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Why Now / Urgency Section -->
+            <section class="urgency-section reveal">
+                <div class="container">
+                    <div class="urgency-card">
+                        <div class="urgency-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <polyline points="12 6 12 12 16 14"/>
+                            </svg>
+                        </div>
+                        <div class="urgency-content">
+                            <h3>Why timing matters</h3>
+                            <p>Roles fill quietly through referrals and internal benches. <strong>ShortList gets you into that bench early</strong>—before positions hit the job boards, when hiring managers are still deciding who to interview.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Product Preview Section -->
+            <section class="product-preview-section">
+                <div class="container">
+                    <div class="section-header reveal">
+                        <h2>See what's waiting for you</h2>
+                        <p>A personalized experience for job seekers and employers alike</p>
+                    </div>
+
+                    <div class="product-preview-grid">
+                        <!-- Job Seeker Preview -->
+                        <div class="preview-card reveal" style="--reveal-delay: 0.1s">
+                            <div class="preview-label">
+                                <span class="preview-label-icon">👤</span>
+                                For Job Seekers
+                            </div>
+                            <div class="preview-device">
+                                <div class="preview-device-header">
+                                    <div class="preview-device-dots">
+                                        <span></span><span></span><span></span>
+                                    </div>
+                                    <div class="preview-device-title">For You</div>
+                                </div>
+                                <div class="preview-screen seeker-preview">
+                                    <div class="preview-filters">
+                                        <div class="preview-filter-pill active">All Roles</div>
+                                        <div class="preview-filter-pill">Remote</div>
+                                        <div class="preview-filter-pill">Boston</div>
+                                        <div class="preview-filter-pill">Senior+</div>
+                                    </div>
+                                    <div class="preview-feed">
+                                        <div class="preview-job-card" style="--card-delay: 0s">
+                                            <div class="preview-job-header">
+                                                <div class="preview-company-logo">A</div>
+                                                <div class="preview-job-info">
+                                                    <div class="preview-job-title">Senior Software Engineer</div>
+                                                    <div class="preview-company-name">Acme Technologies</div>
+                                                </div>
+                                                <div class="preview-match-badge">94% Match</div>
+                                            </div>
+                                            <div class="preview-job-tags">
+                                                <span>Remote</span><span>$180-220k</span><span>Series B</span>
+                                            </div>
+                                        </div>
+                                        <div class="preview-job-card" style="--card-delay: 0.15s">
+                                            <div class="preview-job-header">
+                                                <div class="preview-company-logo" style="background: linear-gradient(135deg, #10b981, #059669)">B</div>
+                                                <div class="preview-job-info">
+                                                    <div class="preview-job-title">Engineering Manager</div>
+                                                    <div class="preview-company-name">Beacon Health</div>
+                                                </div>
+                                                <div class="preview-match-badge">91% Match</div>
+                                            </div>
+                                            <div class="preview-job-tags">
+                                                <span>Hybrid</span><span>$200-250k</span><span>Growth</span>
+                                            </div>
+                                        </div>
+                                        <div class="preview-job-card" style="--card-delay: 0.3s">
+                                            <div class="preview-job-header">
+                                                <div class="preview-company-logo" style="background: linear-gradient(135deg, #8b5cf6, #6366f1)">C</div>
+                                                <div class="preview-job-info">
+                                                    <div class="preview-job-title">Staff Data Scientist</div>
+                                                    <div class="preview-company-name">CloudStack AI</div>
+                                                </div>
+                                                <div class="preview-match-badge">88% Match</div>
+                                            </div>
+                                            <div class="preview-job-tags">
+                                                <span>On-site</span><span>$190-230k</span><span>AI/ML</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Employer Preview -->
+                        <div class="preview-card reveal" style="--reveal-delay: 0.25s">
+                            <div class="preview-label">
+                                <span class="preview-label-icon">🏢</span>
+                                For Employers
+                            </div>
+                            <div class="preview-device">
+                                <div class="preview-device-header">
+                                    <div class="preview-device-dots">
+                                        <span></span><span></span><span></span>
+                                    </div>
+                                    <div class="preview-device-title">Candidate Review</div>
+                                </div>
+                                <div class="preview-screen employer-preview">
+                                    <div class="preview-candidate-card">
+                                        <div class="preview-candidate-header">
+                                            <div class="preview-candidate-avatar">JD</div>
+                                            <div class="preview-candidate-info">
+                                                <div class="preview-candidate-name">Jane Doe</div>
+                                                <div class="preview-candidate-role">Senior Engineer @ TechCorp</div>
+                                            </div>
+                                            <div class="preview-fit-score">
+                                                <div class="preview-fit-score-value">92%</div>
+                                                <div class="preview-fit-score-label">Fit</div>
+                                            </div>
+                                        </div>
+
+                                        <div class="preview-evidence-section">
+                                            <div class="preview-evidence-header">
+                                                <span class="preview-evidence-icon good">✓</span>
+                                                Top Skills + Evidence
+                                            </div>
+                                            <div class="preview-skills-list">
+                                                <div class="preview-skill-chip" style="--chip-delay: 0s">
+                                                    <span class="skill-name">Python</span>
+                                                    <span class="skill-years">6 yrs</span>
+                                                </div>
+                                                <div class="preview-skill-chip" style="--chip-delay: 0.1s">
+                                                    <span class="skill-name">AWS</span>
+                                                    <span class="skill-years">4 yrs</span>
+                                                </div>
+                                                <div class="preview-skill-chip" style="--chip-delay: 0.2s">
+                                                    <span class="skill-name">React</span>
+                                                    <span class="skill-years">5 yrs</span>
+                                                </div>
+                                                <div class="preview-skill-chip" style="--chip-delay: 0.3s">
+                                                    <span class="skill-name">System Design</span>
+                                                    <span class="skill-years">3 yrs</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="preview-evidence-section gaps">
+                                            <div class="preview-evidence-header">
+                                                <span class="preview-evidence-icon caution">!</span>
+                                                Gaps / Risks
+                                            </div>
+                                            <div class="preview-gaps-list">
+                                                <div class="preview-gap-item" style="--gap-delay: 0s">
+                                                    <span>No Kubernetes experience listed</span>
+                                                </div>
+                                                <div class="preview-gap-item" style="--gap-delay: 0.1s">
+                                                    <span>May require management ramp-up</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Product Walkthrough - How ShortList Works -->
+            <section class="walkthrough-section">
+                <div class="container">
+                    <div class="section-header reveal">
+                        <h2>From resume to shortlist in minutes</h2>
+                        <p>See how ShortList turns your experience into opportunities</p>
+                    </div>
+
+                    <div class="walkthrough-steps">
+                        <!-- Step 1: Upload Resume -->
+                        <div class="walkthrough-step reveal" style="--reveal-delay: 0.1s">
+                            <div class="walkthrough-step-number">1</div>
+                            <div class="walkthrough-step-content">
+                                <h3>Upload your resume</h3>
+                                <p>Drop your PDF and watch the magic happen</p>
+                            </div>
+                            <div class="walkthrough-animation upload-animation">
+                                <div class="upload-zone">
+                                    <div class="upload-icon">
+                                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                            <polyline points="17 8 12 3 7 8"/>
+                                            <line x1="12" y1="3" x2="12" y2="15"/>
+                                        </svg>
+                                    </div>
+                                    <div class="upload-text">Drop resume here</div>
+                                    <div class="upload-file">
+                                        <div class="file-icon">📄</div>
+                                        <span>resume.pdf</span>
+                                    </div>
+                                </div>
+                                <div class="upload-progress">
+                                    <div class="progress-bar">
+                                        <div class="progress-fill"></div>
+                                    </div>
+                                    <div class="progress-text">Analyzing...</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Step 2: Skills Extraction -->
+                        <div class="walkthrough-step reveal" style="--reveal-delay: 0.2s">
+                            <div class="walkthrough-step-number">2</div>
+                            <div class="walkthrough-step-content">
+                                <h3>We extract your skills</h3>
+                                <p>AI identifies your experience and expertise</p>
+                            </div>
+                            <div class="walkthrough-animation skills-animation">
+                                <div class="skills-extraction">
+                                    <div class="extraction-source">
+                                        <div class="source-line" style="--line-delay: 0s">Led team of 8 engineers...</div>
+                                        <div class="source-line" style="--line-delay: 0.2s">Built microservices in Python...</div>
+                                        <div class="source-line" style="--line-delay: 0.4s">Deployed to AWS using Terraform...</div>
+                                    </div>
+                                    <div class="extraction-arrow">
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <line x1="5" y1="12" x2="19" y2="12"/>
+                                            <polyline points="12 5 19 12 12 19"/>
+                                        </svg>
+                                    </div>
+                                    <div class="extraction-skills">
+                                        <div class="extracted-skill" style="--skill-delay: 0.3s">
+                                            <span class="skill-icon">👥</span>
+                                            <span>Team Leadership</span>
+                                        </div>
+                                        <div class="extracted-skill" style="--skill-delay: 0.5s">
+                                            <span class="skill-icon">🐍</span>
+                                            <span>Python</span>
+                                        </div>
+                                        <div class="extracted-skill" style="--skill-delay: 0.7s">
+                                            <span class="skill-icon">☁️</span>
+                                            <span>AWS</span>
+                                        </div>
+                                        <div class="extracted-skill" style="--skill-delay: 0.9s">
+                                            <span class="skill-icon">🔧</span>
+                                            <span>Terraform</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Step 3: Match to Roles -->
+                        <div class="walkthrough-step reveal" style="--reveal-delay: 0.3s">
+                            <div class="walkthrough-step-number">3</div>
+                            <div class="walkthrough-step-content">
+                                <h3>Get matched to roles</h3>
+                                <p>See your fit score for every opportunity</p>
+                            </div>
+                            <div class="walkthrough-animation match-animation">
+                                <div class="match-visualization">
+                                    <div class="match-role">
+                                        <div class="match-role-title">Senior Engineer @ TechCo</div>
+                                        <div class="match-bar-container">
+                                            <div class="match-bar">
+                                                <div class="match-bar-fill" style="--match-percent: 94%"></div>
+                                            </div>
+                                            <span class="match-percent">94%</span>
+                                        </div>
+                                    </div>
+                                    <div class="match-role">
+                                        <div class="match-role-title">Staff Engineer @ DataFlow</div>
+                                        <div class="match-bar-container">
+                                            <div class="match-bar">
+                                                <div class="match-bar-fill" style="--match-percent: 89%"></div>
+                                            </div>
+                                            <span class="match-percent">89%</span>
+                                        </div>
+                                    </div>
+                                    <div class="match-role">
+                                        <div class="match-role-title">Engineering Lead @ BuildIt</div>
+                                        <div class="match-bar-container">
+                                            <div class="match-bar">
+                                                <div class="match-bar-fill" style="--match-percent: 86%"></div>
+                                            </div>
+                                            <span class="match-percent">86%</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -1293,13 +2237,15 @@ function renderResumeUpload() {
     const app = document.getElementById('app');
     app.innerHTML = `
         <div class="preferences-page">
-            <div class="preferences-container">
+            <div class="preferences-container resume-upload-container">
                 <div class="preferences-header">
                     <h1>Get smarter recommendations</h1>
                     <p>Upload your resume or CV and we'll match your skills to the best opportunities.</p>
                 </div>
                 <div id="upload-error"></div>
-                <div class="resume-upload-section">
+
+                <!-- Initial upload dropzone -->
+                <div class="resume-upload-section" id="upload-dropzone-section">
                     <div class="upload-dropzone" id="resume-dropzone">
                         <div class="dropzone-content">
                             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -1313,23 +2259,98 @@ function renderResumeUpload() {
                         </div>
                         <input type="file" id="resume-file-input" accept=".pdf" style="display: none;">
                     </div>
-                    <div id="upload-status" class="upload-status" style="display: none;">
-                        <div class="upload-progress">
-                            <div class="progress-bar" id="upload-progress-bar"></div>
+                </div>
+
+                <!-- Step-based progress indicator -->
+                <div id="upload-progress-section" class="upload-progress-section" style="display: none;">
+                    <div class="progress-steps">
+                        <div class="progress-step" id="step-upload">
+                            <div class="step-icon">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                    <polyline points="17 8 12 3 7 8"/>
+                                    <line x1="12" y1="3" x2="12" y2="15"/>
+                                </svg>
+                            </div>
+                            <div class="step-content">
+                                <div class="step-label">Uploading</div>
+                                <div class="step-desc">Sending your resume</div>
+                            </div>
+                            <div class="step-status">
+                                <div class="step-spinner"></div>
+                                <svg class="step-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                                    <polyline points="20 6 9 17 4 12"/>
+                                </svg>
+                            </div>
                         </div>
-                        <p id="upload-status-text">Uploading...</p>
+                        <div class="progress-step" id="step-extract">
+                            <div class="step-icon">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                                </svg>
+                            </div>
+                            <div class="step-content">
+                                <div class="step-label">Extracting skills</div>
+                                <div class="step-desc">Analyzing your experience</div>
+                            </div>
+                            <div class="step-status">
+                                <div class="step-spinner"></div>
+                                <svg class="step-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                                    <polyline points="20 6 9 17 4 12"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="progress-step" id="step-match">
+                            <div class="step-icon">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                                    <path d="M2 17l10 5 10-5"/>
+                                    <path d="M2 12l10 5 10-5"/>
+                                </svg>
+                            </div>
+                            <div class="step-content">
+                                <div class="step-label">Building matches</div>
+                                <div class="step-desc">Finding your best opportunities</div>
+                            </div>
+                            <div class="step-status">
+                                <div class="step-spinner"></div>
+                                <svg class="step-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                                    <polyline points="20 6 9 17 4 12"/>
+                                </svg>
+                            </div>
+                        </div>
                     </div>
-                    <div id="upload-success" class="upload-success" style="display: none;">
-                        <div class="success-icon">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                                <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                            </svg>
+
+                    <!-- Progress bar -->
+                    <div class="upload-progress-bar-container">
+                        <div class="upload-progress-bar">
+                            <div class="upload-progress-fill" id="upload-progress-fill"></div>
                         </div>
-                        <h3>Resume uploaded!</h3>
-                        <p>We'll use this to find jobs that match your background.</p>
+                        <div class="upload-progress-percent" id="upload-progress-percent">0%</div>
+                    </div>
+
+                    <!-- Skills preview (shown during extraction) -->
+                    <div id="skills-preview" class="skills-preview" style="display: none;">
+                        <div class="skills-preview-label">Skills detected:</div>
+                        <div class="skills-preview-chips" id="skills-chips"></div>
                     </div>
                 </div>
+
+                <!-- Success state -->
+                <div id="upload-success" class="upload-success-enhanced" style="display: none;">
+                    <div class="success-icon-large">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                        </svg>
+                    </div>
+                    <h3>You're all set!</h3>
+                    <p id="success-message">We found <span id="match-count">0</span> jobs that match your profile</p>
+                    <div class="top-matches-preview" id="top-matches-preview"></div>
+                </div>
+
                 <div class="pref-actions" style="margin-top: 24px;">
                     <button type="button" class="btn btn-primary" id="continue-btn" style="width: 100%;">Continue</button>
                     <button type="button" class="btn btn-link" id="skip-btn" style="width: 100%; margin-top: 12px;">Skip for now</button>
@@ -1338,16 +2359,87 @@ function renderResumeUpload() {
         </div>
     `;
 
+    const dropzoneSection = document.getElementById('upload-dropzone-section');
     const dropzone = document.getElementById('resume-dropzone');
     const fileInput = document.getElementById('resume-file-input');
-    const uploadStatus = document.getElementById('upload-status');
-    const uploadProgressBar = document.getElementById('upload-progress-bar');
-    const uploadStatusText = document.getElementById('upload-status-text');
+    const progressSection = document.getElementById('upload-progress-section');
+    const progressFill = document.getElementById('upload-progress-fill');
+    const progressPercent = document.getElementById('upload-progress-percent');
     const uploadSuccess = document.getElementById('upload-success');
     const continueBtn = document.getElementById('continue-btn');
     const skipBtn = document.getElementById('skip-btn');
 
     let uploadComplete = false;
+    let matchesPreloaded = false;
+
+    // Step elements
+    const stepUpload = document.getElementById('step-upload');
+    const stepExtract = document.getElementById('step-extract');
+    const stepMatch = document.getElementById('step-match');
+
+    function setStepState(stepEl, state) {
+        stepEl.classList.remove('pending', 'active', 'complete');
+        stepEl.classList.add(state);
+    }
+
+    function updateProgress(percent) {
+        progressFill.style.width = `${percent}%`;
+        progressPercent.textContent = `${Math.round(percent)}%`;
+    }
+
+    function animateProgress(from, to, duration) {
+        const startTime = performance.now();
+        function update(currentTime) {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            const easeOut = 1 - Math.pow(1 - progress, 3);
+            const current = from + (to - from) * easeOut;
+            updateProgress(current);
+            if (progress < 1) {
+                requestAnimationFrame(update);
+            }
+        }
+        requestAnimationFrame(update);
+    }
+
+    function showSkillsPreview(skills) {
+        const skillsPreview = document.getElementById('skills-preview');
+        const skillsChips = document.getElementById('skills-chips');
+
+        if (!skills || skills.length === 0) return;
+
+        // Show top 6 skills with staggered animation
+        const topSkills = skills.slice(0, 6);
+        skillsChips.innerHTML = topSkills.map((skill, i) =>
+            `<span class="skill-chip-preview" style="animation-delay: ${i * 100}ms">${escapeHtml(skill)}</span>`
+        ).join('');
+
+        skillsPreview.style.display = 'block';
+    }
+
+    function showTopMatchesPreview() {
+        const previewContainer = document.getElementById('top-matches-preview');
+        const matchCountEl = document.getElementById('match-count');
+
+        if (state.forYouJobs && state.forYouJobs.length > 0) {
+            matchCountEl.textContent = state.forYouJobs.length;
+
+            // Show top 3 matches
+            const topMatches = state.forYouJobs.slice(0, 3);
+            previewContainer.innerHTML = topMatches.map(job => `
+                <div class="match-preview-card">
+                    <div class="match-preview-score">${Math.round(job.match_score)}%</div>
+                    <div class="match-preview-info">
+                        <div class="match-preview-title">${escapeHtml(job.title)}</div>
+                        <div class="match-preview-company">${escapeHtml(job.company_name)}</div>
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            matchCountEl.textContent = 'several';
+            previewContainer.innerHTML = '';
+        }
+    }
 
     // Click to upload
     dropzone.addEventListener('click', () => fileInput.click());
@@ -1385,18 +2477,31 @@ function renderResumeUpload() {
             return;
         }
 
-        // Show upload status
-        dropzone.style.display = 'none';
-        uploadStatus.style.display = 'block';
-        uploadProgressBar.style.width = '30%';
-        uploadStatusText.textContent = 'Uploading resume...';
+        // Switch to progress view
+        dropzoneSection.style.display = 'none';
+        progressSection.style.display = 'block';
+        skipBtn.style.display = 'none';
+        continueBtn.disabled = true;
+        continueBtn.textContent = 'Processing...';
+
+        // Step 1: Uploading
+        setStepState(stepUpload, 'active');
+        setStepState(stepExtract, 'pending');
+        setStepState(stepMatch, 'pending');
+        animateProgress(0, 20, 500);
 
         const formData = new FormData();
         formData.append('file', file);
 
         try {
-            uploadProgressBar.style.width = '60%';
-            uploadStatusText.textContent = 'Analyzing skills...';
+            // Animate to 30% while uploading
+            await new Promise(r => setTimeout(r, 300));
+            animateProgress(20, 35, 800);
+
+            // Step 2: Extracting skills (upload completes, backend processes)
+            setStepState(stepUpload, 'complete');
+            setStepState(stepExtract, 'active');
+            animateProgress(35, 50, 500);
 
             const response = await fetch(`${API_BASE}/profile/upload-resume`, {
                 method: 'POST',
@@ -1412,27 +2517,66 @@ function renderResumeUpload() {
                 throw new Error(data.error || 'Upload failed');
             }
 
-            uploadProgressBar.style.width = '100%';
-            uploadStatusText.textContent = 'Done!';
-
-            // Show success message
-            uploadComplete = true;
-            continueBtn.textContent = 'Continue to jobs';
-
-            // Update user state to reflect they now have a resume
+            // Update user state
             if (state.user) {
                 state.user.has_resume = true;
             }
 
-            // Hide upload status and show success
-            setTimeout(() => {
-                uploadStatus.style.display = 'none';
-                uploadSuccess.style.display = 'block';
-            }, 800);
+            // Show skills if returned
+            animateProgress(50, 65, 400);
+            if (data.skills && data.skills.length > 0) {
+                showSkillsPreview(data.skills);
+            }
+
+            await new Promise(r => setTimeout(r, 600));
+            setStepState(stepExtract, 'complete');
+
+            // Step 3: Building matches
+            setStepState(stepMatch, 'active');
+            animateProgress(65, 80, 500);
+
+            // Mark profile complete and pre-load recommendations
+            await api('/profile/preferences', {
+                method: 'PUT',
+                body: JSON.stringify({ profile_complete: true })
+            });
+            state.user.profile_complete = true;
+
+            // Pre-load For You jobs while user sees progress
+            animateProgress(80, 90, 800);
+
+            try {
+                const forYouData = await api('/for-you?limit=100&min_score=60');
+                state.forYouJobs = forYouData.jobs || [];
+                state.forYouLoaded = true;
+                matchesPreloaded = true;
+            } catch (err) {
+                console.log('Could not pre-load matches:', err.message);
+                state.forYouJobs = [];
+                state.forYouLoaded = true;
+            }
+
+            // Complete
+            animateProgress(90, 100, 400);
+            await new Promise(r => setTimeout(r, 500));
+            setStepState(stepMatch, 'complete');
+
+            // Show success state
+            uploadComplete = true;
+            progressSection.style.display = 'none';
+            uploadSuccess.style.display = 'block';
+            showTopMatchesPreview();
+
+            continueBtn.disabled = false;
+            continueBtn.textContent = 'See your matches';
+            continueBtn.classList.add('btn-gradient');
 
         } catch (err) {
-            uploadStatus.style.display = 'none';
-            dropzone.style.display = 'block';
+            progressSection.style.display = 'none';
+            dropzoneSection.style.display = 'block';
+            skipBtn.style.display = 'block';
+            continueBtn.disabled = false;
+            continueBtn.textContent = 'Continue';
             document.getElementById('upload-error').innerHTML =
                 `<div class="alert alert-error">${err.message}</div>`;
         }
@@ -1440,34 +2584,45 @@ function renderResumeUpload() {
 
     // Continue button
     continueBtn.addEventListener('click', async () => {
-        // Mark profile as complete
-        await api('/profile/preferences', {
-            method: 'PUT',
-            body: JSON.stringify({ profile_complete: true })
-        });
-        state.user.profile_complete = true;
-        // Reset recommendations so they're fetched fresh with new resume
-        state.recommendationsLoaded = false;
-        state.recommendations = [];
-        state.forYouLoaded = false;
-        state.forYouJobs = [];
-        // If resume was uploaded, go to For You page; otherwise go to Explore
-        if (uploadComplete) {
+        if (!uploadComplete) {
+            // If no upload, mark profile complete and go to explore
+            try {
+                await api('/profile/preferences', {
+                    method: 'PUT',
+                    body: JSON.stringify({ profile_complete: true })
+                });
+                state.user.profile_complete = true;
+            } catch (err) {
+                console.error('Failed to mark profile complete:', err);
+            }
+            navigate('explore');
+            return;
+        }
+
+        // If matches were preloaded, navigation should feel instant
+        if (matchesPreloaded && state.forYouJobs.length > 0) {
             navigate('for-you');
         } else {
-            navigate('explore');
+            // Reset and let For You page load fresh
+            state.recommendationsLoaded = false;
+            state.recommendations = [];
+            state.forYouLoaded = false;
+            state.forYouJobs = [];
+            navigate('for-you');
         }
     });
 
     // Skip button
     skipBtn.addEventListener('click', async () => {
-        // Mark profile as complete even without resume
-        await api('/profile/preferences', {
-            method: 'PUT',
-            body: JSON.stringify({ profile_complete: true })
-        });
-        state.user.profile_complete = true;
-        // Without resume, go to Explore page
+        try {
+            await api('/profile/preferences', {
+                method: 'PUT',
+                body: JSON.stringify({ profile_complete: true })
+            });
+            state.user.profile_complete = true;
+        } catch (err) {
+            console.error('Failed to mark profile complete:', err);
+        }
         navigate('explore');
     });
 }
@@ -1480,8 +2635,30 @@ function renderBrowse() {
 function renderForYou() {
     const app = document.getElementById('app');
 
-    // Show loading only if jobs haven't been loaded yet
-    const showLoading = !state.forYouLoaded;
+    // Show skeleton only if jobs haven't been loaded yet
+    const showSkeleton = !state.forYouLoaded;
+
+    // Generate skeleton cards HTML
+    const skeletonCards = showSkeleton ? `
+        <div class="for-you-header" style="grid-column: 1/-1; margin-bottom: 16px;">
+            <div class="skeleton skeleton-text" style="width: 180px; height: 20px;"></div>
+        </div>
+        ${[1, 2, 3, 4, 5, 6].map(i => `
+            <div class="role-card skeleton-card" style="animation-delay: ${i * 50}ms">
+                <div class="role-card-header">
+                    <div class="skeleton skeleton-avatar"></div>
+                    <div class="skeleton skeleton-badge" style="width: 60px; height: 32px;"></div>
+                </div>
+                <div class="role-card-body">
+                    <div class="skeleton skeleton-text" style="width: 80%; height: 20px; margin-bottom: 8px;"></div>
+                    <div class="skeleton skeleton-text" style="width: 50%; height: 16px;"></div>
+                </div>
+                <div class="role-card-footer">
+                    <div class="skeleton skeleton-text" style="width: 100px; height: 24px;"></div>
+                </div>
+            </div>
+        `).join('')}
+    ` : '';
 
     app.innerHTML = `
         <div class="browse-layout">
@@ -1495,7 +2672,7 @@ function renderForYou() {
             <div class="browse-content">
                 <div class="container">
                     <div id="for-you-list" class="roles-grid">
-                        ${showLoading ? '<div class="loading">Finding your best matches...</div>' : ''}
+                        ${skeletonCards}
                     </div>
                 </div>
             </div>
@@ -1503,6 +2680,11 @@ function renderForYou() {
     `;
 
     setupNavListeners();
+
+    // If already loaded, render immediately
+    if (state.forYouLoaded) {
+        renderForYouList();
+    }
 }
 
 function renderForYouList() {
@@ -1875,6 +3057,11 @@ function renderRoleDetail() {
         return;
     }
 
+    // Check if user already applied to this role
+    const existingApp = state.myApplications?.find(a => a.role_id === role.id);
+    const hasApplied = !!existingApp;
+    const interviewPending = existingApp?.interview_status === 'pending';
+
     // Determine back navigation text and destination
     const backPage = state.previousPage || 'explore';
     const backText = backPage === 'for-you' ? '← Back to For You' : '← Back to Explore';
@@ -1922,7 +3109,27 @@ function renderRoleDetail() {
                     </div>
                     ` : ''}
                     <div class="role-detail-actions">
-                        <button class="btn btn-primary" id="join-shortlist-btn">Join the Shortlist</button>
+                        ${hasApplied ? `
+                            <div class="application-status-banner">
+                                <div class="status-icon">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                                    </svg>
+                                </div>
+                                <div class="status-text">
+                                    <strong>Shortlist requested</strong>
+                                    <span>Applied ${formatDate(existingApp.applied_at)}</span>
+                                </div>
+                                ${interviewPending ? `
+                                    <button class="btn btn-primary btn-small" id="complete-interview-btn">
+                                        Complete Interview
+                                    </button>
+                                ` : ''}
+                            </div>
+                        ` : `
+                            <button class="btn btn-primary" id="join-shortlist-btn">Join the Shortlist</button>
+                        `}
                     </div>
                     <p style="margin-top:12px;font-size:13px;color:#737373;">
                         ${role.applicant_count || 0} candidate${role.applicant_count !== 1 ? 's' : ''} on the shortlist
@@ -1937,8 +3144,13 @@ function renderRoleDetail() {
         navigate(backPage);
     });
 
-    document.getElementById('join-shortlist-btn').addEventListener('click', () => {
+    document.getElementById('join-shortlist-btn')?.addEventListener('click', () => {
         applyToShortlist(role.id);
+    });
+
+    document.getElementById('complete-interview-btn')?.addEventListener('click', () => {
+        // Show the interview step directly
+        alert('AI Interview feature coming soon!');
     });
 
     setupNavListeners();
@@ -1975,22 +3187,63 @@ function renderMyShortlist() {
         return;
     }
 
-    container.innerHTML = state.myApplications.map(app => `
-        <div class="application-card">
-            <div class="application-info">
-                <h3>${escapeHtml(app.title)}</h3>
-                <div class="application-company">${escapeHtml(app.company_name)}</div>
-                <div class="application-date">Applied ${formatDate(app.applied_at)}</div>
-            </div>
-            <div style="display:flex;align-items:center;gap:12px;">
-                <div class="role-status">
-                    <span class="status-dot ${app.role_status === 'open' ? 'open' : 'closed'}"></span>
-                    Role ${app.role_status === 'open' ? 'Open' : 'Closed'}
+    container.innerHTML = state.myApplications.map(app => {
+        const interviewPending = app.interview_status === 'pending';
+        return `
+            <div class="application-card" data-role-id="${app.role_id}">
+                <div class="application-info">
+                    <h3>${escapeHtml(app.title)}</h3>
+                    <div class="application-company">${escapeHtml(app.company_name)}</div>
+                    <div class="application-date">Applied ${formatDate(app.applied_at)}</div>
                 </div>
-                <span class="application-status ${app.status}">${app.status}</span>
+                <div class="application-actions">
+                    <div class="role-status">
+                        <span class="status-dot ${app.role_status === 'open' ? 'open' : 'closed'}"></span>
+                        Role ${app.role_status === 'open' ? 'Open' : 'Closed'}
+                    </div>
+                    ${interviewPending ? `
+                        <span class="interview-badge pending">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="12 6 12 12 16 14"></polyline>
+                            </svg>
+                            Interview pending
+                        </span>
+                        <button class="btn btn-primary btn-small complete-interview-btn" data-app-id="${app.id}">
+                            Complete
+                        </button>
+                    ` : `
+                        <span class="application-status ${app.status}">
+                            ${app.status === 'submitted' ? 'On shortlist' : app.status}
+                        </span>
+                    `}
+                </div>
             </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
+
+    // Add click handlers for interview buttons
+    container.querySelectorAll('.complete-interview-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            alert('AI Interview feature coming soon!');
+        });
+    });
+
+    // Add click handlers to view role details
+    container.querySelectorAll('.application-card').forEach(card => {
+        card.addEventListener('click', async () => {
+            const roleId = card.dataset.roleId;
+            try {
+                const data = await api(`/roles/${roleId}`);
+                state.selectedRole = data.role;
+                state.previousPage = 'shortlist';
+                navigate('role-detail');
+            } catch (err) {
+                console.error('Failed to load role:', err);
+            }
+        });
+    });
 }
 
 function renderProfile() {
@@ -2079,12 +3332,76 @@ function renderProfileContent() {
                             </div>
                         </div>
                     `}
-                    <div class="resume-upload-area">
+                    <div class="resume-upload-area" id="profile-resume-upload-area">
                         <input type="file" id="profile-resume-input" accept=".pdf,.doc,.docx" style="display:none;">
                         <button class="btn ${hasResume ? 'btn-secondary' : 'btn-primary'}" id="profile-upload-resume-btn">
                             ${hasResume ? 'Upload New Resume' : 'Upload Resume'}
                         </button>
                     </div>
+
+                    <!-- Progress steps for profile resume upload -->
+                    <div id="profile-upload-progress" class="profile-upload-progress" style="display: none;">
+                        <div class="progress-steps compact">
+                            <div class="progress-step pending" id="profile-step-upload">
+                                <div class="step-icon">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                        <polyline points="17 8 12 3 7 8"/>
+                                        <line x1="12" y1="3" x2="12" y2="15"/>
+                                    </svg>
+                                </div>
+                                <div class="step-content">
+                                    <div class="step-label">Uploading</div>
+                                </div>
+                                <div class="step-status">
+                                    <div class="step-spinner"></div>
+                                    <svg class="step-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                                        <polyline points="20 6 9 17 4 12"/>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="progress-step pending" id="profile-step-extract">
+                                <div class="step-icon">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="12" cy="12" r="10"/>
+                                        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                                        <line x1="12" y1="17" x2="12.01" y2="17"/>
+                                    </svg>
+                                </div>
+                                <div class="step-content">
+                                    <div class="step-label">Extracting skills</div>
+                                </div>
+                                <div class="step-status">
+                                    <div class="step-spinner"></div>
+                                    <svg class="step-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                                        <polyline points="20 6 9 17 4 12"/>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="progress-step pending" id="profile-step-match">
+                                <div class="step-icon">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                                        <path d="M2 17l10 5 10-5"/>
+                                        <path d="M2 12l10 5 10-5"/>
+                                    </svg>
+                                </div>
+                                <div class="step-content">
+                                    <div class="step-label">Updating matches</div>
+                                </div>
+                                <div class="step-status">
+                                    <div class="step-spinner"></div>
+                                    <svg class="step-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                                        <polyline points="20 6 9 17 4 12"/>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="profile-upload-progress-bar">
+                            <div class="profile-upload-progress-fill" id="profile-progress-fill"></div>
+                        </div>
+                    </div>
+
                     <div id="profile-resume-status"></div>
                 </div>
             </div>
@@ -2170,10 +3487,44 @@ function renderProfileContent() {
 }
 
 function setupProfileListeners() {
-    // Resume upload
+    // Resume upload with step-based progress
     const resumeInput = document.getElementById('profile-resume-input');
     const uploadBtn = document.getElementById('profile-upload-resume-btn');
+    const uploadArea = document.getElementById('profile-resume-upload-area');
+    const progressSection = document.getElementById('profile-upload-progress');
+    const progressFill = document.getElementById('profile-progress-fill');
     const statusDiv = document.getElementById('profile-resume-status');
+
+    const stepUpload = document.getElementById('profile-step-upload');
+    const stepExtract = document.getElementById('profile-step-extract');
+    const stepMatch = document.getElementById('profile-step-match');
+
+    function setStepState(stepEl, state) {
+        if (!stepEl) return;
+        stepEl.classList.remove('pending', 'active', 'complete');
+        stepEl.classList.add(state);
+    }
+
+    function updateProgress(percent) {
+        if (progressFill) {
+            progressFill.style.width = `${percent}%`;
+        }
+    }
+
+    function animateProgress(from, to, duration) {
+        const startTime = performance.now();
+        function update(currentTime) {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            const easeOut = 1 - Math.pow(1 - progress, 3);
+            const current = from + (to - from) * easeOut;
+            updateProgress(current);
+            if (progress < 1) {
+                requestAnimationFrame(update);
+            }
+        }
+        requestAnimationFrame(update);
+    }
 
     uploadBtn?.addEventListener('click', () => resumeInput?.click());
 
@@ -2181,12 +3532,29 @@ function setupProfileListeners() {
         const file = e.target.files[0];
         if (!file) return;
 
-        statusDiv.innerHTML = '<div class="upload-progress">Uploading and processing...</div>';
-        uploadBtn.disabled = true;
+        // Show progress UI, hide upload button
+        uploadArea.style.display = 'none';
+        progressSection.style.display = 'block';
+        statusDiv.innerHTML = '';
+
+        // Step 1: Uploading
+        setStepState(stepUpload, 'active');
+        setStepState(stepExtract, 'pending');
+        setStepState(stepMatch, 'pending');
+        animateProgress(0, 25, 400);
 
         try {
             const formData = new FormData();
             formData.append('file', file);
+
+            // Animate while uploading
+            await new Promise(r => setTimeout(r, 200));
+            animateProgress(25, 40, 600);
+
+            // Step 2: Extracting skills
+            setStepState(stepUpload, 'complete');
+            setStepState(stepExtract, 'active');
+            animateProgress(40, 55, 400);
 
             const response = await fetch(`${API_BASE}/profile/upload-resume`, {
                 method: 'POST',
@@ -2197,19 +3565,41 @@ function setupProfileListeners() {
             const data = await response.json();
             if (!response.ok) throw new Error(data.error || 'Upload failed');
 
-            statusDiv.innerHTML = '<div class="upload-success">Resume uploaded successfully! Your job matches will be updated.</div>';
+            // Skills extracted
+            animateProgress(55, 70, 400);
+            await new Promise(r => setTimeout(r, 400));
+            setStepState(stepExtract, 'complete');
 
-            // Refresh user data and For You cache
+            // Step 3: Updating matches
+            setStepState(stepMatch, 'active');
+            animateProgress(70, 85, 500);
+
+            // Refresh user data
             const userData = await api('/auth/me');
             state.user = userData.user;
             state.forYouLoaded = false; // Force refresh of For You jobs
 
+            animateProgress(85, 100, 400);
+            await new Promise(r => setTimeout(r, 400));
+            setStepState(stepMatch, 'complete');
+
+            // Show success and reset UI
+            await new Promise(r => setTimeout(r, 600));
+            progressSection.style.display = 'none';
+            uploadArea.style.display = 'block';
+            statusDiv.innerHTML = '<div class="upload-success">Resume updated! Your job matches will refresh.</div>';
+
             // Re-render profile content to show updated status
             setTimeout(() => loadProfileData(), 1500);
         } catch (err) {
+            progressSection.style.display = 'none';
+            uploadArea.style.display = 'block';
             statusDiv.innerHTML = `<div class="upload-error">Error: ${escapeHtml(err.message)}</div>`;
-        } finally {
-            uploadBtn.disabled = false;
+            // Reset step states
+            setStepState(stepUpload, 'pending');
+            setStepState(stepExtract, 'pending');
+            setStepState(stepMatch, 'pending');
+            updateProgress(0);
         }
     });
 
@@ -3063,7 +4453,171 @@ function formatDate(dateStr) {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+// ============================================================================
+// PREMIUM UI ENHANCEMENTS
+// ============================================================================
+
+// Scroll reveal animation observer
+function initScrollReveal() {
+    const revealElements = document.querySelectorAll('.reveal, .reveal-stagger, .reveal-hero');
+    if (revealElements.length === 0) return;
+
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('visible');
+                observer.unobserve(entry.target);
+            }
+        });
+    }, {
+        threshold: 0.1,
+        rootMargin: '0px 0px -50px 0px'
+    });
+
+    revealElements.forEach(el => observer.observe(el));
+}
+
+// Filter pill interaction animations
+function initFilterPillAnimations() {
+    const filterPills = document.querySelectorAll('.preview-filter-pill');
+    if (filterPills.length === 0) return;
+
+    let activeIndex = 0;
+    const pillCount = filterPills.length;
+
+    // Cycle through filters periodically
+    setInterval(() => {
+        filterPills.forEach(pill => {
+            pill.classList.remove('active');
+        });
+        activeIndex = (activeIndex + 1) % pillCount;
+        filterPills[activeIndex].classList.add('active');
+    }, 3000);
+}
+
+// Parallax effects disabled - keeping interactions snappy
+function initParallaxEffects() {
+    // Parallax removed for utility-first design
+    // Keeping function stub to avoid breaking initPremiumUI
+}
+
+// Walkthrough section animation triggers
+function initWalkthroughAnimations() {
+    const walkthroughSteps = document.querySelectorAll('.walkthrough-step');
+    if (walkthroughSteps.length === 0) return;
+
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('animate');
+                // Trigger match bar animations
+                const matchBars = entry.target.querySelectorAll('.match-bar-fill');
+                matchBars.forEach(bar => {
+                    bar.style.animationPlayState = 'running';
+                });
+                observer.unobserve(entry.target);
+            }
+        });
+    }, {
+        threshold: 0.3,
+        rootMargin: '0px 0px -100px 0px'
+    });
+
+    walkthroughSteps.forEach(step => observer.observe(step));
+}
+
+// Counter animation for stats
+function initCounterAnimations() {
+    const counters = document.querySelectorAll('[data-counter]');
+    if (counters.length === 0) return;
+
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const counter = entry.target;
+                const target = parseInt(counter.dataset.counter, 10);
+                const duration = 2000;
+                const start = 0;
+                const startTime = performance.now();
+
+                function updateCounter(currentTime) {
+                    const elapsed = currentTime - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+
+                    // Ease out cubic
+                    const easeOut = 1 - Math.pow(1 - progress, 3);
+                    const current = Math.round(start + (target - start) * easeOut);
+
+                    counter.textContent = current.toLocaleString();
+
+                    if (progress < 1) {
+                        requestAnimationFrame(updateCounter);
+                    }
+                }
+
+                requestAnimationFrame(updateCounter);
+                observer.unobserve(counter);
+            }
+        });
+    }, { threshold: 0.5 });
+
+    counters.forEach(counter => observer.observe(counter));
+}
+
+// Header scroll state
+function initHeaderScroll() {
+    const header = document.querySelector('header, .landing-header');
+    if (!header) return;
+
+    let ticking = false;
+
+    function updateHeader() {
+        if (window.scrollY > 20) {
+            header.classList.add('scrolled');
+        } else {
+            header.classList.remove('scrolled');
+        }
+        ticking = false;
+    }
+
+    window.addEventListener('scroll', () => {
+        if (!ticking) {
+            window.requestAnimationFrame(updateHeader);
+            ticking = true;
+        }
+    }, { passive: true });
+
+    updateHeader();
+}
+
+// Magnetic effect disabled - keeping interactions snappy
+function initMagneticButtons() {
+    // Magnetic hover removed for utility-first design
+    // State changes should snap into place
+}
+
+// Initialize all premium UI enhancements
+function initPremiumUI() {
+    requestAnimationFrame(() => {
+        initScrollReveal();
+        initHeaderScroll();
+        initMagneticButtons();
+        initFilterPillAnimations();
+        initParallaxEffects();
+        initWalkthroughAnimations();
+        initCounterAnimations();
+    });
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     checkAuth();
+    initPremiumUI();
 });
+
+// Re-initialize after navigations
+const _originalNavigate = navigate;
+navigate = function(page) {
+    _originalNavigate(page);
+    initPremiumUI();
+};

@@ -2027,16 +2027,10 @@ def get_role(role_id):
 # SHORTLIST ENDPOINTS
 # ============================================================================
 
-@app.route('/api/shortlist/apply', methods=['POST'])
+@app.route('/api/shortlist/prepare/<int:role_id>', methods=['GET'])
 @require_auth
-def apply_to_shortlist():
-    """Join the shortlist for a role. Requires complete profile. Returns fit questions."""
-    data = request.json
-    role_id = data.get('role_id')
-
-    if not role_id:
-        return jsonify({'error': 'Role ID required'}), 400
-
+def prepare_application(role_id):
+    """Prepare application data without creating an application. Returns fit questions and checks eligibility."""
     conn = get_db()
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         # Check profile is complete and get user's saved resume
@@ -2071,11 +2065,60 @@ def apply_to_shortlist():
         # Get user's saved resume path (if any)
         user_resume = profile.get('resume_path')
 
-        # Create application with status 'questions_pending' - will be updated after fit questions submitted
+        return jsonify({
+            'success': True,
+            'has_resume': bool(user_resume),
+            'questions': questions,
+            'role_type': role.get('role_type', 'other')
+        })
+
+
+@app.route('/api/shortlist/apply', methods=['POST'])
+@require_auth
+def apply_to_shortlist():
+    """Join the shortlist for a role. Requires complete profile. Creates the application."""
+    data = request.json
+    role_id = data.get('role_id')
+
+    if not role_id:
+        return jsonify({'error': 'Role ID required'}), 400
+
+    conn = get_db()
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        # Check profile is complete and get user's saved resume
+        cur.execute("""
+            SELECT sp.profile_complete, sp.experience_level, sp.work_preference, pu.resume_path
+            FROM seeker_profiles sp
+            JOIN platform_users pu ON pu.id = sp.user_id
+            WHERE sp.user_id = %s
+        """, (g.user_id,))
+        profile = cur.fetchone()
+
+        if not profile or not profile['profile_complete']:
+            return jsonify({'error': 'Please complete your profile first', 'code': 'INCOMPLETE_PROFILE'}), 400
+
+        # Check if already applied
+        cur.execute("""
+            SELECT id FROM shortlist_applications
+            WHERE user_id = %s AND position_id = %s
+        """, (g.user_id, role_id))
+        if cur.fetchone():
+            return jsonify({'error': 'Already on this shortlist'}), 409
+
+        # Check role exists and get role_type for questions
+        cur.execute("SELECT id, status, role_type FROM watchable_positions WHERE id = %s", (role_id,))
+        role = cur.fetchone()
+        if not role:
+            return jsonify({'error': 'Role not found'}), 404
+
+        # Get user's saved resume path (if any)
+        user_resume = profile.get('resume_path')
+
+        # Create application with status 'submitted'
         cur.execute("""
             INSERT INTO shortlist_applications
             (user_id, position_id, experience_level, work_preference, resume_path, status, applied_at)
-            VALUES (%s, %s, %s, %s, %s, 'questions_pending', NOW())
+            VALUES (%s, %s, %s, %s, %s, 'submitted', NOW())
             RETURNING id
         """, (g.user_id, role_id, profile['experience_level'], profile['work_preference'], user_resume))
 
@@ -2086,7 +2129,7 @@ def apply_to_shortlist():
             'success': True,
             'application_id': app_id,
             'has_resume': bool(user_resume),
-            'questions': questions
+            'role_type': role.get('role_type', 'other')
         })
 
 
@@ -2201,6 +2244,46 @@ def submit_fit_responses(application_id):
         })
 
 
+@app.route('/api/shortlist/submit-eligibility/<int:application_id>', methods=['POST'])
+@require_auth
+def submit_eligibility(application_id):
+    """Submit eligibility data for an application (Step 1 of new flow)."""
+    data = request.json
+
+    conn = get_db()
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        # Verify application belongs to user
+        cur.execute("""
+            SELECT id FROM shortlist_applications
+            WHERE id = %s AND user_id = %s
+        """, (application_id, g.user_id))
+        if not cur.fetchone():
+            return jsonify({'error': 'Application not found'}), 404
+
+        # Store eligibility data as JSON in the application
+        eligibility_data = {
+            'authorized_us': data.get('authorized_us'),
+            'needs_sponsorship': data.get('needs_sponsorship'),
+            'hybrid_onsite': data.get('hybrid_onsite'),
+            'commute_tolerance': data.get('commute_tolerance'),
+            'start_date': data.get('start_date'),
+            'seniority_band': data.get('seniority_band'),
+            'must_have_skills': data.get('must_have_skills', []),
+            'portfolio_link': data.get('portfolio_link')
+        }
+
+        import json
+        cur.execute("""
+            UPDATE shortlist_applications
+            SET eligibility_data = %s
+            WHERE id = %s
+        """, (json.dumps(eligibility_data), application_id))
+
+        conn.commit()
+
+        return jsonify({'success': True})
+
+
 @app.route('/api/shortlist/my-applications', methods=['GET'])
 @require_auth
 def get_my_applications():
@@ -2210,6 +2293,7 @@ def get_my_applications():
         cur.execute("""
             SELECT
                 sa.id, sa.status, sa.applied_at, sa.resume_path,
+                COALESCE(sa.interview_status, 'pending') as interview_status,
                 wp.id as role_id, wp.title, wp.company_name, wp.location,
                 wp.status as role_status
             FROM shortlist_applications sa
