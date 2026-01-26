@@ -37,7 +37,33 @@ except ImportError:
     NUMPY_AVAILABLE = False
 
 app = Flask(__name__)
-CORS(app)
+
+# Explicit CORS handling - more reliable than flask_cors alone
+@app.after_request
+def add_cors_headers(response):
+    origin = request.headers.get('Origin', '')
+    allowed_origins = ['http://localhost:8000', 'http://127.0.0.1:8000']
+
+    if origin in allowed_origins:
+        response.headers['Access-Control-Allow-Origin'] = origin
+    else:
+        # Default to localhost:8000 for development
+        response.headers['Access-Control-Allow-Origin'] = 'http://localhost:8000'
+
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    response.headers['Access-Control-Allow-Credentials'] = 'true'
+    response.headers['Access-Control-Expose-Headers'] = 'Content-Type, Authorization'
+    return response
+
+# Handle OPTIONS preflight requests explicitly
+@app.route('/api/<path:path>', methods=['OPTIONS'])
+def handle_options(path):
+    response = app.make_default_options_response()
+    return response
+
+# Also initialize flask_cors as backup
+CORS(app, supports_credentials=True)
 
 # Config
 SECRET_KEY = os.environ.get('SECRET_KEY', secrets.token_hex(32))
@@ -2114,11 +2140,11 @@ def apply_to_shortlist():
         # Get user's saved resume path (if any)
         user_resume = profile.get('resume_path')
 
-        # Create application with status 'submitted'
+        # Create application with status 'questions_pending' - will change to 'submitted' after fit questions
         cur.execute("""
             INSERT INTO shortlist_applications
             (user_id, position_id, experience_level, work_preference, resume_path, status, applied_at)
-            VALUES (%s, %s, %s, %s, %s, 'submitted', NOW())
+            VALUES (%s, %s, %s, %s, %s, 'questions_pending', NOW())
             RETURNING id
         """, (g.user_id, role_id, profile['experience_level'], profile['work_preference'], user_resume))
 
@@ -2652,4 +2678,4 @@ def health():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5002)
+    app.run(debug=True, port=5002, host='0.0.0.0')

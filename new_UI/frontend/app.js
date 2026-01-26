@@ -4,6 +4,7 @@
  */
 
 const API_BASE = 'http://localhost:5002/api';
+const INTERVIEW_WS_BASE = 'ws://localhost:8001';
 
 // State
 const state = {
@@ -42,12 +43,17 @@ async function api(endpoint, options = {}) {
         ...(state.token ? { 'Authorization': `Bearer ${state.token}` } : {})
     };
 
+    const url = `${API_BASE}${endpoint}`;
+    console.log('API Request:', url, options.method || 'GET');
+
     try {
-        const response = await fetch(`${API_BASE}${endpoint}`, {
+        const response = await fetch(url, {
             ...options,
-            headers: { ...headers, ...options.headers }
+            headers: { ...headers, ...options.headers },
+            mode: 'cors'
         });
 
+        console.log('API Response status:', response.status);
         const data = await response.json();
 
         if (!response.ok) {
@@ -56,7 +62,7 @@ async function api(endpoint, options = {}) {
 
         return data;
     } catch (err) {
-        console.error('API Error:', err);
+        console.error('API Error for', url, ':', err);
         throw err;
     }
 }
@@ -271,8 +277,14 @@ function renderRecommendations() {
 }
 
 async function loadRole(roleId, matchScoreOverride = null) {
-    const data = await api(`/roles/${roleId}`);
-    state.selectedRole = data.role;
+    // Load role data and user's applications in parallel
+    const [roleData, appsData] = await Promise.all([
+        api(`/roles/${roleId}`),
+        state.token ? api('/shortlist/my-applications').catch(() => ({ applications: [] })) : Promise.resolve({ applications: [] })
+    ]);
+
+    state.selectedRole = roleData.role;
+    state.myApplications = appsData.applications || [];
     // Override match score if provided (from For You page), or null to hide (from Explore)
     state.selectedRole.match_score = matchScoreOverride;
     renderRoleDetail();
@@ -297,7 +309,7 @@ async function applyToShortlist(roleId) {
     }
 }
 
-// 3-Step Application Flow Modal
+// 4-Step Application Flow Modal
 function showApplicationFlow(roleId, fitQuestions, hasResume, roleType) {
     const modal = document.createElement('div');
     modal.className = 'modal-overlay application-flow-overlay';
@@ -305,8 +317,10 @@ function showApplicationFlow(roleId, fitQuestions, hasResume, roleType) {
     // Application ID will be set when we actually submit
     let applicationId = null;
 
-    // State management
-    let currentStep = 1;
+    // State management - start at step 2 if user already has resume
+    let currentStep = hasResume ? 2 : 1;
+    let resumeFile = null;
+    let resumeUploaded = hasResume;
     const eligibilityData = {
         authorized_us: null,
         needs_sponsorship: null,
@@ -320,6 +334,12 @@ function showApplicationFlow(roleId, fitQuestions, hasResume, roleType) {
         portfolio_link: ''
     };
     const fitResponses = {};
+
+    // Interview permissions state
+    let permissionsState = {
+        camera: null,  // null = unchecked, true = granted, false = denied
+        microphone: null
+    };
 
     // Only show portfolio link for tech roles
     const isTechRole = ['software_engineer', 'data_scientist', 'data_analyst', 'engineering_manager', 'designer'].includes(roleType);
@@ -352,18 +372,25 @@ function showApplicationFlow(roleId, fitQuestions, hasResume, roleType) {
                             <div class="flow-step-indicator">
                                 ${currentStep > 1 ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : '1'}
                             </div>
-                            <span class="flow-step-label">Eligibility</span>
+                            <span class="flow-step-label">Resume</span>
                         </div>
                         <div class="flow-step-connector ${currentStep > 1 ? 'complete' : ''}"></div>
                         <div class="flow-step ${currentStep >= 2 ? 'active' : ''} ${currentStep > 2 ? 'complete' : ''}" data-step="2">
                             <div class="flow-step-indicator">
                                 ${currentStep > 2 ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : '2'}
                             </div>
-                            <span class="flow-step-label">Fit</span>
+                            <span class="flow-step-label">Eligibility</span>
                         </div>
                         <div class="flow-step-connector ${currentStep > 2 ? 'complete' : ''}"></div>
-                        <div class="flow-step ${currentStep >= 3 ? 'active' : ''}" data-step="3">
-                            <div class="flow-step-indicator">3</div>
+                        <div class="flow-step ${currentStep >= 3 ? 'active' : ''} ${currentStep > 3 ? 'complete' : ''}" data-step="3">
+                            <div class="flow-step-indicator">
+                                ${currentStep > 3 ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : '3'}
+                            </div>
+                            <span class="flow-step-label">Fit</span>
+                        </div>
+                        <div class="flow-step-connector ${currentStep > 3 ? 'complete' : ''}"></div>
+                        <div class="flow-step ${currentStep >= 4 ? 'active' : ''}" data-step="4">
+                            <div class="flow-step-indicator">4</div>
                             <span class="flow-step-label">Interview</span>
                         </div>
                     </div>
@@ -377,9 +404,10 @@ function showApplicationFlow(roleId, fitQuestions, hasResume, roleType) {
 
                 <!-- Step Content -->
                 <div class="flow-content">
-                    ${currentStep === 1 ? renderStep1() : ''}
-                    ${currentStep === 2 ? renderStep2() : ''}
-                    ${currentStep === 3 ? renderStep3() : ''}
+                    ${currentStep === 1 ? renderResumeStep() : ''}
+                    ${currentStep === 2 ? renderEligibilityStep() : ''}
+                    ${currentStep === 3 ? renderFitStep() : ''}
+                    ${currentStep === 4 ? renderInterviewStep() : ''}
                 </div>
 
                 <!-- Footer -->
@@ -393,9 +421,66 @@ function showApplicationFlow(roleId, fitQuestions, hasResume, roleType) {
         attachListeners();
     }
 
-    function renderStep1() {
+    function renderResumeStep() {
         return `
-            <div class="flow-step-content step-1">
+            <div class="flow-step-content step-resume">
+                <div class="flow-section-header">
+                    <h2>Upload your resume</h2>
+                    <p>Your resume helps us match you with the right opportunities</p>
+                </div>
+
+                <div class="resume-upload-card">
+                    ${resumeUploaded ? `
+                        <div class="resume-uploaded-state">
+                            <div class="resume-success-icon">
+                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                                </svg>
+                            </div>
+                            <h3>Resume on file</h3>
+                            <p class="resume-filename">Your resume is already uploaded</p>
+                            <button class="btn btn-secondary btn-sm" id="replace-resume">Upload a different resume</button>
+                        </div>
+                    ` : `
+                        <div class="resume-dropzone" id="resume-dropzone">
+                            <input type="file" id="resume-file-input" accept=".pdf,.doc,.docx" style="display: none;">
+                            <div class="dropzone-content">
+                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                    <line x1="12" y1="18" x2="12" y2="12"></line>
+                                    <line x1="9" y1="15" x2="15" y2="15"></line>
+                                </svg>
+                                <p class="dropzone-text">Drag and drop your resume here</p>
+                                <p class="dropzone-subtext">or <span class="dropzone-browse">browse files</span></p>
+                                <p class="dropzone-formats">PDF, DOC, DOCX up to 5MB</p>
+                            </div>
+                        </div>
+                        ${resumeFile ? `
+                            <div class="resume-selected">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                </svg>
+                                <span class="resume-name">${resumeFile.name}</span>
+                                <button class="resume-remove" id="remove-resume">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                                    </svg>
+                                </button>
+                            </div>
+                        ` : ''}
+                    `}
+                </div>
+            </div>
+        `;
+    }
+
+    function renderEligibilityStep() {
+        return `
+            <div class="flow-step-content step-eligibility">
                 <div class="flow-section-header">
                     <h2>Quick eligibility check</h2>
                     <p>Just a few questions to make sure this role is a good fit</p>
@@ -508,13 +593,13 @@ function showApplicationFlow(roleId, fitQuestions, hasResume, roleType) {
         `;
     }
 
-    function renderStep2() {
+    function renderFitStep() {
         // Separate MC and free response questions
         const mcQuestions = fitQuestions.filter(q => q.question_type === 'multiple_choice');
         const frQuestions = fitQuestions.filter(q => q.question_type === 'free_response');
 
         return `
-            <div class="flow-step-content step-2">
+            <div class="flow-step-content step-fit">
                 <div class="flow-section-header">
                     <h2>Culture & fit</h2>
                     <p>Help us match you with teams that share your working style</p>
@@ -578,9 +663,22 @@ function showApplicationFlow(roleId, fitQuestions, hasResume, roleType) {
         `;
     }
 
-    function renderStep3() {
+    function renderInterviewStep() {
+        const cameraStatus = permissionsState.camera === null ? 'pending' :
+                             permissionsState.camera === true ? 'ready' : 'denied';
+        const micStatus = permissionsState.microphone === null ? 'pending' :
+                          permissionsState.microphone === true ? 'ready' : 'denied';
+
+        const getStatusText = (status) => {
+            if (status === 'ready') return 'Ready';
+            if (status === 'denied') return 'Denied';
+            return 'Needs permission';
+        };
+
+        const allReady = permissionsState.camera === true && permissionsState.microphone === true;
+
         return `
-            <div class="flow-step-content step-3">
+            <div class="flow-step-content step-interview">
                 <div class="flow-section-header">
                     <h2>AI Interview</h2>
                     <p>A short conversation to assess communication and role fit</p>
@@ -594,13 +692,13 @@ function showApplicationFlow(roleId, fitQuestions, hasResume, roleType) {
                                 <circle cx="12" cy="12" r="10"></circle>
                                 <polyline points="12 6 12 12 16 14"></polyline>
                             </svg>
-                            <span>~8 minutes</span>
+                            <span>10-15 min</span>
                         </div>
                         <div class="expectation-item">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                             </svg>
-                            <span>4 prompts</span>
+                            <span>6-10 questions</span>
                         </div>
                         <div class="expectation-item">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -608,13 +706,13 @@ function showApplicationFlow(roleId, fitQuestions, hasResume, roleType) {
                                 <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
                                 <line x1="12" y1="19" x2="12" y2="22"></line>
                             </svg>
-                            <span>Audio responses</span>
+                            <span>Voice responses</span>
                         </div>
                     </div>
 
                     <!-- Readiness Checklist -->
                     <div class="readiness-checklist">
-                        <div class="readiness-item">
+                        <div class="readiness-item ${cameraStatus}">
                             <div class="readiness-icon">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <polygon points="23 7 16 12 23 17 23 7"></polygon>
@@ -622,12 +720,12 @@ function showApplicationFlow(roleId, fitQuestions, hasResume, roleType) {
                                 </svg>
                             </div>
                             <span class="readiness-label">Camera</span>
-                            <span class="readiness-status pending">
+                            <span class="readiness-status ${cameraStatus}" data-permission="camera">
                                 <span class="status-dot"></span>
-                                Needs permission
+                                ${getStatusText(cameraStatus)}
                             </span>
                         </div>
-                        <div class="readiness-item">
+                        <div class="readiness-item ${micStatus}">
                             <div class="readiness-icon">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path>
@@ -636,12 +734,12 @@ function showApplicationFlow(roleId, fitQuestions, hasResume, roleType) {
                                 </svg>
                             </div>
                             <span class="readiness-label">Microphone</span>
-                            <span class="readiness-status pending">
+                            <span class="readiness-status ${micStatus}" data-permission="microphone">
                                 <span class="status-dot"></span>
-                                Needs permission
+                                ${getStatusText(micStatus)}
                             </span>
                         </div>
-                        <div class="readiness-item">
+                        <div class="readiness-item ready">
                             <div class="readiness-icon">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
@@ -656,13 +754,23 @@ function showApplicationFlow(roleId, fitQuestions, hasResume, roleType) {
                         </div>
                     </div>
 
+                    ${!allReady ? `
+                        <button class="btn btn-secondary btn-full" id="check-permissions">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="23 7 16 12 23 17 23 7"></polygon>
+                                <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+                            </svg>
+                            Enable Camera & Microphone
+                        </button>
+                    ` : ''}
+
                     <!-- Interview Timeline Preview -->
                     <div class="interview-timeline">
                         <div class="timeline-label">Interview outline</div>
                         <div class="timeline-chips">
-                            <span class="timeline-chip">Intro</span>
-                            <span class="timeline-chip">Project deep dive</span>
-                            <span class="timeline-chip">Scenario question</span>
+                            <span class="timeline-chip">Rapport</span>
+                            <span class="timeline-chip">Experience questions</span>
+                            <span class="timeline-chip">${isTechRole ? 'Technical deep-dive' : 'Role scenarios'}</span>
                             <span class="timeline-chip">Wrap-up</span>
                         </div>
                     </div>
@@ -673,7 +781,7 @@ function showApplicationFlow(roleId, fitQuestions, hasResume, roleType) {
                             <line x1="12" y1="16" x2="12" y2="12"></line>
                             <line x1="12" y1="8" x2="12.01" y2="8"></line>
                         </svg>
-                        You can pause and return anytime. Your progress is saved.
+                        Your video is displayed for verification but not recorded or saved.
                     </p>
                 </div>
 
@@ -689,19 +797,33 @@ function showApplicationFlow(roleId, fitQuestions, hasResume, roleType) {
 
     function renderFooterButton() {
         if (currentStep === 1) {
-            const isStep1Valid = validateStep1();
-            return `<button class="btn btn-primary" id="flow-next" ${!isStep1Valid ? 'disabled' : ''}>
+            // Resume step
+            const isResumeValid = validateResumeStep();
+            return `<button class="btn btn-primary" id="flow-next" ${!isResumeValid ? 'disabled' : ''}>Next</button>`;
+        } else if (currentStep === 2) {
+            // Eligibility step
+            const isEligibilityValid = validateEligibilityStep();
+            return `<button class="btn btn-primary" id="flow-next" ${!isEligibilityValid ? 'disabled' : ''}>
                 ${fitQuestions.length > 0 ? 'Next' : 'Continue'}
             </button>`;
-        } else if (currentStep === 2) {
-            const isStep2Valid = validateStep2();
-            return `<button class="btn btn-primary" id="flow-next" ${!isStep2Valid ? 'disabled' : ''}>Continue</button>`;
+        } else if (currentStep === 3) {
+            // Fit step
+            const isFitValid = validateFitStep();
+            return `<button class="btn btn-primary" id="flow-next" ${!isFitValid ? 'disabled' : ''}>Continue</button>`;
         } else {
-            return `<button class="btn btn-primary" id="start-interview">Start Interview</button>`;
+            // Interview step
+            const allReady = permissionsState.camera === true && permissionsState.microphone === true;
+            return `<button class="btn btn-primary" id="start-interview" ${!allReady ? 'disabled' : ''}>
+                ${allReady ? 'Start Interview' : 'Enable permissions to start'}
+            </button>`;
         }
     }
 
-    function validateStep1() {
+    function validateResumeStep() {
+        return resumeUploaded || resumeFile !== null;
+    }
+
+    function validateEligibilityStep() {
         return eligibilityData.authorized_us !== null &&
                eligibilityData.needs_sponsorship !== null &&
                eligibilityData.hybrid_onsite !== null &&
@@ -709,7 +831,7 @@ function showApplicationFlow(roleId, fitQuestions, hasResume, roleType) {
                eligibilityData.seniority_band !== '';
     }
 
-    function validateStep2() {
+    function validateFitStep() {
         if (fitQuestions.length === 0) return true;
         return Object.keys(fitResponses).length === fitQuestions.length;
     }
@@ -718,9 +840,11 @@ function showApplicationFlow(roleId, fitQuestions, hasResume, roleType) {
         const nextBtn = modal.querySelector('#flow-next');
         if (nextBtn) {
             if (currentStep === 1) {
-                nextBtn.disabled = !validateStep1();
+                nextBtn.disabled = !validateResumeStep();
             } else if (currentStep === 2) {
-                nextBtn.disabled = !validateStep2();
+                nextBtn.disabled = !validateEligibilityStep();
+            } else if (currentStep === 3) {
+                nextBtn.disabled = !validateFitStep();
             }
         }
     }
@@ -754,37 +878,172 @@ function showApplicationFlow(roleId, fitQuestions, hasResume, roleType) {
         });
 
         // Next button
-        modal.querySelector('#flow-next')?.addEventListener('click', async () => {
-            if (currentStep === 1) {
-                currentStep = 2;
-                render();
-            } else if (currentStep === 2) {
-                // Submit eligibility and fit responses before moving to step 3
-                await submitApplicationData();
-                currentStep = 3;
-                render();
+        const nextBtn = modal.querySelector('#flow-next');
+        console.log('Setting up next button listener, found:', !!nextBtn, 'currentStep:', currentStep);
+        if (nextBtn) {
+            nextBtn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                console.log('Next button clicked! currentStep:', currentStep);
+                if (currentStep === 1) {
+                    // Resume step - upload if needed then go to step 2
+                    if (resumeFile && !resumeUploaded) {
+                        nextBtn.disabled = true;
+                        nextBtn.textContent = 'Uploading...';
+                        try {
+                            await uploadProfileResume(resumeFile);
+                            resumeUploaded = true;
+                            currentStep = 2;
+                            render();
+                        } catch (err) {
+                            console.error('Failed to upload resume:', err);
+                            alert('Failed to upload resume: ' + err.message);
+                            nextBtn.disabled = false;
+                            nextBtn.textContent = 'Next';
+                        }
+                    } else {
+                        currentStep = 2;
+                        render();
+                    }
+                } else if (currentStep === 2) {
+                    // Eligibility step - go to step 3
+                    currentStep = 3;
+                    render();
+                } else if (currentStep === 3) {
+                    // Fit step - submit and go to step 4
+                    console.log('Step 3 (Fit) - submitting...');
+                    nextBtn.disabled = true;
+                    nextBtn.textContent = 'Submitting...';
+                    try {
+                        await submitApplicationData();
+                        console.log('Submit successful, moving to step 4');
+                        currentStep = 4;
+                        render();
+                    } catch (err) {
+                        console.error('Failed to submit application:', err);
+                        alert('Failed to submit: ' + err.message);
+                        nextBtn.disabled = false;
+                        nextBtn.textContent = 'Continue';
+                    }
+                }
+            });
+        }
+
+        // Resume step listeners
+        if (currentStep === 1) {
+            const dropzone = modal.querySelector('#resume-dropzone');
+            const fileInput = modal.querySelector('#resume-file-input');
+
+            if (dropzone && fileInput) {
+                // Click to browse
+                dropzone.addEventListener('click', () => fileInput.click());
+
+                // File selected
+                fileInput.addEventListener('change', (e) => {
+                    if (e.target.files.length > 0) {
+                        resumeFile = e.target.files[0];
+                        render();
+                    }
+                });
+
+                // Drag and drop
+                dropzone.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    dropzone.classList.add('dragover');
+                });
+                dropzone.addEventListener('dragleave', () => {
+                    dropzone.classList.remove('dragover');
+                });
+                dropzone.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    dropzone.classList.remove('dragover');
+                    if (e.dataTransfer.files.length > 0) {
+                        resumeFile = e.dataTransfer.files[0];
+                        render();
+                    }
+                });
             }
+
+            // Remove resume button
+            modal.querySelector('#remove-resume')?.addEventListener('click', (e) => {
+                e.stopPropagation();
+                resumeFile = null;
+                render();
+            });
+
+            // Replace resume button (when already uploaded)
+            modal.querySelector('#replace-resume')?.addEventListener('click', () => {
+                resumeUploaded = false;
+                resumeFile = null;
+                render();
+            });
+        }
+
+        // Check permissions button (Step 3)
+        modal.querySelector('#check-permissions')?.addEventListener('click', async () => {
+            const btn = modal.querySelector('#check-permissions');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `
+                    <svg class="spinner" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="32"></circle>
+                    </svg>
+                    Requesting permissions...
+                `;
+            }
+
+            const permissions = await checkMediaPermissions();
+            permissionsState.camera = permissions.camera;
+            permissionsState.microphone = permissions.microphone;
+
+            // Re-render Step 3 to update status
+            render();
         });
 
         // Start Interview button
-        modal.querySelector('#start-interview')?.addEventListener('click', () => {
-            // For now, show a placeholder message
-            alert('AI Interview feature coming soon! You have been added to the shortlist.');
+        modal.querySelector('#start-interview')?.addEventListener('click', async () => {
+            const allReady = permissionsState.camera === true && permissionsState.microphone === true;
+            if (!allReady) {
+                alert('Please enable camera and microphone permissions first.');
+                return;
+            }
+
+            // Start the AI interview
             modal.remove();
-            // Update the job card status
-            refreshCurrentRole();
+
+            await startAIInterview(
+                applicationId,
+                // On complete
+                (metadata) => {
+                    showSuccessModal(
+                        'Interview Complete!',
+                        `Great job! Your ${metadata?.questions_asked || ''} question interview has been submitted. The hiring team will review your responses.`
+                    );
+                    refreshCurrentRole();
+                },
+                // On close/cancel
+                () => {
+                    showSuccessModal(
+                        'Interview Saved',
+                        'Your progress has been saved. You can complete the interview later from your shortlist.'
+                    );
+                    refreshCurrentRole();
+                }
+            );
         });
 
         // Defer interview
         modal.querySelector('#defer-interview')?.addEventListener('click', async () => {
-            await submitApplicationData();
+            // Make sure application data is submitted if not already
+            if (!applicationId) {
+                await submitApplicationData();
+            }
             modal.remove();
             showSuccessModal('Added to Shortlist!', 'You can complete the AI interview later from your dashboard to improve your ranking.');
             refreshCurrentRole();
         });
 
-        // Step 1 listeners - update UI locally without re-render
-        if (currentStep === 1) {
+        // Step 2 (Eligibility) listeners - update UI locally without re-render
+        if (currentStep === 2) {
             // Pill toggles
             modal.querySelectorAll('.pill-toggle').forEach(toggle => {
                 toggle.querySelectorAll('.pill-option').forEach(btn => {
@@ -876,8 +1135,8 @@ function showApplicationFlow(roleId, fitQuestions, hasResume, roleType) {
             });
         }
 
-        // Step 2 listeners - update UI locally without re-render
-        if (currentStep === 2) {
+        // Step 3 (Fit) listeners - update UI locally without re-render
+        if (currentStep === 3) {
             // MC options
             modal.querySelectorAll('.fit-option-card input').forEach(radio => {
                 radio.addEventListener('change', (e) => {
@@ -975,6 +1234,1163 @@ async function uploadResume(applicationId, file) {
 
     return data;
 }
+
+async function uploadProfileResume(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${API_BASE}/profile/upload-resume`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${state.token}`
+        },
+        body: formData
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+        throw new Error(data.error || 'Upload failed');
+    }
+
+    // Update user state to reflect resume is uploaded
+    if (state.user) {
+        state.user.has_resume = true;
+    }
+
+    return data;
+}
+
+// =============================================================================
+// AI INTERVIEW MODULE
+// =============================================================================
+
+/**
+ * Start the AI Interview experience
+ * @param {number} applicationId - The application ID
+ * @param {function} onComplete - Callback when interview completes
+ * @param {function} onClose - Callback when user closes
+ */
+async function startAIInterview(applicationId, onComplete, onClose) {
+    // Create full-screen interview overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'interview-overlay';
+
+    // Interview state
+    let ws = null;
+    let mediaStream = null;
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let isRecording = false;
+    let currentPhase = 'connecting'; // connecting, rapport, question, listening, processing, complete
+    let questionNumber = 0;
+    let totalQuestions = 0;
+    let audioQueue = [];
+    let isPlayingAudio = false;
+    let conversationMessages = []; // Store messages to persist across renders
+    let liveTranscript = ''; // Current streaming transcript
+    let isUserScrolledUp = false; // Track if user scrolled up
+    let startTime = null; // Interview start time
+
+    function getElapsedTime() {
+        if (!startTime) return '0:00';
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        const mins = Math.floor(elapsed / 60);
+        const secs = elapsed % 60;
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    // Confetti celebration effect
+    function launchConfetti() {
+        const colors = ['#4F46E5', '#06B6D4', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
+        const confettiCount = 150;
+        const container = overlay;
+
+        for (let i = 0; i < confettiCount; i++) {
+            const confetti = document.createElement('div');
+            confetti.className = 'confetti-piece';
+            confetti.style.cssText = `
+                position: fixed;
+                width: ${Math.random() * 10 + 5}px;
+                height: ${Math.random() * 10 + 5}px;
+                background: ${colors[Math.floor(Math.random() * colors.length)]};
+                left: ${Math.random() * 100}vw;
+                top: -20px;
+                opacity: 1;
+                border-radius: ${Math.random() > 0.5 ? '50%' : '0'};
+                transform: rotate(${Math.random() * 360}deg);
+                pointer-events: none;
+                z-index: 10000;
+            `;
+            container.appendChild(confetti);
+
+            // Animate each piece
+            const duration = Math.random() * 2000 + 2000;
+            const horizontalDrift = (Math.random() - 0.5) * 200;
+            const rotation = Math.random() * 720 - 360;
+
+            confetti.animate([
+                {
+                    transform: `translateY(0) translateX(0) rotate(0deg)`,
+                    opacity: 1
+                },
+                {
+                    transform: `translateY(100vh) translateX(${horizontalDrift}px) rotate(${rotation}deg)`,
+                    opacity: 0
+                }
+            ], {
+                duration: duration,
+                easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)'
+            }).onfinish = () => confetti.remove();
+        }
+    }
+
+    // Track previous scroll position and message count for render
+    let lastScrollTop = 0;
+    let lastMessageCount = 0;
+
+    function render() {
+        if (!startTime && currentPhase !== 'connecting') {
+            startTime = Date.now();
+        }
+
+        // Capture scroll position before re-render
+        const oldContainer = document.getElementById('transcript-container');
+        if (oldContainer) {
+            lastScrollTop = oldContainer.scrollTop;
+        }
+        const currentMessageCount = conversationMessages.length;
+
+        overlay.innerHTML = `
+            <div class="studio-interview">
+                <!-- Minimal Header Rail -->
+                <div class="studio-header">
+                    <div class="studio-brand">
+                        <span class="brand-mark">S</span>
+                        <span class="brand-status ${currentPhase === 'connecting' ? 'connecting' : 'live'}">
+                            ${currentPhase === 'connecting' ? 'Connecting' : 'Live'}
+                        </span>
+                    </div>
+                    <div class="studio-progress">
+                        ${totalQuestions > 0 ? `
+                            <span class="progress-label">Question ${questionNumber || 1} of ${totalQuestions}</span>
+                            <div class="progress-track">
+                                <div class="progress-fill" style="width: ${Math.max(((questionNumber || 1) / totalQuestions) * 100, 10)}%"></div>
+                            </div>
+                        ` : '<span class="progress-label">Preparing...</span>'}
+                    </div>
+                    <div class="studio-meta">
+                        <span class="elapsed-time" id="elapsed-time">${getElapsedTime()}</span>
+                        <button class="exit-btn" id="close-interview" title="End interview">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Main Two-Zone Layout -->
+                <div class="studio-main">
+                    <!-- Central Conversation Zone -->
+                    <div class="conversation-zone">
+                        <div class="transcript-container" id="transcript-container">
+                            ${currentPhase === 'connecting' ? `
+                                <div class="connecting-state">
+                                    <div class="pulse-ring"></div>
+                                    <p>Setting up your interview...</p>
+                                </div>
+                            ` : `
+                                <div class="transcript-thread" id="transcript-thread">
+                                    ${conversationMessages.map((msg, idx) => `
+                                        <div class="transcript-entry ${msg.type} ${msg.isLive ? 'live' : 'final'}">
+                                            <div class="entry-indicator ${msg.type}">
+                                                ${msg.type === 'interviewer' ? 'AI' : 'You'}
+                                            </div>
+                                            <div class="entry-content">
+                                                <p class="${msg.isLive ? 'streaming' : ''}">${escapeHtml(msg.text)}${msg.isLive ? '<span class="typing-caret"></span>' : ''}</p>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                    ${liveTranscript ? `
+                                        <div class="transcript-entry candidate live">
+                                            <div class="entry-indicator candidate">You</div>
+                                            <div class="entry-content">
+                                                <p class="streaming">${escapeHtml(liveTranscript)}<span class="typing-caret"></span></p>
+                                            </div>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            `}
+                        </div>
+                        ${isUserScrolledUp ? `
+                            <button class="jump-to-live" id="jump-to-live">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 19V5M5 12l7-7 7 7"/>
+                                </svg>
+                                Jump to live
+                            </button>
+                        ` : ''}
+                    </div>
+
+                    <!-- Control Rail -->
+                    <div class="control-rail">
+                        <!-- Self Video -->
+                        <div class="self-preview">
+                            <video id="self-video" autoplay muted playsinline></video>
+                            <div class="preview-label">You</div>
+                        </div>
+
+                        <!-- Waveform Visualizer -->
+                        <div class="waveform-container ${isPlayingAudio ? 'ai-speaking' : isRecording ? 'user-speaking' : ''}">
+                            <div class="waveform" id="waveform">
+                                ${Array(24).fill(0).map(() => '<div class="wave-bar"></div>').join('')}
+                            </div>
+                            <div class="waveform-label">
+                                ${isPlayingAudio ? 'AI Speaking' : isRecording ? 'Listening...' : currentPhase === 'processing' ? 'Processing...' : 'Ready'}
+                            </div>
+                        </div>
+
+                        <!-- Mic Status -->
+                        <div class="mic-status ${isRecording ? 'active' : ''}" id="mic-status">
+                            <div class="mic-icon">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path>
+                                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                                    <line x1="12" y1="19" x2="12" y2="22"></line>
+                                </svg>
+                            </div>
+                            <span class="mic-label">${isRecording ? 'Mic Active' : 'Mic Ready'}</span>
+                        </div>
+
+                        ${isRecording ? `
+                            <button class="done-btn" id="done-speaking-btn">
+                                Done Speaking
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+        attachInterviewListeners();
+
+        // Re-attach video stream after render (use setTimeout to ensure DOM is ready)
+        setTimeout(() => {
+            if (mediaStream) {
+                const video = document.getElementById('self-video');
+                if (video) {
+                    video.srcObject = mediaStream;
+                    video.play().catch(e => console.log('Video autoplay:', e));
+                }
+            }
+
+            const container = document.getElementById('transcript-container');
+            if (container) {
+                // Only scroll to bottom if new messages were added
+                const hasNewMessages = currentMessageCount > lastMessageCount;
+                lastMessageCount = currentMessageCount;
+
+                if (hasNewMessages && !isUserScrolledUp) {
+                    // New message - smooth scroll to bottom
+                    smoothScrollToBottom(container);
+                } else if (!hasNewMessages && lastScrollTop > 0) {
+                    // No new messages - restore previous scroll position
+                    container.scrollTop = lastScrollTop;
+                }
+            }
+
+            // Set up scroll listener for "Jump to live" button
+            setupScrollListener();
+        }, 50);
+    }
+
+    // Track user scroll position
+    function setupScrollListener() {
+        const container = document.getElementById('transcript-container');
+        if (!container || container.dataset.scrollListenerAdded) return;
+
+        container.dataset.scrollListenerAdded = 'true';
+        container.addEventListener('scroll', () => {
+            const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+            const wasScrolledUp = isUserScrolledUp;
+            isUserScrolledUp = !isAtBottom;
+
+            // Only update button visibility, don't re-render entire UI
+            if (wasScrolledUp !== isUserScrolledUp) {
+                const existingBtn = document.querySelector('.jump-to-live');
+                const zone = document.querySelector('.conversation-zone');
+                if (isUserScrolledUp && !existingBtn && zone) {
+                    const btn = document.createElement('button');
+                    btn.className = 'jump-to-live';
+                    btn.id = 'jump-to-live';
+                    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg> Jump to live`;
+                    btn.onclick = () => {
+                        isUserScrolledUp = false;
+                        smoothScrollToBottom(container);
+                        btn.remove();
+                    };
+                    zone.appendChild(btn);
+                } else if (!isUserScrolledUp && existingBtn) {
+                    existingBtn.remove();
+                }
+            }
+        });
+    }
+
+    // Elapsed time interval
+    let timeInterval = null;
+    function startTimeInterval() {
+        if (timeInterval) return;
+        timeInterval = setInterval(() => {
+            const timeEl = document.getElementById('elapsed-time');
+            if (timeEl) {
+                timeEl.textContent = getElapsedTime();
+            }
+        }, 1000);
+    }
+
+    // AI speaking visualizer animation
+    let visualizerInterval = null;
+
+    function startSpeakingAnimation() {
+        const visualizer = document.getElementById('audio-visualizer');
+        if (!visualizer) return;
+        visualizer.classList.add('speaking');
+
+        // Animate bars randomly
+        const bars = visualizer.querySelectorAll('.visualizer-bar');
+        visualizerInterval = setInterval(() => {
+            bars.forEach(bar => {
+                const height = Math.random() * 80 + 20;
+                bar.style.height = `${height}%`;
+            });
+        }, 100);
+    }
+
+    function stopSpeakingAnimation() {
+        const visualizer = document.getElementById('audio-visualizer');
+        if (visualizer) {
+            visualizer.classList.remove('speaking');
+        }
+        if (visualizerInterval) {
+            clearInterval(visualizerInterval);
+            visualizerInterval = null;
+        }
+        // Reset bar heights
+        const bars = document.querySelectorAll('.visualizer-bar');
+        bars.forEach(bar => bar.style.height = '20%');
+    }
+
+    function getStatusText() {
+        switch (currentPhase) {
+            case 'connecting': return 'Connecting to interviewer...';
+            case 'rapport': return 'Getting to know you';
+            case 'question': return 'Interviewer is speaking';
+            case 'listening': return 'Your turn to respond';
+            case 'processing': return 'Processing your response...';
+            case 'complete': return 'Interview complete!';
+            default: return '';
+        }
+    }
+
+    // Streaming type-on effect variables
+    let streamingInterval = null;
+    let streamingMessageIndex = -1;
+    let streamingCharIndex = 0;
+    let streamingFullText = '';
+
+    function updateConversation(message, type = 'interviewer', useStreaming = false) {
+        // Store message in array for persistence across renders
+        const messageObj = { text: message, type: type, isLive: useStreaming };
+        conversationMessages.push(messageObj);
+
+        // Try to add message directly to DOM without full re-render
+        const thread = document.getElementById('transcript-thread');
+        const container = document.getElementById('transcript-container');
+
+        if (thread && container) {
+            // Add new entry directly to DOM
+            const entry = document.createElement('div');
+            entry.className = `transcript-entry ${type} ${useStreaming ? 'live' : 'final'}`;
+            entry.innerHTML = `
+                <div class="entry-indicator ${type}">
+                    ${type === 'interviewer' ? 'AI' : 'You'}
+                </div>
+                <div class="entry-content">
+                    <p class="${useStreaming ? 'streaming' : ''}">${useStreaming ? '' : escapeHtml(message)}${useStreaming ? '<span class="typing-caret"></span>' : ''}</p>
+                </div>
+            `;
+            thread.appendChild(entry);
+
+            if (useStreaming && type === 'interviewer') {
+                // Start streaming effect
+                streamingMessageIndex = conversationMessages.length - 1;
+                streamingFullText = message;
+                streamingCharIndex = 0;
+                conversationMessages[streamingMessageIndex].text = '';
+                conversationMessages[streamingMessageIndex].isLive = true;
+                startStreamingEffect();
+            }
+
+            // Smooth scroll to bottom for new messages
+            if (!isUserScrolledUp) {
+                smoothScrollToBottom(container);
+            }
+        } else {
+            // Fallback to full render if DOM elements not found
+            if (useStreaming && type === 'interviewer') {
+                streamingMessageIndex = conversationMessages.length - 1;
+                streamingFullText = message;
+                streamingCharIndex = 0;
+                conversationMessages[streamingMessageIndex].text = '';
+                conversationMessages[streamingMessageIndex].isLive = true;
+            }
+            render();
+            if (useStreaming) {
+                startStreamingEffect();
+            }
+        }
+    }
+
+    function startStreamingEffect() {
+        if (streamingInterval) clearInterval(streamingInterval);
+
+        const CHARS_PER_TICK = 3; // Characters to add per tick
+        const TICK_INTERVAL = 25; // ms between ticks
+
+        streamingInterval = setInterval(() => {
+            if (streamingMessageIndex < 0 || streamingMessageIndex >= conversationMessages.length) {
+                stopStreamingEffect();
+                return;
+            }
+
+            const container = document.getElementById('transcript-container');
+            const thread = document.getElementById('transcript-thread');
+            if (!thread || !container) {
+                stopStreamingEffect();
+                return;
+            }
+
+            const entries = thread.querySelectorAll('.transcript-entry');
+            const entry = entries[streamingMessageIndex];
+            if (!entry) {
+                stopStreamingEffect();
+                return;
+            }
+
+            const textEl = entry.querySelector('.entry-content p');
+            if (!textEl) {
+                stopStreamingEffect();
+                return;
+            }
+
+            streamingCharIndex += CHARS_PER_TICK;
+
+            if (streamingCharIndex >= streamingFullText.length) {
+                // Finished streaming - update DOM directly WITHOUT re-render
+                conversationMessages[streamingMessageIndex].text = streamingFullText;
+                conversationMessages[streamingMessageIndex].isLive = false;
+
+                // Preserve scroll position before DOM update
+                const scrollTop = container.scrollTop;
+                const wasAtBottom = container.scrollHeight - scrollTop - container.clientHeight < 50;
+
+                // Update DOM directly - just remove caret and update classes
+                textEl.textContent = streamingFullText;
+                textEl.classList.remove('streaming');
+                entry.classList.remove('live');
+                entry.classList.add('final');
+
+                // Restore scroll position (prevents jump to top)
+                if (!wasAtBottom) {
+                    container.scrollTop = scrollTop;
+                }
+
+                stopStreamingEffect();
+            } else {
+                // Still streaming - update text
+                conversationMessages[streamingMessageIndex].text = streamingFullText.substring(0, streamingCharIndex);
+                textEl.innerHTML = escapeHtml(conversationMessages[streamingMessageIndex].text) + '<span class="typing-caret"></span>';
+
+                // Keep at bottom during streaming (instant, not smooth)
+                if (!isUserScrolledUp) {
+                    container.scrollTop = container.scrollHeight;
+                }
+            }
+        }, TICK_INTERVAL);
+    }
+
+    function stopStreamingEffect() {
+        if (streamingInterval) {
+            clearInterval(streamingInterval);
+            streamingInterval = null;
+        }
+        streamingMessageIndex = -1;
+        streamingCharIndex = 0;
+        streamingFullText = '';
+    }
+
+    function smoothScrollToBottom(element) {
+        if (!element) return;
+        element.scrollTo({
+            top: element.scrollHeight,
+            behavior: 'smooth'
+        });
+    }
+
+    function updateLastCandidateMessage(transcription) {
+        // Update the last candidate message in the stored array
+        let msgIndex = -1;
+        for (let i = conversationMessages.length - 1; i >= 0; i--) {
+            if (conversationMessages[i].type === 'candidate') {
+                conversationMessages[i].text = transcription;
+                conversationMessages[i].isLive = false;
+                msgIndex = i;
+                break;
+            }
+        }
+
+        // Update DOM directly without full re-render
+        if (msgIndex >= 0) {
+            const thread = document.getElementById('transcript-thread');
+            if (thread) {
+                const entries = thread.querySelectorAll('.transcript-entry');
+                const entry = entries[msgIndex];
+                if (entry) {
+                    const textEl = entry.querySelector('.entry-content p');
+                    if (textEl) {
+                        textEl.textContent = transcription;
+                        textEl.classList.remove('streaming');
+                    }
+                    entry.classList.remove('live');
+                    entry.classList.add('final');
+                }
+            }
+        }
+    }
+
+    function showStatus(message, type = 'info') {
+        const statusText = document.getElementById('status-text');
+        if (statusText) {
+            statusText.textContent = message;
+            statusText.className = `interview-status-text ${type}`;
+        }
+    }
+
+    // Audio playback queue
+    async function playAudio(base64Audio) {
+        if (!base64Audio) return Promise.resolve();
+
+        return new Promise((resolve) => {
+            try {
+                const audio = new Audio(`data:audio/mp3;base64,${base64Audio}`);
+                startSpeakingAnimation();
+                audio.onended = () => {
+                    stopSpeakingAnimation();
+                    resolve();
+                };
+                audio.onerror = () => {
+                    console.error('Audio playback error');
+                    stopSpeakingAnimation();
+                    resolve();
+                };
+                audio.play().catch(() => {
+                    stopSpeakingAnimation();
+                    resolve();
+                });
+            } catch (e) {
+                console.error('Audio playback failed:', e);
+                stopSpeakingAnimation();
+                resolve();
+            }
+        });
+    }
+
+    async function processAudioQueue() {
+        if (isPlayingAudio || audioQueue.length === 0) return;
+
+        isPlayingAudio = true;
+        updateControlZoneState(); // Show AI speaking waveform
+        while (audioQueue.length > 0) {
+            const audioData = audioQueue.shift();
+            await playAudio(audioData);
+        }
+        isPlayingAudio = false;
+        updateControlZoneState(); // Clear AI speaking waveform
+
+        // Auto-start listening after interviewer finishes speaking
+        if (currentPhase !== 'complete' && currentPhase !== 'processing' && currentPhase !== 'connecting') {
+            startContinuousListening();
+        }
+    }
+
+    // Continuous listening with silence detection
+    let audioContext = null;
+    let analyser = null;
+    let silenceTimeout = null;
+    let listeningStartTime = null;
+    let hasSpokenYet = false; // Track if user has started speaking
+    const SILENCE_THRESHOLD = 15; // Audio level below this is considered silence
+    const SPEECH_THRESHOLD = 25; // Audio level above this means user is speaking
+    const SILENCE_DURATION = 2000; // ms of silence AFTER speaking before stopping
+    const MIN_RECORDING_TIME = 4000; // minimum ms before checking silence (give time to think)
+    const MIN_SPEECH_BEFORE_CUTOFF = 1000; // must have at least 1s of speech before auto-cutoff
+
+    function startContinuousListening() {
+        if (isRecording || isPlayingAudio || currentPhase === 'processing') {
+            console.log('[INTERVIEW] Cannot start listening:', { isRecording, isPlayingAudio, currentPhase });
+            return;
+        }
+
+        console.log('[INTERVIEW] Starting continuous listening...');
+        currentPhase = 'listening';
+        showStatus('Listening... speak naturally, then click "Done Speaking"');
+        // Use targeted update instead of full render to preserve scroll
+        updateStatusIndicators();
+        updateControlZoneState();
+
+        startRecordingWithSilenceDetection();
+    }
+
+    async function startRecordingWithSilenceDetection() {
+        if (!mediaStream || isRecording) {
+            console.log('[INTERVIEW] Cannot start recording:', { mediaStream: !!mediaStream, isRecording });
+            return;
+        }
+        console.log('[INTERVIEW] Starting audio recording...');
+
+        // Create audio-only stream for recording
+        const audioTracks = mediaStream.getAudioTracks();
+        if (audioTracks.length === 0) {
+            console.error('[INTERVIEW] No audio tracks to record!');
+            return;
+        }
+
+        const audioOnlyStream = new MediaStream(audioTracks);
+        audioChunks = [];
+
+        try {
+            mediaRecorder = new MediaRecorder(audioOnlyStream, { mimeType: 'audio/webm' });
+            console.log('[INTERVIEW] MediaRecorder created successfully');
+        } catch (err) {
+            console.error('[INTERVIEW] MediaRecorder creation failed:', err);
+            // Try without specifying mimeType
+            mediaRecorder = new MediaRecorder(audioOnlyStream);
+            console.log('[INTERVIEW] MediaRecorder created with default mimeType');
+        }
+
+        mediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) {
+                audioChunks.push(e.data);
+                console.log('[INTERVIEW] Audio chunk received:', e.data.size, 'bytes');
+            }
+        };
+
+        mediaRecorder.onerror = (e) => {
+            console.error('[INTERVIEW] MediaRecorder error:', e);
+        };
+
+        mediaRecorder.start(100);
+        isRecording = true;
+        listeningStartTime = Date.now();
+        hasSpokenYet = false; // Reset speech tracking
+        speechStartTime = null;
+        console.log('[INTERVIEW] Recording started - waiting for speech');
+        // Use targeted update instead of full render to preserve scroll
+        updateControlZoneState();
+
+        // Set up audio analysis for silence detection
+        if (!audioContext) {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+
+        const source = audioContext.createMediaStreamSource(mediaStream);
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+
+        // Start monitoring for silence
+        monitorAudioLevel();
+    }
+
+    let speechStartTime = null; // When user started speaking
+
+    function monitorAudioLevel() {
+        if (!isRecording || !analyser) return;
+
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(dataArray);
+
+        // Calculate average volume
+        const average = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+
+        const timeSinceStart = Date.now() - listeningStartTime;
+
+        // Update visual feedback - show listening indicator
+        updateListeningIndicator(average);
+
+        // Track when user starts speaking
+        if (average >= SPEECH_THRESHOLD && !hasSpokenYet) {
+            hasSpokenYet = true;
+            speechStartTime = Date.now();
+            console.log('[INTERVIEW] User started speaking');
+        }
+
+        // Calculate how long user has been speaking
+        const speechDuration = speechStartTime ? Date.now() - speechStartTime : 0;
+
+        // Only check for silence cutoff if:
+        // 1. Enough time has passed (MIN_RECORDING_TIME) to give user time to think
+        // 2. User has actually spoken (hasSpokenYet)
+        // 3. User has spoken for at least MIN_SPEECH_BEFORE_CUTOFF
+        const canCutOff = timeSinceStart > MIN_RECORDING_TIME &&
+                          hasSpokenYet &&
+                          speechDuration > MIN_SPEECH_BEFORE_CUTOFF;
+
+        if (average < SILENCE_THRESHOLD && canCutOff) {
+            // Silence detected after speaking
+            if (!silenceTimeout) {
+                silenceTimeout = setTimeout(() => {
+                    if (isRecording) {
+                        console.log('[INTERVIEW] Silence detected after speaking, stopping recording...');
+                        finishRecordingAndSend();
+                    }
+                }, SILENCE_DURATION);
+            }
+        } else if (average >= SILENCE_THRESHOLD) {
+            // Sound detected, clear silence timeout
+            if (silenceTimeout) {
+                clearTimeout(silenceTimeout);
+                silenceTimeout = null;
+            }
+        }
+
+        // Continue monitoring
+        if (isRecording) {
+            requestAnimationFrame(monitorAudioLevel);
+        }
+    }
+
+    function updateListeningIndicator(level) {
+        const indicator = document.getElementById('listening-indicator');
+        if (indicator) {
+            const normalizedLevel = Math.min(level / 50, 1);
+            indicator.style.transform = `scale(${1 + normalizedLevel * 0.5})`;
+            indicator.style.opacity = 0.5 + normalizedLevel * 0.5;
+        }
+    }
+
+    async function finishRecordingAndSend() {
+        console.log('[INTERVIEW] finishRecordingAndSend called, mediaRecorder:', !!mediaRecorder, 'isRecording:', isRecording);
+        if (!mediaRecorder || !isRecording) {
+            console.log('[INTERVIEW] Cannot finish recording - not recording');
+            return;
+        }
+
+        clearTimeout(silenceTimeout);
+        silenceTimeout = null;
+
+        return new Promise((resolve) => {
+            mediaRecorder.onstop = async () => {
+                console.log('[INTERVIEW] Recording stopped, chunks:', audioChunks.length);
+                const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                console.log('[INTERVIEW] Audio blob size:', blob.size, 'bytes');
+
+                // Only send if we have meaningful audio (more than ~0.5 seconds)
+                if (blob.size > 5000) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        const base64 = reader.result.split(',')[1];
+                        console.log('[INTERVIEW] Sending audio, base64 length:', base64.length);
+                        updateConversation('[Processing your response...]', 'candidate');
+                        sendResponse(base64, 'audio');
+                        resolve();
+                    };
+                    reader.readAsDataURL(blob);
+                } else {
+                    console.log('[INTERVIEW] Audio too short:', blob.size, 'bytes, restarting listening...');
+                    // Restart listening if audio was too short
+                    setTimeout(() => {
+                        if (currentPhase !== 'processing' && currentPhase !== 'complete') {
+                            startContinuousListening();
+                        }
+                    }, 500);
+                    resolve();
+                }
+            };
+            mediaRecorder.stop();
+            isRecording = false;
+            // Don't call full render() here - just update status indicators in-place
+            // to avoid resetting scroll position
+            updateStatusIndicators();
+        });
+    }
+
+    function updateStatusIndicators() {
+        // Update status and control zone without full re-render
+        const statusEl = document.querySelector('.status-message');
+        if (statusEl) {
+            statusEl.textContent = statusMessage || 'Processing...';
+        }
+        const controlZone = document.querySelector('.control-zone');
+        if (controlZone) {
+            const isProcessing = currentPhase === 'processing';
+            const doneBtn = document.getElementById('done-speaking-btn');
+            if (doneBtn) {
+                doneBtn.style.display = isProcessing ? 'none' : 'flex';
+            }
+        }
+    }
+
+    function updateControlZoneState() {
+        // Update the waveform/recording indicator state without full re-render
+        const waveformContainer = document.querySelector('.waveform-container');
+        if (waveformContainer) {
+            // Remove both classes first
+            waveformContainer.classList.remove('ai-speaking', 'user-speaking');
+            // Add the appropriate class based on state
+            if (isPlayingAudio) {
+                waveformContainer.classList.add('ai-speaking');
+            } else if (isRecording) {
+                waveformContainer.classList.add('user-speaking');
+            }
+        }
+
+        // Update waveform label
+        const waveformLabel = document.querySelector('.waveform-label');
+        if (waveformLabel) {
+            if (isPlayingAudio) {
+                waveformLabel.textContent = 'AI Speaking';
+            } else if (isRecording) {
+                waveformLabel.textContent = 'Listening...';
+            } else if (currentPhase === 'processing') {
+                waveformLabel.textContent = 'Processing...';
+            } else {
+                waveformLabel.textContent = 'Ready';
+            }
+        }
+
+        // Update mic status
+        const micStatus = document.getElementById('mic-status');
+        if (micStatus) {
+            if (isRecording) {
+                micStatus.classList.add('active');
+            } else {
+                micStatus.classList.remove('active');
+            }
+            const micLabel = micStatus.querySelector('.mic-label');
+            if (micLabel) {
+                micLabel.textContent = isRecording ? 'Mic Active' : 'Mic Ready';
+            }
+        }
+
+        // Update done speaking button visibility
+        const doneBtn = document.getElementById('done-speaking-btn');
+        if (doneBtn) {
+            const showBtn = isRecording && currentPhase === 'listening';
+            doneBtn.style.display = showBtn ? 'flex' : 'none';
+        }
+    }
+
+    function sendResponse(content, type = 'text') {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            console.log(`[INTERVIEW] Sending ${type} response, length: ${content.length}`);
+            currentPhase = 'processing';
+            showStatus('Processing your response...');
+            // Use updateStatusIndicators instead of full render to preserve scroll
+            updateStatusIndicators();
+            ws.send(JSON.stringify({
+                type: type,
+                content: content,
+                timestamp: new Date().toISOString()
+            }));
+        } else {
+            console.error('[INTERVIEW] WebSocket not open, cannot send response');
+        }
+    }
+
+    function showExitConfirmation() {
+        // Create custom modal instead of browser confirm()
+        const modal = document.createElement('div');
+        modal.className = 'exit-confirm-overlay';
+        modal.innerHTML = `
+            <div class="exit-confirm-modal">
+                <div class="exit-confirm-icon">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#EF4444" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                </div>
+                <h3 class="exit-confirm-title">Exit Interview?</h3>
+                <p class="exit-confirm-message">If you leave now, your interview progress will be lost and you'll need to start over.</p>
+                <div class="exit-confirm-buttons">
+                    <button class="btn btn-secondary exit-confirm-back">Continue Interview</button>
+                    <button class="btn btn-danger exit-confirm-leave">Exit Anyway</button>
+                </div>
+            </div>
+        `;
+        overlay.appendChild(modal);
+
+        // Handle buttons
+        modal.querySelector('.exit-confirm-back').addEventListener('click', () => {
+            modal.remove();
+        });
+        modal.querySelector('.exit-confirm-leave').addEventListener('click', () => {
+            modal.remove();
+            cleanup();
+            onClose?.();
+        });
+        // Click outside to dismiss
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.remove();
+            }
+        });
+    }
+
+    function attachInterviewListeners() {
+        // Close button
+        document.getElementById('close-interview')?.addEventListener('click', () => {
+            showExitConfirmation();
+        });
+
+        // Done speaking button - manual override for silence detection
+        document.getElementById('done-speaking-btn')?.addEventListener('click', () => {
+            console.log('[INTERVIEW] Done speaking button clicked');
+            if (isRecording) {
+                finishRecordingAndSend();
+            }
+        });
+
+        // Jump to live button
+        document.getElementById('jump-to-live')?.addEventListener('click', () => {
+            const container = document.getElementById('transcript-container');
+            if (container) {
+                isUserScrolledUp = false;
+                smoothScrollToBottom(container);
+                render();
+            }
+        });
+    }
+
+    async function initMedia() {
+        try {
+            console.log('[INTERVIEW] Requesting media permissions...');
+            mediaStream = await navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: true
+            });
+
+            const audioTracks = mediaStream.getAudioTracks();
+            const videoTracks = mediaStream.getVideoTracks();
+            console.log('[INTERVIEW] Media granted - Audio tracks:', audioTracks.length, 'Video tracks:', videoTracks.length);
+
+            if (audioTracks.length === 0) {
+                console.error('[INTERVIEW] No audio tracks available!');
+                showStatus('Microphone not available', 'error');
+                return false;
+            }
+
+            const video = document.getElementById('self-video');
+            if (video) {
+                video.srcObject = mediaStream;
+            }
+            return true;
+        } catch (err) {
+            console.error('[INTERVIEW] Media access error:', err);
+            showStatus('Camera/microphone access required', 'error');
+            return false;
+        }
+    }
+
+    function connectWebSocket() {
+        ws = new WebSocket(`${INTERVIEW_WS_BASE}/ws/interview/${applicationId}`);
+
+        ws.onopen = () => {
+            console.log('WebSocket connected, sending auth...');
+            ws.send(JSON.stringify({
+                type: 'auth',
+                token: state.token
+            }));
+        };
+
+        ws.onmessage = async (event) => {
+            const data = JSON.parse(event.data);
+            console.log('WS message:', data.type, data);
+
+            switch (data.type) {
+                case 'connected':
+                    currentPhase = 'rapport';
+                    showStatus('Connected! Preparing interview...');
+                    break;
+
+                case 'info':
+                    showStatus(data.content);
+                    break;
+
+                case 'processing':
+                    currentPhase = 'processing';
+                    showStatus(data.content || 'Processing your response...');
+                    break;
+
+                case 'transcription':
+                    // Update the last candidate message with the actual transcription
+                    updateLastCandidateMessage(data.content);
+                    break;
+
+                case 'audio':
+                    // Standalone audio message (text was sent separately for faster display)
+                    if (data.audio_base64) {
+                        audioQueue.push(data.audio_base64);
+                        processAudioQueue();
+                    }
+                    break;
+
+                case 'rapport':
+                    currentPhase = 'rapport';
+                    totalQuestions = data.total_questions || 0;
+                    updateConversation(data.content, 'interviewer', true); // Enable streaming
+                    if (data.audio_base64) {
+                        audioQueue.push(data.audio_base64);
+                        processAudioQueue();
+                    }
+                    showStatus('Your turn to respond');
+                    break;
+
+                case 'acknowledgment':
+                    // AI acknowledging what user said before moving to questions
+                    updateConversation(data.content, 'interviewer', true); // Enable streaming
+                    if (data.audio_base64) {
+                        audioQueue.push(data.audio_base64);
+                        processAudioQueue();
+                    }
+                    break;
+
+                case 'question':
+                    currentPhase = 'question';
+                    questionNumber = data.question_number || 0;
+                    totalQuestions = data.total_questions || totalQuestions;
+                    updateConversation(data.content, 'interviewer', true); // Enable streaming
+                    if (data.audio_base64) {
+                        audioQueue.push(data.audio_base64);
+                        processAudioQueue();
+                    }
+                    showStatus('Your turn to respond');
+                    break;
+
+                case 'follow_up':
+                    currentPhase = 'question';
+                    updateConversation(data.content, 'interviewer', true); // Enable streaming
+                    if (data.audio_base64) {
+                        audioQueue.push(data.audio_base64);
+                        processAudioQueue();
+                    }
+                    showStatus('Follow-up question');
+                    break;
+
+                case 'complete':
+                    currentPhase = 'complete';
+                    updateConversation(data.content, 'interviewer', true); // Enable streaming
+                    if (data.audio_base64) {
+                        audioQueue.push(data.audio_base64);
+                        await processAudioQueue();
+                    }
+                    showStatus('Interview complete!', 'success');
+
+                    // Launch confetti celebration!
+                    launchConfetti();
+
+                    // Show completion after a moment
+                    setTimeout(() => {
+                        cleanup();
+                        onComplete?.(data.metadata);
+                    }, 3000);
+                    break;
+
+                case 'error':
+                    showStatus(data.content, 'error');
+                    console.error('Interview error:', data.content);
+                    break;
+            }
+        };
+
+        ws.onerror = (error) => {
+            console.error('WebSocket error:', error);
+            showStatus('Connection error. Please try again.', 'error');
+        };
+
+        ws.onclose = () => {
+            console.log('WebSocket closed');
+            if (currentPhase !== 'complete') {
+                showStatus('Connection lost. Your progress has been saved.', 'error');
+            }
+        };
+    }
+
+    function cleanup() {
+        // Close WebSocket
+        if (ws) {
+            ws.close();
+            ws = null;
+        }
+
+        // Stop media tracks
+        if (mediaStream) {
+            mediaStream.getTracks().forEach(track => track.stop());
+            mediaStream = null;
+        }
+
+        // Clear time interval
+        if (timeInterval) {
+            clearInterval(timeInterval);
+            timeInterval = null;
+        }
+
+        // Stop streaming effect
+        stopStreamingEffect();
+
+        // Remove overlay
+        overlay.remove();
+    }
+
+    // Initialize
+    render();
+    document.body.appendChild(overlay);
+
+    const mediaReady = await initMedia();
+    if (mediaReady) {
+        connectWebSocket();
+        startTimeInterval(); // Start elapsed time counter
+    }
+
+    // Return cleanup function
+    return cleanup;
+}
+
+/**
+ * Request media permissions and return status
+ */
+async function checkMediaPermissions() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        stream.getTracks().forEach(track => track.stop());
+        return { camera: true, microphone: true };
+    } catch (err) {
+        console.error('Permission check failed:', err);
+        // Try to determine which failed
+        try {
+            const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            audioStream.getTracks().forEach(track => track.stop());
+            return { camera: false, microphone: true };
+        } catch {
+            return { camera: false, microphone: false };
+        }
+    }
+}
+
+// =============================================================================
+// END AI INTERVIEW MODULE
+// =============================================================================
 
 async function loadMyApplications() {
     const data = await api('/shortlist/my-applications');
@@ -3050,16 +4466,29 @@ function renderRolesList() {
     });
 }
 
-function renderRoleDetail() {
+async function renderRoleDetail() {
     const role = state.selectedRole;
     if (!role) {
         navigate('explore');
         return;
     }
 
+    // Always load user's applications fresh when viewing role detail (if logged in)
+    if (state.token) {
+        try {
+            const appsData = await api('/shortlist/my-applications');
+            state.myApplications = appsData.applications || [];
+            console.log('Loaded applications:', state.myApplications);
+        } catch (err) {
+            console.log('Could not load applications:', err);
+            state.myApplications = [];
+        }
+    }
+
     // Check if user already applied to this role
     const existingApp = state.myApplications?.find(a => a.role_id === role.id);
     const hasApplied = !!existingApp;
+    console.log('Role ID:', role.id, 'Existing app:', existingApp, 'hasApplied:', hasApplied);
     const interviewPending = existingApp?.interview_status === 'pending';
 
     // Determine back navigation text and destination
@@ -3118,7 +4547,7 @@ function renderRoleDetail() {
                                     </svg>
                                 </div>
                                 <div class="status-text">
-                                    <strong>Shortlist requested</strong>
+                                    <strong>You joined the Shortlist</strong>
                                     <span>Applied ${formatDate(existingApp.applied_at)}</span>
                                 </div>
                                 ${interviewPending ? `
@@ -3148,9 +4577,27 @@ function renderRoleDetail() {
         applyToShortlist(role.id);
     });
 
-    document.getElementById('complete-interview-btn')?.addEventListener('click', () => {
-        // Show the interview step directly
-        alert('AI Interview feature coming soon!');
+    document.getElementById('complete-interview-btn')?.addEventListener('click', async () => {
+        // Launch the AI interview for this application
+        if (existingApp && existingApp.id) {
+            await startAIInterview(
+                existingApp.id,
+                // On complete
+                (metadata) => {
+                    showSuccessModal(
+                        'Interview Complete!',
+                        `Great job! Your interview has been submitted. The hiring team will review your responses.`
+                    );
+                    // Reload to update status
+                    renderRoleDetail();
+                },
+                // On close/cancel
+                () => {
+                    // Just close, progress saved
+                    renderRoleDetail();
+                }
+            );
+        }
     });
 
     setupNavListeners();
@@ -3224,9 +4671,26 @@ function renderMyShortlist() {
 
     // Add click handlers for interview buttons
     container.querySelectorAll('.complete-interview-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
+        btn.addEventListener('click', async (e) => {
             e.stopPropagation();
-            alert('AI Interview feature coming soon!');
+            const appId = parseInt(btn.dataset.appId);
+            if (appId) {
+                await startAIInterview(
+                    appId,
+                    // On complete
+                    () => {
+                        showSuccessModal(
+                            'Interview Complete!',
+                            'Great job! Your interview has been submitted. The hiring team will review your responses.'
+                        );
+                        loadMyApplications();
+                    },
+                    // On close/cancel
+                    () => {
+                        loadMyApplications();
+                    }
+                );
+            }
         });
     });
 
