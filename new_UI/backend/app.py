@@ -2942,11 +2942,50 @@ def get_ranked_applicants(role_id):
         """, (role_id,))
         total_count = cur.fetchone()['total_count']
 
+        # Bench stats: candidates on bench (>= min_score and not failed hard filters)
+        cur.execute("""
+            SELECT COUNT(*) as bench_count
+            FROM shortlist_applications
+            WHERE position_id = %s
+              AND fit_score >= %s
+              AND hard_filter_failed = FALSE
+              AND status != 'cancelled'
+        """, (role_id, min_score))
+        bench_count = cur.fetchone()['bench_count']
+
+        # New this week: candidates on bench who applied in last 7 days
+        cur.execute("""
+            SELECT COUNT(*) as new_this_week
+            FROM shortlist_applications
+            WHERE position_id = %s
+              AND fit_score >= %s
+              AND hard_filter_failed = FALSE
+              AND status != 'cancelled'
+              AND applied_at >= NOW() - INTERVAL '7 days'
+        """, (role_id, min_score))
+        new_this_week = cur.fetchone()['new_this_week']
+
+        # Top fit score on bench
+        cur.execute("""
+            SELECT MAX(fit_score) as top_fit_score
+            FROM shortlist_applications
+            WHERE position_id = %s
+              AND fit_score >= %s
+              AND hard_filter_failed = FALSE
+              AND status != 'cancelled'
+        """, (role_id, min_score))
+        top_fit_score = cur.fetchone()['top_fit_score']
+
     return jsonify({
         'job': dict(job) if job else None,
         'applicants': applicants,
         'hidden_count': hidden_count,
         'total_count': total_count,
+        'bench_stats': {
+            'bench_count': bench_count,
+            'new_this_week': new_this_week,
+            'top_fit_score': top_fit_score
+        },
         'filters_applied': {
             'min_score': min_score,
             'seniority': seniority_filter,
@@ -3163,6 +3202,414 @@ def recalculate_applicant_score(application_id):
             return jsonify({'success': True, 'score': result.overall_score, 'confidence': result.confidence})
         else:
             return jsonify({'error': 'Failed to calculate score'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ============================================================================
+# SHARE LINKS - Read-only shareable bench links
+# ============================================================================
+
+@app.route('/api/employer/roles/<int:role_id>/share-link', methods=['POST'])
+@require_auth
+def create_share_link(role_id):
+    """
+    Generate a shareable read-only link for a role's bench.
+    """
+    is_authorized, company_id, company_name = verify_employer_owns_role(g.user_id, role_id)
+    if not is_authorized:
+        return jsonify({'error': 'You do not have access to this role'}), 403
+
+    # Generate secure token
+    token = secrets.token_urlsafe(32)
+
+    # Default expiry: 7 days
+    data = request.get_json() or {}
+    expires_days = data.get('expires_days', 7)
+    min_score = data.get('min_score_threshold', 70)
+
+    expires_at = datetime.utcnow() + timedelta(days=expires_days) if expires_days else None
+
+    conn = get_db()
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute("""
+            INSERT INTO share_links (token, role_id, company_profile_id, created_by, expires_at, min_score_threshold)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            RETURNING id, token, created_at, expires_at, min_score_threshold
+        """, (token, role_id, company_id, g.user_id, expires_at, min_score))
+        link = cur.fetchone()
+        conn.commit()
+
+    # Build full URL (frontend will handle routing)
+    base_url = request.host_url.rstrip('/')
+    share_url = f"{base_url}/#/shared/{token}"
+
+    return jsonify({
+        'token': link['token'],
+        'url': share_url,
+        'expires_at': link['expires_at'].isoformat() if link['expires_at'] else None,
+        'min_score_threshold': link['min_score_threshold']
+    })
+
+
+@app.route('/api/employer/roles/<int:role_id>/share-links', methods=['GET'])
+@require_auth
+def get_share_links(role_id):
+    """
+    List all active share links for a role.
+    """
+    is_authorized, _, _ = verify_employer_owns_role(g.user_id, role_id)
+    if not is_authorized:
+        return jsonify({'error': 'You do not have access to this role'}), 403
+
+    conn = get_db()
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute("""
+            SELECT id, token, created_at, expires_at, min_score_threshold, view_count, last_viewed_at, is_active
+            FROM share_links
+            WHERE role_id = %s AND is_active = TRUE
+            ORDER BY created_at DESC
+        """, (role_id,))
+        links = cur.fetchall()
+
+    base_url = request.host_url.rstrip('/')
+    return jsonify({
+        'links': [{
+            **dict(link),
+            'url': f"{base_url}/#/shared/{link['token']}",
+            'created_at': link['created_at'].isoformat() if link['created_at'] else None,
+            'expires_at': link['expires_at'].isoformat() if link['expires_at'] else None,
+            'last_viewed_at': link['last_viewed_at'].isoformat() if link['last_viewed_at'] else None
+        } for link in links]
+    })
+
+
+@app.route('/api/employer/share-links/<token>', methods=['DELETE'])
+@require_auth
+def revoke_share_link(token):
+    """
+    Revoke (deactivate) a share link.
+    """
+    conn = get_db()
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        # Get link and verify ownership
+        cur.execute("""
+            SELECT sl.id, sl.company_profile_id
+            FROM share_links sl
+            WHERE sl.token = %s
+        """, (token,))
+        link = cur.fetchone()
+
+        if not link:
+            return jsonify({'error': 'Share link not found'}), 404
+
+        # Verify user belongs to the company
+        cur.execute("""
+            SELECT 1 FROM company_team_members
+            WHERE user_id = %s AND company_profile_id = %s
+        """, (g.user_id, link['company_profile_id']))
+        if not cur.fetchone():
+            return jsonify({'error': 'You do not have access to this share link'}), 403
+
+        # Deactivate the link
+        cur.execute("""
+            UPDATE share_links SET is_active = FALSE WHERE token = %s
+        """, (token,))
+        conn.commit()
+
+    return jsonify({'success': True})
+
+
+# ============================================================================
+# PUBLIC SHARED BENCH ENDPOINTS (No Auth Required)
+# ============================================================================
+
+@app.route('/api/public/bench/<token>', methods=['GET'])
+def get_shared_bench(token):
+    """
+    Get shared bench data (public, no auth required).
+    Returns ranked candidates for the role.
+    """
+    conn = get_db()
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        # Validate token
+        cur.execute("""
+            SELECT sl.*, wp.title as role_title, wp.company_name,
+                   cp.company_name as company_profile_name
+            FROM share_links sl
+            JOIN watchable_positions wp ON wp.id = sl.role_id
+            LEFT JOIN company_profiles cp ON cp.id = sl.company_profile_id
+            WHERE sl.token = %s AND sl.is_active = TRUE
+        """, (token,))
+        link = cur.fetchone()
+
+        if not link:
+            return jsonify({'error': 'Share link not found or expired'}), 404
+
+        # Check expiry
+        if link['expires_at'] and link['expires_at'] < datetime.utcnow():
+            return jsonify({'error': 'This share link has expired'}), 410
+
+        min_score = link['min_score_threshold'] or 70
+
+        # Get candidates on bench
+        cur.execute("""
+            SELECT
+                sa.id as application_id,
+                sa.applied_at,
+                sa.fit_score,
+                sa.interview_status,
+                TRIM(CONCAT(u.first_name, ' ', u.last_name)) as full_name,
+                sp.extracted_profile,
+                ci.why_this_person,
+                ci.strengths,
+                ci.risks,
+                ci.matched_skill_chips
+            FROM shortlist_applications sa
+            JOIN platform_users u ON u.id = sa.user_id
+            LEFT JOIN seeker_profiles sp ON sp.user_id = sa.user_id
+            LEFT JOIN candidate_insights ci ON ci.application_id = sa.id
+            WHERE sa.position_id = %s
+              AND sa.fit_score >= %s
+              AND sa.hard_filter_failed = FALSE
+              AND sa.status != 'cancelled'
+            ORDER BY sa.fit_score DESC NULLS LAST, sa.applied_at DESC
+        """, (link['role_id'], min_score))
+
+        candidates = []
+        for row in cur.fetchall():
+            candidate = dict(row)
+            # Parse JSON fields
+            for field in ['extracted_profile', 'strengths', 'risks', 'matched_skill_chips']:
+                if candidate.get(field):
+                    try:
+                        candidate[field] = json.loads(candidate[field]) if isinstance(candidate[field], str) else candidate[field]
+                    except:
+                        candidate[field] = [] if field != 'extracted_profile' else {}
+
+            # Extract current position from profile
+            profile = candidate.get('extracted_profile', {})
+            work_history = profile.get('work_experience', [])
+            if work_history and len(work_history) > 0:
+                current = work_history[0]
+                candidate['current_position'] = current.get('title', '')
+                candidate['current_company'] = current.get('company', '')
+            else:
+                candidate['current_position'] = ''
+                candidate['current_company'] = ''
+
+            # Remove extracted_profile from response (too detailed for shared view)
+            del candidate['extracted_profile']
+            candidates.append(candidate)
+
+        # Update view count
+        cur.execute("""
+            UPDATE share_links
+            SET view_count = view_count + 1, last_viewed_at = NOW()
+            WHERE token = %s
+        """, (token,))
+        conn.commit()
+
+    return jsonify({
+        'role_title': link['role_title'],
+        'company_name': link['company_name'] or link['company_profile_name'],
+        'candidates': candidates,
+        'candidate_count': len(candidates),
+        'min_score_threshold': min_score,
+        'expires_at': link['expires_at'].isoformat() if link['expires_at'] else None
+    })
+
+
+@app.route('/api/public/bench/<token>/candidate/<int:application_id>', methods=['GET'])
+def get_shared_candidate_detail(token, application_id):
+    """
+    Get detailed candidate info for shared bench (public, no auth).
+    """
+    conn = get_db()
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        # Validate token and that candidate belongs to this role
+        cur.execute("""
+            SELECT sl.*, wp.title as role_title, wp.company_name
+            FROM share_links sl
+            JOIN watchable_positions wp ON wp.id = sl.role_id
+            WHERE sl.token = %s AND sl.is_active = TRUE
+        """, (token,))
+        link = cur.fetchone()
+
+        if not link:
+            return jsonify({'error': 'Share link not found or expired'}), 404
+
+        if link['expires_at'] and link['expires_at'] < datetime.utcnow():
+            return jsonify({'error': 'This share link has expired'}), 410
+
+        # Get candidate detail (must belong to this role)
+        cur.execute("""
+            SELECT
+                sa.id as application_id,
+                sa.applied_at,
+                sa.fit_score,
+                sa.confidence_level,
+                sa.interview_status,
+                sa.eligibility_data,
+                TRIM(CONCAT(u.first_name, ' ', u.last_name)) as full_name,
+                u.email,
+                sp.experience_level,
+                sp.extracted_profile,
+                ci.why_this_person,
+                ci.overview,
+                ci.strengths,
+                ci.risks,
+                ci.suggested_questions,
+                ci.matched_skill_chips,
+                ci.interview_highlights,
+                cfs.hard_filter_breakdown,
+                cfs.score_breakdown
+            FROM shortlist_applications sa
+            JOIN platform_users u ON u.id = sa.user_id
+            LEFT JOIN seeker_profiles sp ON sp.user_id = sa.user_id
+            LEFT JOIN candidate_insights ci ON ci.application_id = sa.id
+            LEFT JOIN candidate_fit_scores cfs ON cfs.application_id = sa.id
+            WHERE sa.id = %s AND sa.position_id = %s
+        """, (application_id, link['role_id']))
+
+        candidate = cur.fetchone()
+        if not candidate:
+            return jsonify({'error': 'Candidate not found'}), 404
+
+        candidate = dict(candidate)
+
+        # Parse JSON fields
+        json_fields = ['eligibility_data', 'extracted_profile', 'strengths', 'risks',
+                       'suggested_questions', 'matched_skill_chips', 'interview_highlights',
+                       'hard_filter_breakdown', 'score_breakdown']
+        for field in json_fields:
+            if candidate.get(field):
+                try:
+                    candidate[field] = json.loads(candidate[field]) if isinstance(candidate[field], str) else candidate[field]
+                except:
+                    candidate[field] = {} if field in ['eligibility_data', 'extracted_profile', 'hard_filter_breakdown', 'score_breakdown'] else []
+
+        # Get fit responses
+        cur.execute("""
+            SELECT question_id, response_value, response_text
+            FROM application_fit_responses
+            WHERE application_id = %s
+        """, (application_id,))
+        fit_responses = [dict(r) for r in cur.fetchall()]
+
+        # Extract current position
+        profile = candidate.get('extracted_profile', {})
+        work_history = profile.get('work_experience', [])
+        if work_history and len(work_history) > 0:
+            current = work_history[0]
+            candidate['current_position'] = current.get('title', '')
+            candidate['current_company'] = current.get('company', '')
+        else:
+            candidate['current_position'] = ''
+            candidate['current_company'] = ''
+
+    return jsonify({
+        'candidate': candidate,
+        'fit_responses': fit_responses,
+        'role_title': link['role_title'],
+        'company_name': link['company_name']
+    })
+
+
+# ============================================================================
+# EMAIL DIGEST PREFERENCES
+# ============================================================================
+
+@app.route('/api/employer/digest-preferences', methods=['GET'])
+@require_auth
+def get_digest_preferences():
+    """
+    Get the employer's digest preferences.
+    """
+    conn = get_db()
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        # Get user's company
+        cur.execute("""
+            SELECT company_profile_id FROM company_team_members WHERE user_id = %s
+        """, (g.user_id,))
+        membership = cur.fetchone()
+
+        if not membership:
+            return jsonify({'error': 'Not a member of any company'}), 403
+
+        # Get or create default preferences
+        cur.execute("""
+            SELECT digest_enabled, min_score_threshold
+            FROM employer_digest_preferences
+            WHERE user_id = %s AND company_profile_id = %s
+        """, (g.user_id, membership['company_profile_id']))
+
+        prefs = cur.fetchone()
+        if not prefs:
+            prefs = {'digest_enabled': True, 'min_score_threshold': 80}
+
+    return jsonify({
+        'digest_enabled': prefs['digest_enabled'],
+        'min_score_threshold': prefs['min_score_threshold']
+    })
+
+
+@app.route('/api/employer/digest-preferences', methods=['PUT'])
+@require_auth
+def update_digest_preferences():
+    """
+    Update the employer's digest preferences.
+    """
+    data = request.get_json() or {}
+
+    conn = get_db()
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        # Get user's company
+        cur.execute("""
+            SELECT company_profile_id FROM company_team_members WHERE user_id = %s
+        """, (g.user_id,))
+        membership = cur.fetchone()
+
+        if not membership:
+            return jsonify({'error': 'Not a member of any company'}), 403
+
+        company_id = membership['company_profile_id']
+        digest_enabled = data.get('digest_enabled', True)
+        min_score = data.get('min_score_threshold', 80)
+
+        # Upsert preferences
+        cur.execute("""
+            INSERT INTO employer_digest_preferences (user_id, company_profile_id, digest_enabled, min_score_threshold, updated_at)
+            VALUES (%s, %s, %s, %s, NOW())
+            ON CONFLICT (user_id, company_profile_id) DO UPDATE SET
+                digest_enabled = EXCLUDED.digest_enabled,
+                min_score_threshold = EXCLUDED.min_score_threshold,
+                updated_at = NOW()
+            RETURNING digest_enabled, min_score_threshold
+        """, (g.user_id, company_id, digest_enabled, min_score))
+
+        prefs = cur.fetchone()
+        conn.commit()
+
+    return jsonify({
+        'success': True,
+        'digest_enabled': prefs['digest_enabled'],
+        'min_score_threshold': prefs['min_score_threshold']
+    })
+
+
+@app.route('/api/admin/send-weekly-digests', methods=['POST'])
+def trigger_weekly_digests():
+    """
+    Admin endpoint to trigger weekly digest sends.
+    Can be called by a cron job or scheduler.
+    """
+    # Optional: Add admin auth check here
+    from digest_service import send_weekly_digests
+
+    try:
+        result = send_weekly_digests()
+        return jsonify({'success': True, 'result': result})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

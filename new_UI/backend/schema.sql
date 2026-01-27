@@ -373,3 +373,49 @@ BEGIN
         ALTER TABLE watchable_positions ADD COLUMN nice_to_have_skills JSONB DEFAULT '[]';
     END IF;
 END $$;
+
+-- ============================================================================
+-- SHARE LINKS - Read-only shareable bench links
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS share_links (
+    id SERIAL PRIMARY KEY,
+    token VARCHAR(64) UNIQUE NOT NULL,
+    role_id INTEGER REFERENCES watchable_positions(id) ON DELETE CASCADE,
+    company_profile_id INTEGER REFERENCES company_profiles(id) ON DELETE CASCADE,
+    created_by INTEGER REFERENCES platform_users(id),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP,  -- NULL = never expires
+    min_score_threshold INTEGER DEFAULT 70,
+    view_count INTEGER DEFAULT 0,
+    last_viewed_at TIMESTAMP,
+    is_active BOOLEAN DEFAULT TRUE
+);
+
+CREATE INDEX IF NOT EXISTS idx_share_links_token ON share_links(token);
+CREATE INDEX IF NOT EXISTS idx_share_links_role ON share_links(role_id);
+
+-- ============================================================================
+-- EMAIL DIGEST - Weekly bench update emails
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS email_digest_logs (
+    id SERIAL PRIMARY KEY,
+    company_profile_id INTEGER REFERENCES company_profiles(id),
+    digest_type VARCHAR(50) DEFAULT 'weekly_bench',
+    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    roles_included JSONB,  -- [{role_id, role_title, candidate_count}]
+    recipient_email VARCHAR(255),
+    status VARCHAR(20) DEFAULT 'sent'  -- sent, failed, bounced
+);
+
+CREATE TABLE IF NOT EXISTS employer_digest_preferences (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES platform_users(id),
+    company_profile_id INTEGER REFERENCES company_profiles(id),
+    digest_enabled BOOLEAN DEFAULT TRUE,
+    min_score_threshold INTEGER DEFAULT 80,  -- Only include candidates above this in digest
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, company_profile_id)
+);

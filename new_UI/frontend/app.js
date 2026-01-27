@@ -33,6 +33,11 @@ const state = {
     hiddenApplicantsCount: 0,
     totalApplicantsCount: 0,
     showHiddenApplicants: false,
+    benchStats: null,  // { bench_count, new_this_week, top_fit_score }
+    // Shared bench state (public view)
+    sharedBenchToken: null,
+    sharedBenchData: null,
+    sharedCandidateDetail: null,
     selectedApplicantDetail: null,
     drawerOpen: false,
     employerFilters: {
@@ -78,6 +83,18 @@ async function api(endpoint, options = {}) {
 
 // Auth Functions
 async function checkAuth() {
+    // Check for shared bench route first (no auth required)
+    const hash = window.location.hash;
+    if (hash.startsWith('#/shared/')) {
+        const token = hash.replace('#/shared/', '');
+        if (token) {
+            state.currentPage = 'shared-bench';
+            state.sharedBenchToken = token;
+            loadAndRenderSharedBench(token);
+            return;
+        }
+    }
+
     // Always start at home page
     if (!state.token) {
         navigate('home');
@@ -2338,15 +2355,48 @@ async function startAIInterview(applicationId, onComplete, onClose) {
 
         ws.onerror = (error) => {
             console.error('WebSocket error:', error);
-            showStatus('Connection error. Please try again.', 'error');
+            showConnectionError('Connection error. The interview service may not be running.');
         };
 
         ws.onclose = () => {
             console.log('WebSocket closed');
-            if (currentPhase !== 'complete') {
+            if (currentPhase === 'connecting') {
+                showConnectionError('Could not connect to interview service. Please try again later.');
+            } else if (currentPhase !== 'complete') {
                 showStatus('Connection lost. Your progress has been saved.', 'error');
             }
         };
+
+        // Connection timeout - if still connecting after 10 seconds, show error
+        setTimeout(() => {
+            if (currentPhase === 'connecting' && (!ws || ws.readyState !== WebSocket.OPEN)) {
+                showConnectionError('Connection timed out. The interview service may not be available.');
+            }
+        }, 10000);
+    }
+
+    function showConnectionError(message) {
+        const container = document.getElementById('transcript-container');
+        if (container) {
+            container.innerHTML = `
+                <div class="connection-error-state">
+                    <div class="error-icon">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#EF4444" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="8" x2="12" y2="12"></line>
+                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        </svg>
+                    </div>
+                    <h3>Connection Failed</h3>
+                    <p>${message}</p>
+                    <button class="btn btn-primary" id="exit-failed-interview">Go Back</button>
+                </div>
+            `;
+            document.getElementById('exit-failed-interview')?.addEventListener('click', () => {
+                cleanup();
+                onClose?.();
+            });
+        }
     }
 
     function cleanup() {
@@ -2456,6 +2506,7 @@ async function loadApplicants(roleId) {
         state.applicants = data.applicants || [];
         state.hiddenApplicantsCount = data.hidden_count || 0;
         state.totalApplicantsCount = data.total_count || 0;
+        state.benchStats = data.bench_stats || null;
         state.selectedEmployerRole = data.job || state.employerRoles.find(r => r.id === roleId);
         // Don't clear drawer state here - let the caller decide
     } catch (err) {
@@ -5375,6 +5426,31 @@ function renderCandidatesGrid() {
     });
 
     return `
+        ${state.benchStats ? `
+            <div class="bench-summary">
+                <span class="bench-stat">
+                    <strong>${state.benchStats.bench_count}</strong> on bench
+                </span>
+                ${state.benchStats.new_this_week > 0 ? `
+                    <span class="bench-stat new">
+                        <strong>${state.benchStats.new_this_week}</strong> new this week
+                    </span>
+                ` : ''}
+                ${state.benchStats.top_fit_score ? `
+                    <span class="bench-stat">
+                        Top: <strong>${state.benchStats.top_fit_score}%</strong>
+                    </span>
+                ` : ''}
+                <button class="btn btn-primary btn-small share-bench-btn" id="share-bench-btn">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
+                        <polyline points="16 6 12 2 8 6"></polyline>
+                        <line x1="12" y1="2" x2="12" y2="15"></line>
+                    </svg>
+                    Share Bench
+                </button>
+            </div>
+        ` : ''}
         <div class="grid-control-bar">
             <div class="control-bar-left">
                 <h2 class="control-bar-title">${escapeHtml(role.title)}</h2>
@@ -6087,6 +6163,11 @@ function setupEmployerDashboardListeners() {
         if (drawer) drawer.classList.remove('open');
         document.querySelectorAll('.grid-row').forEach(row => row.classList.remove('selected'));
     });
+
+    // Share bench button
+    document.getElementById('share-bench-btn')?.addEventListener('click', () => {
+        showShareBenchModal();
+    });
 }
 
 async function loadCandidateDetail(applicationId) {
@@ -6453,7 +6534,34 @@ function renderPremiumApplicantsList() {
                             <h2>${escapeHtml(role?.title || 'Candidates')}</h2>
                             <span class="inbox-company">${escapeHtml(role?.company_name || '')}</span>
                         </div>
+                        <button class="btn btn-primary btn-small share-bench-btn" id="share-bench-btn">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
+                                <polyline points="16 6 12 2 8 6"></polyline>
+                                <line x1="12" y1="2" x2="12" y2="15"></line>
+                            </svg>
+                            Share Bench
+                        </button>
                     </div>
+
+                    <!-- Bench Summary Stats -->
+                    ${state.benchStats ? `
+                        <div class="bench-summary">
+                            <span class="bench-stat">
+                                <strong>${state.benchStats.bench_count}</strong> on bench
+                            </span>
+                            ${state.benchStats.new_this_week > 0 ? `
+                                <span class="bench-stat new">
+                                    <strong>${state.benchStats.new_this_week}</strong> new this week
+                                </span>
+                            ` : ''}
+                            ${state.benchStats.top_fit_score ? `
+                                <span class="bench-stat">
+                                    Top: <strong>${state.benchStats.top_fit_score}%</strong>
+                                </span>
+                            ` : ''}
+                        </div>
+                    ` : ''}
 
                     <!-- Filter Pills -->
                     <div class="filter-pills">
@@ -6462,7 +6570,7 @@ function renderPremiumApplicantsList() {
 
                     <!-- Candidates Count -->
                     <div class="candidates-summary">
-                        <span class="visible-count">${visibleCandidates.length} candidate${visibleCandidates.length !== 1 ? 's' : ''}</span>
+                        <span class="visible-count">${visibleCandidates.length} on bench</span>
                         ${state.hiddenApplicantsCount > 0 ? `
                             <button class="hidden-toggle" id="toggle-hidden">
                                 ${state.showHiddenApplicants ? 'Hide' : 'Show'} ${state.hiddenApplicantsCount} below 70%
@@ -6474,14 +6582,14 @@ function renderPremiumApplicantsList() {
                     <div class="candidate-cards-list" id="candidate-cards">
                         ${state.applicants.length === 0 ? `
                             <div class="empty-state" style="padding:40px 20px;">
-                                <h3>No candidates yet</h3>
-                                <p>Candidates who join the shortlist will appear here.</p>
+                                <h3>Your bench is empty</h3>
+                                <p>Qualified candidates will appear here as they apply.</p>
                             </div>
                         ` : state.applicants.map(a => renderCandidateCard(a)).join('')}
 
                         ${!state.showHiddenApplicants && state.hiddenApplicantsCount > 0 ? `
                             <div class="hidden-candidates-divider">
-                                <span>Hidden: ${state.hiddenApplicantsCount} candidates under 70%</span>
+                                <span>${state.hiddenApplicantsCount} below threshold (not on bench)</span>
                             </div>
                         ` : ''}
                     </div>
@@ -6798,6 +6906,11 @@ function setupPremiumApplicantsListeners() {
     document.getElementById('clear-filters')?.addEventListener('click', async () => {
         state.employerFilters = { seniority: [], minScore: 70 };
         await loadApplicants(state.selectedEmployerRole?.id);
+    });
+
+    // Share bench button
+    document.getElementById('share-bench-btn')?.addEventListener('click', () => {
+        showShareBenchModal();
     });
 
     setupDrawerListeners();
@@ -7508,6 +7621,389 @@ function initPremiumUI() {
         initParallaxEffects();
         initWalkthroughAnimations();
         initCounterAnimations();
+    });
+}
+
+// ============================================================================
+// SHARE BENCH MODAL
+// ============================================================================
+
+async function showShareBenchModal() {
+    const roleId = state.selectedEmployerRole?.id;
+    if (!roleId) return;
+
+    // Create modal overlay
+    const modal = document.createElement('div');
+    modal.className = 'share-modal-overlay';
+    modal.innerHTML = `
+        <div class="share-modal">
+            <div class="share-modal-header">
+                <h2>Share Bench</h2>
+                <button class="close-modal-btn">&times;</button>
+            </div>
+            <div class="share-modal-body">
+                <p class="share-description">Generate a read-only link that anyone can use to view your candidate bench for this role.</p>
+                <div class="share-link-container" id="share-link-container" style="display: none;">
+                    <label>Share link:</label>
+                    <div class="share-link-input-group">
+                        <input type="text" id="share-link-url" readonly>
+                        <button class="btn btn-secondary btn-small" id="copy-share-link">Copy</button>
+                    </div>
+                    <p class="share-link-expires" id="share-link-expires"></p>
+                </div>
+                <div class="share-actions">
+                    <button class="btn btn-primary" id="generate-share-link">Generate Link</button>
+                </div>
+                <div class="share-info">
+                    <p>• Link valid for 7 days</p>
+                    <p>• Shows candidates with 70%+ fit score</p>
+                    <p>• Read-only access (no editing)</p>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // Close handlers
+    modal.querySelector('.close-modal-btn').addEventListener('click', () => {
+        modal.remove();
+    });
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.remove();
+    });
+
+    // Generate link handler
+    modal.querySelector('#generate-share-link').addEventListener('click', async () => {
+        const btn = modal.querySelector('#generate-share-link');
+        btn.disabled = true;
+        btn.textContent = 'Generating...';
+
+        try {
+            const data = await api(`/employer/roles/${roleId}/share-link`, {
+                method: 'POST',
+                body: JSON.stringify({ expires_days: 7 })
+            });
+
+            const linkContainer = modal.querySelector('#share-link-container');
+            const urlInput = modal.querySelector('#share-link-url');
+            const expiresEl = modal.querySelector('#share-link-expires');
+
+            urlInput.value = data.url;
+            expiresEl.textContent = data.expires_at
+                ? `Valid until ${new Date(data.expires_at).toLocaleDateString()}`
+                : 'No expiration';
+
+            linkContainer.style.display = 'block';
+            btn.textContent = 'Generate New Link';
+            btn.disabled = false;
+
+            // Auto-select the URL
+            urlInput.select();
+        } catch (err) {
+            console.error('Failed to generate share link:', err);
+            alert('Failed to generate share link. Please try again.');
+            btn.textContent = 'Generate Link';
+            btn.disabled = false;
+        }
+    });
+
+    // Copy link handler
+    modal.querySelector('#copy-share-link').addEventListener('click', () => {
+        const urlInput = modal.querySelector('#share-link-url');
+        urlInput.select();
+        navigator.clipboard.writeText(urlInput.value).then(() => {
+            const copyBtn = modal.querySelector('#copy-share-link');
+            copyBtn.textContent = 'Copied!';
+            setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
+        });
+    });
+}
+
+// ============================================================================
+// SHARED BENCH - Public read-only view
+// ============================================================================
+
+async function loadAndRenderSharedBench(token) {
+    const app = document.getElementById('app');
+    app.innerHTML = '<div class="loading">Loading shared bench...</div>';
+
+    try {
+        const response = await fetch(`${API_BASE}/public/bench/${token}`);
+        const data = await response.json();
+
+        if (!response.ok) {
+            app.innerHTML = `
+                <div class="shared-bench-error">
+                    <div class="error-content">
+                        <h2>${response.status === 410 ? 'Link Expired' : 'Link Not Found'}</h2>
+                        <p>${data.error || 'This share link is no longer valid.'}</p>
+                        <a href="/" class="btn btn-primary">Go to ShortList</a>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        state.sharedBenchData = data;
+        renderSharedBench();
+    } catch (err) {
+        console.error('Failed to load shared bench:', err);
+        app.innerHTML = `
+            <div class="shared-bench-error">
+                <div class="error-content">
+                    <h2>Error Loading</h2>
+                    <p>Failed to load the shared bench. Please try again.</p>
+                    <a href="/" class="btn btn-primary">Go to ShortList</a>
+                </div>
+            </div>
+        `;
+    }
+}
+
+function renderSharedBench() {
+    const data = state.sharedBenchData;
+    if (!data) return;
+
+    const app = document.getElementById('app');
+
+    const getScoreClass = (score) => {
+        if (score >= 85) return 'excellent';
+        if (score >= 70) return 'good';
+        if (score >= 50) return 'fair';
+        return 'low';
+    };
+
+    const renderSharedCandidateCard = (candidate) => {
+        const scoreClass = getScoreClass(candidate.fit_score);
+        const skills = candidate.matched_skill_chips || [];
+
+        return `
+            <div class="shared-candidate-card" data-application-id="${candidate.application_id}">
+                <div class="shared-card-main">
+                    <div class="shared-card-left">
+                        <div class="fit-score-badge ${scoreClass}">
+                            <span class="score-value">${candidate.fit_score ?? '—'}</span>
+                        </div>
+                    </div>
+                    <div class="shared-card-center">
+                        <div class="candidate-name">${escapeHtml(candidate.full_name || 'Candidate')}</div>
+                        <div class="candidate-position">
+                            ${candidate.current_position ? `${escapeHtml(candidate.current_position)}` : ''}
+                            ${candidate.current_position && candidate.current_company ? ' at ' : ''}
+                            ${candidate.current_company ? `${escapeHtml(candidate.current_company)}` : ''}
+                        </div>
+                        <div class="why-this-person">${escapeHtml(candidate.why_this_person || '')}</div>
+                        <div class="skill-chips">
+                            ${skills.slice(0, 4).map(s => `
+                                <span class="premium-skill-chip ${s.is_must_have ? 'must-have' : ''}">${escapeHtml(s.skill)}</span>
+                            `).join('')}
+                        </div>
+                    </div>
+                    <div class="shared-card-right">
+                        ${candidate.interview_status === 'completed'
+                            ? '<span class="interview-done">✓ Interviewed</span>'
+                            : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    };
+
+    const expiresText = data.expires_at
+        ? `Valid until ${new Date(data.expires_at).toLocaleDateString()}`
+        : '';
+
+    app.innerHTML = `
+        <div class="shared-bench-layout">
+            <header class="shared-bench-header">
+                <div class="shared-header-content">
+                    <div class="shared-branding">
+                        <span class="shortlist-logo">ShortList</span>
+                        <span class="shared-badge">Shared View</span>
+                    </div>
+                    ${expiresText ? `<span class="shared-expires">${expiresText}</span>` : ''}
+                </div>
+            </header>
+
+            <div class="shared-bench-content">
+                <div class="shared-bench-hero">
+                    <p class="shared-by">Shared by ${escapeHtml(data.company_name)}</p>
+                    <h1>${escapeHtml(data.role_title)}</h1>
+                    <p class="bench-count">${data.candidate_count} candidate${data.candidate_count !== 1 ? 's' : ''} on bench</p>
+                </div>
+
+                <div class="shared-candidates-list" id="shared-candidates">
+                    ${data.candidates.length === 0 ? `
+                        <div class="empty-state">
+                            <h3>No candidates on bench</h3>
+                            <p>There are no candidates meeting the minimum threshold.</p>
+                        </div>
+                    ` : data.candidates.map(c => renderSharedCandidateCard(c)).join('')}
+                </div>
+            </div>
+
+            <!-- Detail Drawer -->
+            <div class="shared-detail-drawer ${state.sharedCandidateDetail ? 'open' : ''}" id="shared-drawer">
+                ${state.sharedCandidateDetail
+                    ? renderSharedCandidateDrawer(state.sharedCandidateDetail)
+                    : renderSharedEmptyDrawer()
+                }
+            </div>
+        </div>
+    `;
+
+    setupSharedBenchListeners();
+}
+
+function renderSharedEmptyDrawer() {
+    return `
+        <div class="drawer-empty">
+            <div class="drawer-empty-content">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                </svg>
+                <h3>Select a candidate</h3>
+                <p>Click on a candidate to view their details</p>
+            </div>
+        </div>
+    `;
+}
+
+function renderSharedCandidateDrawer(detail) {
+    const candidate = detail.candidate;
+    const fitResponses = detail.fit_responses || [];
+    const strengths = candidate.strengths || [];
+    const risks = candidate.risks || [];
+    const suggestedQuestions = candidate.suggested_questions || [];
+    const interviewHighlights = candidate.interview_highlights || [];
+
+    const getScoreClass = (score) => {
+        if (score >= 85) return 'excellent';
+        if (score >= 70) return 'good';
+        if (score >= 50) return 'fair';
+        return 'low';
+    };
+
+    return `
+        <div class="drawer-header">
+            <div class="drawer-title-row">
+                <h2>${escapeHtml(candidate.full_name || 'Candidate')}</h2>
+                <button class="close-drawer-btn" id="close-shared-drawer">&times;</button>
+            </div>
+            <div class="drawer-subtitle">
+                ${candidate.current_position ? `${escapeHtml(candidate.current_position)}` : ''}
+                ${candidate.current_position && candidate.current_company ? ' at ' : ''}
+                ${candidate.current_company ? `${escapeHtml(candidate.current_company)}` : ''}
+            </div>
+            <div class="drawer-fit-score">
+                <div class="fit-score-badge large ${getScoreClass(candidate.fit_score)}">
+                    <span class="score-value">${candidate.fit_score ?? '—'}</span>
+                    <span class="score-label">Fit score</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="drawer-content">
+            ${candidate.overview ? `
+                <div class="drawer-section">
+                    <h3>Overview</h3>
+                    <p>${escapeHtml(candidate.overview)}</p>
+                </div>
+            ` : ''}
+
+            ${strengths.length > 0 ? `
+                <div class="drawer-section">
+                    <h3>Strengths</h3>
+                    <ul class="insight-list strengths">
+                        ${strengths.map(s => `
+                            <li>
+                                <span class="insight-icon">✓</span>
+                                <span>${escapeHtml(s.text)}</span>
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+            ` : ''}
+
+            ${risks.length > 0 ? `
+                <div class="drawer-section">
+                    <h3>Risks / Gaps</h3>
+                    <ul class="insight-list risks">
+                        ${risks.map(r => `
+                            <li>
+                                <span class="insight-icon">⚠</span>
+                                <span>${escapeHtml(r.text)}</span>
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+            ` : ''}
+
+            ${suggestedQuestions.length > 0 ? `
+                <div class="drawer-section">
+                    <h3>Suggested Follow-Up Questions</h3>
+                    <ul class="suggested-questions">
+                        ${suggestedQuestions.map(q => `
+                            <li>
+                                <span class="question-text">"${escapeHtml(q.question)}"</span>
+                                ${q.rationale ? `<span class="question-rationale">${escapeHtml(q.rationale)}</span>` : ''}
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+            ` : ''}
+
+            ${interviewHighlights.length > 0 ? `
+                <div class="drawer-section">
+                    <h3>Interview Highlights</h3>
+                    <ul class="interview-highlights">
+                        ${interviewHighlights.map(h => `
+                            <li class="${h.type || 'neutral'}">
+                                <span class="highlight-quote">"${escapeHtml(h.quote)}"</span>
+                                ${h.context ? `<span class="highlight-context">${escapeHtml(h.context)}</span>` : ''}
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+function setupSharedBenchListeners() {
+    // Candidate card clicks
+    document.querySelectorAll('.shared-candidate-card').forEach(card => {
+        card.addEventListener('click', async () => {
+            const applicationId = card.dataset.applicationId;
+
+            // Mark selected
+            document.querySelectorAll('.shared-candidate-card').forEach(c => c.classList.remove('selected'));
+            card.classList.add('selected');
+
+            // Load detail
+            try {
+                const response = await fetch(`${API_BASE}/public/bench/${state.sharedBenchToken}/candidate/${applicationId}`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    state.sharedCandidateDetail = data;
+                    const drawer = document.getElementById('shared-drawer');
+                    drawer.innerHTML = renderSharedCandidateDrawer(data);
+                    drawer.classList.add('open');
+
+                    // Add close button listener
+                    document.getElementById('close-shared-drawer')?.addEventListener('click', () => {
+                        drawer.classList.remove('open');
+                        state.sharedCandidateDetail = null;
+                        document.querySelectorAll('.shared-candidate-card').forEach(c => c.classList.remove('selected'));
+                    });
+                }
+            } catch (err) {
+                console.error('Failed to load candidate detail:', err);
+            }
+        });
     });
 }
 

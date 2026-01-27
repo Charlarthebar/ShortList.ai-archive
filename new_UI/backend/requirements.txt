@@ -6,3 +6,6 @@ werkzeug>=3.0.1
 PyPDF2>=3.0.1
 python-dotenv>=1.0.0
 openai>=1.0.0
+# Optional: Email digests
+sendgrid>=6.10.0
+APScheduler>=3.10.0
