@@ -247,49 +247,6 @@ We track **both open AND filled roles**, enabling a fundamentally different mode
 
 ---
 
-## Two-Sided Marketplace
-
-| **For Candidates** | **For Employers** |
-|----------------|---------------|
-| Living profiles | Pipeline management |
-| Role subscriptions | Smart screening |
-| Match scores | Ranked inbox |
-| AI interview prep | Candidate discovery |
-| Skill-gap roadmaps | Shortlist analytics |
-
-<div class="highlight-box">
-<strong>Tech Stack:</strong> React • Python/FastAPI • PostgreSQL • AI (Claude & GPT-4)
-</div>
-
----
-
-## Target Users
-
-<div class="columns">
-<div>
-
-**Job Seekers**
-- Knowledge workers in tech-forward roles
-- Software engineers, data scientists, PMs
-- Professionals tired of the application black hole
-
-</div>
-<div>
-
-**Employers**
-- Startups and mid-sized tech companies
-- Teams with recurring hiring needs
-- Organizations valuing quality over volume
-
-</div>
-</div>
-
-<div class="highlight-box">
-<strong>Initial Focus:</strong> U.S. tech sector — where skills are standardized, roles are repeatable, and switching is frequent.
-</div>
-
----
-
 ## Business Model
 
 <div class="columns">
@@ -299,7 +256,7 @@ We track **both open AND filled roles**, enabling a fundamentally different mode
 
 | Free | Premium |
 |------|---------|
-| Basic profile & search | Unlimited subscriptions |
+| Basic profile & search | Unlimited applications |
 | Limited subscriptions | AI interview prep |
 | Match scores | Resume optimization |
 | | Skill-gap roadmaps |
@@ -317,30 +274,6 @@ We track **both open AND filled roles**, enabling a fundamentally different mode
 </div>
 </div>
 
----
-
-## Get Started
-
-<div class="columns">
-<div>
-
-**For Job Seekers**
-
-Create your living profile and start subscribing to roles you want—even if they're filled today.
-
-</div>
-<div>
-
-**For Employers**
-
-Claim your company page and start building talent pipelines before your next role opens.
-
-</div>
-</div>
-
-<div class="highlight-box" style="text-align: center; margin-top: 40px;">
-<strong>Stop chasing applications. Start building relationships.</strong>
-</div>
 
 ---
 
