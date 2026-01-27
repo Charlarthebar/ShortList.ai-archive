@@ -2443,21 +2443,21 @@ async function loadEmployerRoles() {
 async function loadApplicants(roleId) {
     try {
         // Build query params for ranked endpoint
+        // Always fetch ALL candidates and let frontend handle visibility toggle
         const params = new URLSearchParams();
-        params.set('min_score', state.employerFilters.minScore.toString());
-        params.set('include_hidden', state.showHiddenApplicants.toString());
-        if (state.employerFilters.seniority.length > 0) {
+        params.set('min_score', '0');  // Get all candidates
+        params.set('include_hidden', 'true');  // Always include hidden, frontend filters
+        if (state.employerFilters?.seniority?.length > 0) {
             state.employerFilters.seniority.forEach(s => params.append('seniority', s));
         }
 
         const data = await api(`/employer/roles/${roleId}/applicants/ranked?${params.toString()}`);
+        console.log('Loaded applicants for role', roleId, ':', data);  // DEBUG
         state.applicants = data.applicants || [];
         state.hiddenApplicantsCount = data.hidden_count || 0;
         state.totalApplicantsCount = data.total_count || 0;
         state.selectedEmployerRole = data.job || state.employerRoles.find(r => r.id === roleId);
-        state.selectedApplicantDetail = null;
-        state.drawerOpen = false;
-        renderPremiumApplicantsList();
+        // Don't clear drawer state here - let the caller decide
     } catch (err) {
         console.error('Failed to load applicants:', err);
         // Fallback to old endpoint
@@ -2465,7 +2465,6 @@ async function loadApplicants(roleId) {
             const data = await api(`/employer/roles/${roleId}/applicants`);
             state.applicants = data.applicants || [];
             state.selectedEmployerRole = state.employerRoles.find(r => r.id === roleId);
-            renderApplicantsList();
         } catch (fallbackErr) {
             console.error('Fallback also failed:', fallbackErr);
             alert('Failed to load candidates. Please try again.');
@@ -2540,10 +2539,9 @@ function render() {
             renderMyShortlist();
             break;
         case 'employer':
-            renderEmployerDashboard();
-            break;
         case 'applicants':
-            renderApplicantsList();
+            // Both employer and applicants pages now use the unified dashboard
+            renderEmployerDashboard();
             break;
         case 'profile':
             renderProfile();
@@ -5282,69 +5280,844 @@ function setupProfileListeners() {
 
 function renderEmployerDashboard() {
     const app = document.getElementById('app');
+
+    // Filter roles based on toggle
+    const showOnlyWithApplicants = state.employerShowOnlyWithApplicants ?? true;
+    const filteredRoles = showOnlyWithApplicants
+        ? state.employerRoles.filter(r => r.applicant_count > 0)
+        : state.employerRoles;
+
     app.innerHTML = `
         <div class="main-layout">
             ${renderEmployerHeader()}
-            <div class="container page-content">
-                <h1>Employer Dashboard</h1>
-                <p style="color:#525252;margin-bottom:24px;">Roles with shortlisted candidates</p>
-                <div id="employer-roles-list">
-                    <div class="loading">Loading roles...</div>
+            <div class="ashby-workspace">
+                <!-- Left Rail: Role Picker -->
+                <div class="role-rail">
+                    <div class="role-rail-header">
+                        <h2>Your Roles</h2>
+                        <button class="toggle-pill ${showOnlyWithApplicants ? 'active' : ''}" id="only-with-applicants">
+                            Only with applicants
+                        </button>
+                    </div>
+                    <div class="role-rail-list" id="role-list">
+                        ${filteredRoles.length === 0 ? `
+                            <div class="role-rail-empty">
+                                <p>No roles ${showOnlyWithApplicants ? 'with applicants' : ''} yet</p>
+                            </div>
+                        ` : filteredRoles.map(role => `
+                            <div class="role-block ${state.selectedEmployerRole?.id === role.id ? 'selected' : ''}"
+                                 data-role-id="${role.id}">
+                                <div class="role-block-title">${escapeHtml(role.title)}</div>
+                                <div class="role-block-meta">
+                                    ${role.location ? `<span>${escapeHtml(role.location)}</span>` : ''}
+                                    ${role.work_arrangement ? `<span class="meta-dot">•</span><span>${escapeHtml(role.work_arrangement)}</span>` : ''}
+                                </div>
+                                <div class="role-block-chip ${role.applicant_count > 0 ? 'has-count' : ''}">
+                                    ${role.applicant_count} candidate${role.applicant_count !== 1 ? 's' : ''}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <!-- Right: Candidates Grid + Drawer -->
+                <div class="candidates-workspace">
+                    ${state.selectedEmployerRole
+                        ? renderCandidatesGrid()
+                        : `<div class="workspace-empty-state">
+                            <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5">
+                                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="9" cy="7" r="4"></circle>
+                                <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+                                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                            </svg>
+                            <h3>Select a role</h3>
+                            <p>Click on a role to view its candidates</p>
+                        </div>`
+                    }
+                </div>
+
+                <!-- Candidate Drawer (slides in from right) -->
+                <div class="candidate-drawer ${state.drawerOpen ? 'open' : ''}" id="candidate-drawer">
+                    ${state.selectedApplicantDetail
+                        ? renderCandidateDrawerContent(state.selectedApplicantDetail)
+                        : renderEmptyDrawerContent()}
                 </div>
             </div>
         </div>
     `;
 
-    setupEmployerNavListeners();
+    setupEmployerDashboardListeners();
+}
 
-    // Render roles
-    const container = document.getElementById('employer-roles-list');
+function renderCandidatesGrid() {
+    const role = state.selectedEmployerRole;
+    if (!role) return '';
 
-    if (!state.employerRoles.length) {
-        container.innerHTML = `
-            <div class="empty-state">
-                <h3>No roles with applicants yet</h3>
-                <p>When candidates join shortlists for your roles, they'll appear here.</p>
+    // Separate visible and hidden candidates
+    const visibleCandidates = state.applicants.filter(a =>
+        (a.fit_score >= 70 || a.fit_score === null) && !a.hard_filter_failed
+    );
+    const hiddenCandidates = state.applicants.filter(a =>
+        (a.fit_score !== null && a.fit_score < 70) || a.hard_filter_failed
+    );
+    const showHidden = state.showHiddenApplicants;
+    const displayCandidates = showHidden ? state.applicants : visibleCandidates;
+
+    // Sort: Fit Score desc, then Applied date desc (most recent)
+    const sortedCandidates = [...displayCandidates].sort((a, b) => {
+        // First by fit score descending (nulls last)
+        const scoreA = a.fit_score ?? -1;
+        const scoreB = b.fit_score ?? -1;
+        if (scoreA !== scoreB) return scoreB - scoreA;
+        // Then by applied date descending
+        return new Date(b.applied_at) - new Date(a.applied_at);
+    });
+
+    return `
+        <div class="grid-control-bar">
+            <div class="control-bar-left">
+                <h2 class="control-bar-title">${escapeHtml(role.title)}</h2>
+                <span class="control-bar-count">${visibleCandidates.length} candidate${visibleCandidates.length !== 1 ? 's' : ''}</span>
             </div>
-        `;
-        return;
-    }
-
-    container.innerHTML = state.employerRoles.map(role => `
-        <div class="role-card employer-role-card" data-role-id="${role.id}">
-            <div class="role-info">
-                <h3>${escapeHtml(role.title)}</h3>
-                <div class="role-company">${escapeHtml(role.company_name)}</div>
-            </div>
-            <div class="role-actions">
-                <div class="role-status">
-                    <span class="status-dot ${role.status === 'open' ? 'open' : 'closed'}"></span>
-                    ${role.status === 'open' ? 'Open' : 'Closed'}
-                </div>
-                <div class="applicant-count">${role.applicant_count} candidate${role.applicant_count !== 1 ? 's' : ''}</div>
-                <button class="btn btn-small btn-primary view-applicants-btn" data-role-id="${role.id}">View Candidates</button>
+            <div class="control-bar-right">
+                <span class="sort-indicator">Sort: Fit ↓, then Recent ↓</span>
+                <button class="toggle-pill small ${showHidden ? 'active' : ''}" id="toggle-hidden-candidates">
+                    Show &lt;70%
+                </button>
             </div>
         </div>
-    `).join('');
+        <div class="grid-scroll-container">
+            <table class="candidates-grid">
+                <thead>
+                    <tr>
+                        <th class="col-name sticky-col">Name</th>
+                        <th class="col-position">Current Position</th>
+                        <th class="col-score">Fit score</th>
+                        <th class="col-notes">Notes</th>
+                        <th class="col-stage">Stage</th>
+                        <th class="col-applied">Applied</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${sortedCandidates.length === 0 ? `
+                        <tr class="empty-row">
+                            <td colspan="6">
+                                <div class="grid-empty-state">No candidates yet</div>
+                            </td>
+                        </tr>
+                    ` : sortedCandidates.map(a => renderCandidateGridRow(a, hiddenCandidates.includes(a))).join('')}
+                </tbody>
+            </table>
+            ${!showHidden && hiddenCandidates.length > 0 ? `
+                <div class="hidden-candidates-bar" id="hidden-bar">
+                    <span class="hidden-bar-text">Hidden: ${hiddenCandidates.length} candidate${hiddenCandidates.length !== 1 ? 's' : ''} under 70%</span>
+                    <button class="hidden-bar-btn" id="show-hidden-from-bar">Show all</button>
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
 
-    // Add click listeners
-    container.querySelectorAll('.view-applicants-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const roleId = parseInt(btn.dataset.roleId);
-            loadApplicants(roleId);
-            state.currentPage = 'applicants';
+function renderCandidateGridRow(applicant, isHidden = false) {
+    const scoreClass = applicant.fit_score >= 85 ? 'excellent' :
+                       applicant.fit_score >= 70 ? 'good' :
+                       applicant.fit_score >= 50 ? 'fair' : 'low';
+    const isSelected = state.selectedApplicantDetail?.application?.application_id === applicant.application_id;
+
+    // Extract position from extracted_profile or why_this_person
+    const profile = applicant.extracted_profile || {};
+    const currentTitle = profile.current_title || '';
+    const currentCompany = profile.current_company || '';
+
+    // Generate short note from why_this_person or first strength
+    const note = applicant.why_this_person ||
+        (applicant.strengths?.[0]?.text?.substring(0, 60)) ||
+        '';
+
+    // Stage pill
+    const stagePill = applicant.interview_status === 'completed'
+        ? '<span class="stage-pill interviewed">Interviewed</span>'
+        : applicant.resume_path
+            ? '<span class="stage-pill resume">Resume</span>'
+            : '<span class="stage-pill applied">Applied</span>';
+
+    // Format applied date
+    const appliedDate = applicant.applied_at ? new Date(applicant.applied_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—';
+
+    return `
+        <tr class="grid-row ${isHidden ? 'hidden-candidate' : ''} ${isSelected ? 'selected' : ''}"
+            data-application-id="${applicant.application_id}">
+            <td class="col-name sticky-col">
+                <div class="name-cell">
+                    <span class="name-primary">${escapeHtml(applicant.full_name || applicant.email.split('@')[0])}</span>
+                    <span class="name-secondary">${escapeHtml(applicant.email)}</span>
+                </div>
+            </td>
+            <td class="col-position">
+                <div class="position-cell">
+                    <span class="position-title">${escapeHtml(currentTitle) || '—'}</span>
+                    ${currentCompany ? `<span class="position-company">${escapeHtml(currentCompany)}</span>` : ''}
+                </div>
+            </td>
+            <td class="col-score">
+                <span class="fit-score-display ${scoreClass}">${applicant.fit_score ?? '—'}${applicant.fit_score ? '%' : ''}</span>
+            </td>
+            <td class="col-notes">
+                <span class="notes-text" title="${escapeHtml(note)}">${escapeHtml(note)}</span>
+            </td>
+            <td class="col-stage">
+                ${stagePill}
+            </td>
+            <td class="col-applied">
+                <span class="applied-date">${appliedDate}</span>
+            </td>
+        </tr>
+    `;
+}
+
+function renderEmptyDrawerContent() {
+    return `
+        <div class="drawer-empty-state">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+            </svg>
+            <h3>Select a candidate</h3>
+            <p>Click on a row to view details</p>
+        </div>
+    `;
+}
+
+function renderCandidateDrawerContent(detail) {
+    const { application, score_breakdown, insights, fit_responses, materials } = detail;
+
+    const scoreClass = application.fit_score >= 85 ? 'excellent' :
+                       application.fit_score >= 70 ? 'good' :
+                       application.fit_score >= 50 ? 'fair' : 'low';
+
+    // Extract profile info from extracted_profile
+    const profile = application.extracted_profile || {};
+    const currentTitle = profile.current_title || '';
+    const currentCompany = profile.current_company || '';
+
+    // Parse overview - can be JSON object with evidence or plain text (backwards compatible)
+    let overviewText = '';
+    let overviewEvidence = [];
+    if (insights?.overview) {
+        if (typeof insights.overview === 'object' && insights.overview.text) {
+            overviewText = insights.overview.text;
+            overviewEvidence = insights.overview.evidence || [];
+        } else if (typeof insights.overview === 'string') {
+            // Try to parse as JSON first (new format stored as string)
+            try {
+                const parsed = JSON.parse(insights.overview);
+                overviewText = parsed.text || insights.overview;
+                overviewEvidence = parsed.evidence || [];
+            } catch {
+                overviewText = insights.overview;
+            }
+        }
+    }
+    if (!overviewText) {
+        overviewText = score_breakdown?.summary ||
+            (application.fit_score
+                ? `Fit score of ${application.fit_score}% based on ${profile.years_experience ? profile.years_experience + ' years experience' : 'available data'}. Complete the interview for a more detailed assessment.`
+                : 'Awaiting more data to generate fit assessment. Upload resume and complete interview for analysis.');
+    }
+
+    // Helper function to render evidence anchor chips with CSS-only tooltips
+    const renderEvidenceChips = (anchors) => {
+        if (!anchors || anchors.length === 0) return '';
+        return `<span class="evidence-chips">${anchors.map((anchor) => {
+            const sourceLabel = anchor.source === 'resume' ? 'Resume' :
+                               anchor.source === 'interview' ? 'Interview' :
+                               anchor.source === 'fit_responses' ? 'Short Answers' : 'Application';
+            const sectionId = anchor.source === 'resume' ? `resume-${anchor.section || 'summary'}` :
+                             anchor.source === 'interview' ? 'interview-transcript' :
+                             anchor.source === 'fit_responses' ? 'short-answers' : '';
+
+            // Build section label for tooltip (e.g., "Work Experience" or "Education")
+            const sectionLabel = anchor.section ?
+                anchor.section.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : '';
+
+            // Truncate quote for preview (max 80 chars)
+            const quotePreview = anchor.quote ?
+                (anchor.quote.length > 80 ? anchor.quote.substring(0, 77) + '...' : anchor.quote) : '';
+
+            // Build the breadcrumb path (e.g., "Resume · Work Experience")
+            const breadcrumb = [sourceLabel, sectionLabel].filter(Boolean).join(' · ');
+
+            // Build tooltip content
+            const tooltipContent = quotePreview
+                ? `<span class="tooltip-path">${escapeHtml(breadcrumb)}</span><span class="tooltip-quote">"${escapeHtml(quotePreview)}"</span>`
+                : `<span class="tooltip-path">${escapeHtml(breadcrumb)}</span>`;
+
+            return `<span class="chip-with-tooltip">
+                <button class="evidence-chip"
+                    data-section="${sectionId}"
+                    data-source="${anchor.source || ''}"
+                    data-quote="${escapeHtml(anchor.quote || '')}"
+                >${sourceLabel}</button>
+                <span class="chip-tooltip" role="tooltip">${tooltipContent}</span>
+            </span>`;
+        }).join('')}</span>`;
+    };
+
+    // Generate default strengths if none exist
+    const strengths = insights?.strengths?.length > 0 ? insights.strengths : [
+        ...(profile.skills?.slice(0, 2).map(s => ({ text: `Has ${s} skills`, evidence_source: 'resume' })) || []),
+        ...(application.resume_path ? [{ text: 'Resume uploaded', evidence_source: 'application' }] : []),
+        ...(fit_responses?.length > 0 ? [{ text: 'Completed fit questions', evidence_source: 'fit_responses' }] : [])
+    ].slice(0, 4);
+
+    // Generate default gaps if none exist
+    const gaps = insights?.risks?.length > 0 ? insights.risks : [
+        ...(!application.interview_status || application.interview_status === 'pending' ? [{ text: 'Interview not completed', evidence_source: 'application' }] : []),
+        ...(!fit_responses?.length ? [{ text: 'Fit questions not answered', evidence_source: 'application' }] : []),
+        ...(!application.resume_path ? [{ text: 'No resume uploaded', evidence_source: 'application' }] : [])
+    ].filter(g => g.text).slice(0, 3);
+
+    // =========================================================================
+    // POTENTIAL DEALBREAKERS - Quick triage for serious mismatches
+    // =========================================================================
+    const dealbreakers = [];
+
+    try {
+        // 1. Hard filter failures (from score_breakdown)
+        const hardFilters = score_breakdown?.hard_filter_breakdown || {};
+        if (hardFilters.work_authorization === false) {
+            dealbreakers.push({
+                text: "Can't meet work authorization requirement",
+                source: 'fit_responses',
+                severity: 'critical'
+            });
+        }
+        if (hardFilters.location === false) {
+            dealbreakers.push({
+                text: "Can't meet location/hybrid requirement",
+                source: 'fit_responses',
+                severity: 'critical'
+            });
+        }
+        if (hardFilters.start_date === false) {
+            dealbreakers.push({
+                text: "Start date doesn't align with timeline",
+                source: 'fit_responses',
+                severity: 'warning'
+            });
+        }
+        if (hardFilters.seniority === false) {
+            dealbreakers.push({
+                text: "Experience level mismatch for role scope",
+                source: 'resume',
+                severity: 'critical'
+            });
+        }
+
+        // 2. Missing must-have skills (if we have job requirements)
+        const mustHaveSkills = Array.isArray(application.must_have_skills) ? application.must_have_skills : [];
+        const candidateSkills = Array.isArray(profile.skills) ? profile.skills.map(s => (s || '').toLowerCase()) : [];
+        if (mustHaveSkills.length > 0 && candidateSkills.length > 0) {
+            const missingMustHaves = mustHaveSkills.filter(skill =>
+                skill && !candidateSkills.some(cs => cs.includes((skill || '').toLowerCase()) || (skill || '').toLowerCase().includes(cs))
+            );
+            if (missingMustHaves.length > 0) {
+                dealbreakers.push({
+                    text: `No evidence of must-have: ${missingMustHaves.slice(0, 2).join(', ')}${missingMustHaves.length > 2 ? ` (+${missingMustHaves.length - 2} more)` : ''}`,
+                    source: 'resume',
+                    severity: 'critical'
+                });
+            }
+        }
+
+        // 3. Very low fit score (below 40) with completed data
+        if (application.fit_score != null && application.fit_score < 40 && score_breakdown?.completeness?.interview) {
+            dealbreakers.push({
+                text: "Very low fit score despite complete data",
+                source: 'application',
+                severity: 'critical'
+            });
+        }
+
+        // 4. Experience level mismatch (from extracted profile vs job requirements)
+        const jobLevel = application.required_experience_level || '';
+        const candidateLevel = profile.experience_level || '';
+        if (jobLevel && candidateLevel) {
+            const levels = ['intern', 'entry', 'junior', 'mid', 'senior', 'lead', 'staff', 'principal'];
+            const jobIdx = levels.findIndex(l => jobLevel.toLowerCase().includes(l));
+            const candIdx = levels.findIndex(l => candidateLevel.toLowerCase().includes(l));
+            if (jobIdx >= 0 && candIdx >= 0 && (jobIdx - candIdx) >= 2) {
+                dealbreakers.push({
+                    text: `Too junior for ${jobLevel}-level scope`,
+                    source: 'resume',
+                    severity: 'warning'
+                });
+            }
+        }
+
+        // 5. Interview performance issues (vague answers on core skills)
+        const interviewEval = application.interview_evaluation || {};
+        if (interviewEval.overall_score && interviewEval.overall_score < 3) {
+            dealbreakers.push({
+                text: "Interview answers were vague or unclear on key topics",
+                source: 'interview',
+                severity: 'warning'
+            });
+        }
+
+        // 6. Check insights.risks for any critical flags
+        const risks = Array.isArray(insights?.risks) ? insights.risks : [];
+        risks.forEach(risk => {
+            if (!risk || !risk.text) return;
+            const riskText = risk.text.toLowerCase();
+            // Look for serious red flags in AI-generated risks
+            if (riskText.includes('no experience') || riskText.includes('no evidence') ||
+                riskText.includes('lacking') || riskText.includes('missing required')) {
+                if (!dealbreakers.some(d => d.text.toLowerCase().includes(riskText.substring(0, 20)))) {
+                    dealbreakers.push({
+                        text: risk.text,
+                        source: risk.evidence_anchors?.[0]?.source || risk.evidence_source || 'application',
+                        severity: 'warning'
+                    });
+                }
+            }
+        });
+    } catch (e) {
+        console.error('Error building dealbreakers:', e);
+    }
+
+    // Limit to top 3 dealbreakers, prioritize critical over warning
+    const sortedDealbreakers = dealbreakers
+        .sort((a, b) => (a.severity === 'critical' ? 0 : 1) - (b.severity === 'critical' ? 0 : 1))
+        .slice(0, 3);
+
+    // Generate default follow-up questions if none exist
+    const followUps = insights?.suggested_questions?.length > 0 ? insights.suggested_questions : [
+        { question: 'What interests you most about this role?', rationale: 'Assess motivation and fit' },
+        { question: 'Walk me through a challenging project you led.', rationale: 'Evaluate problem-solving approach' },
+        { question: 'How do you handle competing priorities?', rationale: 'Understand work style' }
+    ];
+
+    return `
+        <div class="drawer-header">
+            <button class="drawer-close-btn" id="close-candidate-drawer">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+            <div class="drawer-title-row">
+                <div class="drawer-candidate-info">
+                    <h2 class="drawer-name">${escapeHtml(application.full_name || application.email.split('@')[0])}</h2>
+                    <p class="drawer-email">${escapeHtml(application.email)}</p>
+                    ${currentTitle ? `<p class="drawer-position">${escapeHtml(currentTitle)}${currentCompany ? ` at ${escapeHtml(currentCompany)}` : ''}</p>` : ''}
+                </div>
+                <div class="drawer-score-badge ${scoreClass}">
+                    <span class="score-value">${application.fit_score ?? '—'}${application.fit_score ? '%' : ''}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="drawer-body">
+            <!-- 1. Overview (Score Justification) -->
+            <div class="drawer-section">
+                <h4 class="section-title">Overview</h4>
+                <p class="overview-text">${escapeHtml(overviewText)}</p>
+                ${overviewEvidence.length > 0 ? renderEvidenceChips(overviewEvidence) : ''}
+                ${score_breakdown?.completeness ? `
+                    <div class="completeness-badges">
+                        <span class="badge ${score_breakdown.completeness.resume ? 'complete' : 'missing'}">Resume</span>
+                        <span class="badge ${score_breakdown.completeness.fit_responses ? 'complete' : 'missing'}">Fit Questions</span>
+                        <span class="badge ${score_breakdown.completeness.interview ? 'complete' : 'missing'}">Interview</span>
+                    </div>
+                ` : ''}
+            </div>
+
+            ${sortedDealbreakers.length > 0 ? `
+            <!-- DEALBREAKERS - Quick triage block -->
+            <div class="drawer-section dealbreakers-section">
+                <h4 class="section-title dealbreakers-title">
+                    <span class="section-icon critical">⚠</span>
+                    Potential Dealbreakers
+                </h4>
+                <ul class="dealbreakers-list">
+                    ${sortedDealbreakers.map(d => {
+                        const sourceLabel = d.source === 'resume' ? 'Resume' :
+                                           d.source === 'interview' ? 'Interview' :
+                                           d.source === 'fit_responses' ? 'Short Answers' : 'Application';
+                        return `
+                        <li class="dealbreaker-item ${d.severity}">
+                            <span class="dealbreaker-text">${escapeHtml(d.text)}</span>
+                            <span class="dealbreaker-source">${sourceLabel}</span>
+                        </li>`;
+                    }).join('')}
+                </ul>
+            </div>
+            ` : ''}
+
+            <!-- 2. Strengths -->
+            <div class="drawer-section">
+                <h4 class="section-title">
+                    <span class="section-icon good">✓</span>
+                    Strengths
+                </h4>
+                ${strengths.length > 0 ? `
+                    <ul class="insight-list">
+                        ${strengths.map(s => `
+                            <li>
+                                <span class="insight-text">${escapeHtml(s.text)}</span>
+                                ${s.evidence_anchors?.length > 0
+                                    ? renderEvidenceChips(s.evidence_anchors)
+                                    : (s.evidence_source ? `<span class="evidence-chip-static">${escapeHtml(s.evidence_source)}</span>` : '')}
+                            </li>
+                        `).join('')}
+                    </ul>
+                ` : '<p class="no-data">No strengths identified yet</p>'}
+            </div>
+
+            <!-- 3. Gaps -->
+            <div class="drawer-section">
+                <h4 class="section-title">
+                    <span class="section-icon warning">!</span>
+                    Gaps
+                </h4>
+                ${gaps.length > 0 ? `
+                    <ul class="insight-list gaps">
+                        ${gaps.map(g => `
+                            <li>
+                                <span class="insight-text">${escapeHtml(g.text)}</span>
+                                ${g.evidence_anchors?.length > 0
+                                    ? renderEvidenceChips(g.evidence_anchors)
+                                    : (g.evidence_source ? `<span class="evidence-chip-static">${escapeHtml(g.evidence_source)}</span>` : '')}
+                            </li>
+                        `).join('')}
+                    </ul>
+                ` : '<p class="no-data good">No gaps identified</p>'}
+            </div>
+
+            <!-- 4. Suggested Follow-ups -->
+            <div class="drawer-section">
+                <h4 class="section-title">
+                    <span class="section-icon neutral">?</span>
+                    Follow-up Questions
+                </h4>
+                <ol class="followup-list">
+                    ${followUps.map(q => `
+                        <li>
+                            <span class="followup-q">"${escapeHtml(q.question)}"</span>
+                            ${q.rationale ? `<span class="followup-reason">${escapeHtml(q.rationale)}</span>` : ''}
+                        </li>
+                    `).join('')}
+                </ol>
+            </div>
+
+            <!-- 5. Parsed Resume Info -->
+            <div class="drawer-section" id="parsed-resume-section">
+                <h4 class="section-title">Parsed Resume</h4>
+                ${Object.keys(profile).length > 0 ? `
+                    <div class="parsed-resume">
+                        <!-- Summary -->
+                        ${profile.summary ? `
+                            <div class="resume-subsection" id="resume-summary">
+                                <p class="profile-summary">${escapeHtml(profile.summary)}</p>
+                            </div>
+                        ` : ''}
+
+                        <!-- Work Experience -->
+                        ${profile.work_experience?.length > 0 ? `
+                            <div class="resume-subsection" id="resume-work_experience">
+                                <h5 class="subsection-title">Work Experience</h5>
+                                ${profile.work_experience.map(exp => `
+                                    <div class="experience-entry">
+                                        <div class="exp-header">
+                                            <span class="exp-title">${escapeHtml(exp.title || '')}</span>
+                                            <span class="exp-dates">${escapeHtml(exp.start_date || '')} - ${escapeHtml(exp.end_date || 'Present')}</span>
+                                        </div>
+                                        <div class="exp-company">${escapeHtml(exp.company || '')}${exp.location ? `, ${escapeHtml(exp.location)}` : ''}</div>
+                                        ${exp.description ? `<p class="exp-description">${escapeHtml(exp.description)}</p>` : ''}
+                                        ${exp.achievements?.length > 0 ? `
+                                            <ul class="exp-achievements">
+                                                ${exp.achievements.map(a => `<li>${escapeHtml(a)}</li>`).join('')}
+                                            </ul>
+                                        ` : ''}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : (profile.current_title ? `
+                            <div class="resume-subsection">
+                                <h5 class="subsection-title">Work Experience</h5>
+                                <div class="experience-entry">
+                                    <div class="exp-header">
+                                        <span class="exp-title">${escapeHtml(profile.current_title)}</span>
+                                    </div>
+                                    ${profile.current_company ? `<div class="exp-company">${escapeHtml(profile.current_company)}</div>` : ''}
+                                </div>
+                            </div>
+                        ` : '')}
+
+                        <!-- Education -->
+                        ${profile.education?.length > 0 || (profile.education && typeof profile.education === 'object' && !Array.isArray(profile.education)) ? `
+                            <div class="resume-subsection" id="resume-education">
+                                <h5 class="subsection-title">Education</h5>
+                                ${Array.isArray(profile.education) ? profile.education.map(edu => `
+                                    <div class="education-entry">
+                                        <div class="edu-header">
+                                            <span class="edu-degree">${escapeHtml(edu.degree || '')} ${edu.field ? `in ${escapeHtml(edu.field)}` : ''}</span>
+                                            <span class="edu-date">${escapeHtml(edu.graduation_date || '')}</span>
+                                        </div>
+                                        <div class="edu-school">${escapeHtml(edu.school || '')}${edu.location ? `, ${escapeHtml(edu.location)}` : ''}</div>
+                                        ${edu.gpa ? `<div class="edu-gpa">GPA: ${escapeHtml(edu.gpa)}</div>` : ''}
+                                        ${edu.honors ? `<div class="edu-honors">${escapeHtml(edu.honors)}</div>` : ''}
+                                        ${edu.relevant_coursework?.length > 0 ? `
+                                            <div class="edu-coursework">Coursework: ${edu.relevant_coursework.map(c => escapeHtml(c)).join(', ')}</div>
+                                        ` : ''}
+                                        ${edu.activities?.length > 0 ? `
+                                            <div class="edu-activities">Activities: ${edu.activities.map(a => escapeHtml(a)).join(', ')}</div>
+                                        ` : ''}
+                                    </div>
+                                `).join('') : `
+                                    <div class="education-entry">
+                                        <div class="edu-header">
+                                            <span class="edu-degree">${escapeHtml(profile.education.highest_degree || '')} ${profile.education.field ? `in ${escapeHtml(profile.education.field)}` : ''}</span>
+                                        </div>
+                                        ${profile.education.school ? `<div class="edu-school">${escapeHtml(profile.education.school)}</div>` : ''}
+                                    </div>
+                                `}
+                            </div>
+                        ` : ''}
+
+                        <!-- Skills -->
+                        ${(profile.skills && (Array.isArray(profile.skills) ? profile.skills.length > 0 : Object.keys(profile.skills).length > 0)) ? `
+                            <div class="resume-subsection" id="resume-skills">
+                                <h5 class="subsection-title">Skills</h5>
+                                ${Array.isArray(profile.skills) ? `
+                                    <div class="skills-list">
+                                        ${profile.skills.map(s => `<span class="skill-tag">${escapeHtml(s)}</span>`).join('')}
+                                    </div>
+                                ` : `
+                                    ${profile.skills.technical?.length > 0 ? `
+                                        <div class="skills-category">
+                                            <span class="skills-label">Technical:</span>
+                                            <div class="skills-list">
+                                                ${profile.skills.technical.map(s => `<span class="skill-tag technical">${escapeHtml(s)}</span>`).join('')}
+                                            </div>
+                                        </div>
+                                    ` : ''}
+                                    ${profile.skills.soft?.length > 0 ? `
+                                        <div class="skills-category">
+                                            <span class="skills-label">Soft Skills:</span>
+                                            <div class="skills-list">
+                                                ${profile.skills.soft.map(s => `<span class="skill-tag soft">${escapeHtml(s)}</span>`).join('')}
+                                            </div>
+                                        </div>
+                                    ` : ''}
+                                    ${profile.skills.languages?.length > 0 ? `
+                                        <div class="skills-category">
+                                            <span class="skills-label">Languages:</span>
+                                            <span class="skills-text">${profile.skills.languages.map(l => escapeHtml(l)).join(', ')}</span>
+                                        </div>
+                                    ` : ''}
+                                `}
+                            </div>
+                        ` : ''}
+
+                        <!-- Projects -->
+                        ${profile.projects?.length > 0 ? `
+                            <div class="resume-subsection" id="resume-projects">
+                                <h5 class="subsection-title">Projects</h5>
+                                ${profile.projects.map(proj => `
+                                    <div class="project-entry">
+                                        <div class="proj-name">${escapeHtml(proj.name || '')}</div>
+                                        ${proj.description ? `<p class="proj-description">${escapeHtml(proj.description)}</p>` : ''}
+                                        ${proj.technologies?.length > 0 ? `
+                                            <div class="proj-tech">${proj.technologies.map(t => escapeHtml(t)).join(', ')}</div>
+                                        ` : ''}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : ''}
+
+                        <!-- Extracurriculars -->
+                        ${profile.extracurriculars?.length > 0 ? `
+                            <div class="resume-subsection" id="resume-extracurriculars">
+                                <h5 class="subsection-title">Activities & Leadership</h5>
+                                ${profile.extracurriculars.map(ec => `
+                                    <div class="extracurricular-entry">
+                                        <div class="ec-header">
+                                            <span class="ec-name">${escapeHtml(ec.name || ec.organization || '')}</span>
+                                            ${ec.dates || ec.start_date ? `<span class="ec-dates">${escapeHtml(ec.dates || (ec.start_date + (ec.end_date ? ' - ' + ec.end_date : '')))}</span>` : ''}
+                                        </div>
+                                        ${ec.role ? `<div class="ec-role">${escapeHtml(ec.role)}</div>` : ''}
+                                        ${ec.description ? `<p class="ec-description">${escapeHtml(ec.description)}</p>` : ''}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : ''}
+
+                        <!-- Certifications -->
+                        ${profile.certifications?.length > 0 ? `
+                            <div class="resume-subsection">
+                                <h5 class="subsection-title">Certifications</h5>
+                                <ul class="certifications-list">
+                                    ${profile.certifications.map(cert => `
+                                        <li>${escapeHtml(cert.name || '')}${cert.issuer ? ` - ${escapeHtml(cert.issuer)}` : ''}${cert.date ? ` (${escapeHtml(cert.date)})` : ''}</li>
+                                    `).join('')}
+                                </ul>
+                            </div>
+                        ` : ''}
+
+                        <!-- Interests -->
+                        ${profile.interests?.length > 0 ? `
+                            <div class="resume-subsection">
+                                <h5 class="subsection-title">Interests</h5>
+                                <p class="interests-text">${profile.interests.map(i => escapeHtml(i)).join(', ')}</p>
+                            </div>
+                        ` : ''}
+                    </div>
+                    ${materials?.has_resume ? `
+                        <a href="${API_BASE}/employer/download-resume/${application.application_id}?token=${state.token}"
+                           class="download-link" download>Download Original Resume (PDF)</a>
+                    ` : ''}
+                ` : `
+                    <p class="no-data">${materials?.has_resume ? 'Resume uploaded but not yet parsed' : 'No resume uploaded'}</p>
+                    ${materials?.has_resume ? `
+                        <a href="${API_BASE}/employer/download-resume/${application.application_id}?token=${state.token}"
+                           class="download-link" download>Download Resume (PDF)</a>
+                    ` : ''}
+                `}
+            </div>
+
+            <!-- 6. Short Answers -->
+            <div class="drawer-section" id="short-answers">
+                <h4 class="section-title">Short Answers</h4>
+                ${fit_responses?.length > 0 ? `
+                    <div class="answers-list">
+                        ${fit_responses.map(r => `
+                            <div class="answer-item">
+                                <div class="answer-q">${escapeHtml(r.question_text)}</div>
+                                <div class="answer-a">
+                                    ${r.question_type === 'multiple_choice'
+                                        ? `<span class="answer-choice">${r.response_value}</span> ${escapeHtml(r.response_label || '')}`
+                                        : `"${escapeHtml(r.response_text || '')}"`}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : '<p class="no-data">No fit responses submitted</p>'}
+            </div>
+
+            <!-- 7. Interview Transcript -->
+            <div class="drawer-section" id="interview-transcript">
+                <h4 class="section-title">Interview Transcript</h4>
+                ${materials?.has_interview && application.interview_transcript?.length > 0 ? `
+                    ${insights?.interview_highlights?.length > 0 ? `
+                        <div class="highlights-section">
+                            <h5 class="subsection-title">Key Moments</h5>
+                            ${insights.interview_highlights.slice(0, 4).map(h => `
+                                <div class="highlight ${h.type || 'neutral'}">
+                                    <span class="highlight-text">"${escapeHtml(h.quote)}"</span>
+                                    ${h.competency ? `<span class="highlight-tag">${escapeHtml(h.competency)}</span>` : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                    <div class="full-transcript">
+                        ${application.interview_transcript.map(entry => `
+                            <div class="transcript-turn ${entry.speaker || 'unknown'}">
+                                <span class="turn-speaker">${entry.speaker === 'interviewer' ? 'AI' : 'Candidate'}</span>
+                                <span class="turn-text">${escapeHtml(entry.text || entry.content || '')}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : '<p class="no-data">Interview not completed</p>'}
+            </div>
+        </div>
+    `;
+}
+
+function setupEmployerDashboardListeners() {
+    setupEmployerNavListeners();
+
+    // Toggle pill: Only with applicants
+    document.getElementById('only-with-applicants')?.addEventListener('click', () => {
+        state.employerShowOnlyWithApplicants = !state.employerShowOnlyWithApplicants;
+        renderEmployerDashboard();
+    });
+
+    // Role block clicks
+    document.querySelectorAll('.role-block').forEach(block => {
+        block.addEventListener('click', async () => {
+            const roleId = parseInt(block.dataset.roleId);
+            // Clear drawer when switching roles
+            state.selectedApplicantDetail = null;
+            state.drawerOpen = false;
+            await loadApplicants(roleId);
+            renderEmployerDashboard();
         });
     });
 
-    container.querySelectorAll('.employer-role-card').forEach(card => {
-        card.addEventListener('click', () => {
-            const roleId = parseInt(card.dataset.roleId);
-            loadApplicants(roleId);
-            state.currentPage = 'applicants';
+    // Toggle hidden candidates (pill button)
+    document.getElementById('toggle-hidden-candidates')?.addEventListener('click', async () => {
+        state.showHiddenApplicants = !state.showHiddenApplicants;
+        await loadApplicants(state.selectedEmployerRole?.id);
+        renderEmployerDashboard();
+    });
+
+    // Show hidden from collapsed bar
+    document.getElementById('show-hidden-from-bar')?.addEventListener('click', async () => {
+        state.showHiddenApplicants = true;
+        await loadApplicants(state.selectedEmployerRole?.id);
+        renderEmployerDashboard();
+    });
+
+    // Grid row clicks
+    document.querySelectorAll('.grid-row').forEach(row => {
+        row.addEventListener('click', async () => {
+            const applicationId = parseInt(row.dataset.applicationId);
+            await loadCandidateDetail(applicationId);
         });
+    });
+
+    // Drawer close
+    document.getElementById('close-candidate-drawer')?.addEventListener('click', () => {
+        state.drawerOpen = false;
+        state.selectedApplicantDetail = null;
+        const drawer = document.getElementById('candidate-drawer');
+        if (drawer) drawer.classList.remove('open');
+        document.querySelectorAll('.grid-row').forEach(row => row.classList.remove('selected'));
     });
 }
+
+async function loadCandidateDetail(applicationId) {
+    try {
+        const data = await api(`/employer/applicants/${applicationId}/detail`);
+        state.selectedApplicantDetail = data;
+        state.drawerOpen = true;
+
+        // Update drawer content
+        const drawer = document.getElementById('candidate-drawer');
+        if (drawer) {
+            drawer.innerHTML = renderCandidateDrawerContent(data);
+            drawer.classList.add('open');
+        }
+
+        // Update row selection
+        document.querySelectorAll('.grid-row').forEach(row => {
+            row.classList.toggle('selected',
+                parseInt(row.dataset.applicationId) === applicationId);
+        });
+
+        // Re-setup drawer listeners
+        setupDrawerListeners();
+
+    } catch (error) {
+        console.error('Error loading candidate detail:', error);
+        alert('Failed to load candidate details');
+    }
+}
+
+// setupDrawerListeners is defined later in the file - this was a duplicate that got overwritten
 
 function renderApplicantsList() {
     const role = state.selectedEmployerRole;
@@ -5612,10 +6385,6 @@ function renderPremiumApplicantsList() {
                     <div class="card-left">
                         <div class="fit-score-badge ${scoreClass}">
                             <span class="score-value">${applicant.fit_score ?? '—'}</span>
-                            ${applicant.confidence_level ? `
-                                <span class="confidence-dot ${applicant.confidence_level}"
-                                      title="${applicant.confidence_level} confidence"></span>
-                            ` : ''}
                         </div>
                     </div>
                     <div class="card-center">
@@ -5877,13 +6646,8 @@ function renderCandidateDrawer(detail) {
                 <div class="drawer-score-section">
                     <div class="big-score ${scoreClass}">
                         <span class="score-number">${application.fit_score ?? '—'}</span>
-                        <span class="score-label">Fit Score</span>
+                        <span class="score-label">Fit score</span>
                     </div>
-                    ${application.confidence_level ? `
-                        <span class="confidence-badge ${application.confidence_level}">
-                            ${application.confidence_level.charAt(0).toUpperCase() + application.confidence_level.slice(1)} Confidence
-                        </span>
-                    ` : ''}
                 </div>
                 <div class="drawer-candidate-info">
                     <h2>${escapeHtml(application.full_name || application.email)}</h2>
@@ -6040,17 +6804,25 @@ function setupPremiumApplicantsListeners() {
 }
 
 function setupDrawerListeners() {
-    // Drawer close
-    document.getElementById('close-drawer')?.addEventListener('click', () => {
+    // Close handler for both drawer button IDs
+    const closeHandler = () => {
         state.drawerOpen = false;
         state.selectedApplicantDetail = null;
-        const drawer = document.getElementById('detail-drawer');
+        // Try both drawer IDs
+        const drawer = document.getElementById('detail-drawer') || document.getElementById('candidate-drawer');
         if (drawer) {
             drawer.classList.remove('open');
-            drawer.innerHTML = renderEmptyDrawer();
+            if (typeof renderEmptyDrawer === 'function') {
+                drawer.innerHTML = renderEmptyDrawer();
+            }
         }
         document.querySelectorAll('.premium-candidate-card').forEach(c => c.classList.remove('selected'));
-    });
+        document.querySelectorAll('.grid-row').forEach(row => row.classList.remove('selected'));
+    };
+
+    // Both close button IDs
+    document.getElementById('close-drawer')?.addEventListener('click', closeHandler);
+    document.getElementById('close-candidate-drawer')?.addEventListener('click', closeHandler);
 
     // Material collapsibles
     document.querySelectorAll('.material-header').forEach(header => {
@@ -6065,6 +6837,9 @@ function setupDrawerListeners() {
             }
         });
     });
+
+    // Evidence chip tooltip - use event delegation for dynamically rendered chips
+    setupEvidenceChipClickHandler();
 
     // Expand full transcript
     document.getElementById('expand-transcript')?.addEventListener('click', () => {
@@ -6407,6 +7182,80 @@ function showFitQuestionsModal(applicationId, questions, hasResume) {
     });
 }
 
+// ============================================================================
+// EVIDENCE CHIP - Click handler for jump-to-source functionality
+// Tooltips are now pure CSS (no JavaScript needed for hover)
+// ============================================================================
+let evidenceChipListenerInitialized = false;
+
+function setupEvidenceChipClickHandler() {
+    // Only initialize once
+    if (evidenceChipListenerInitialized) return;
+    evidenceChipListenerInitialized = true;
+
+    // Use event delegation for dynamically created chips
+    document.addEventListener('click', (e) => {
+        const chip = e.target.closest('.evidence-chip');
+        if (!chip) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+        jumpToEvidenceSource(chip);
+    }, false);
+}
+
+function jumpToEvidenceSource(chip) {
+    const sectionId = chip.dataset.section;
+    const quote = chip.dataset.quote;
+
+    if (!sectionId) return;
+
+    // Find the target section
+    const targetSection = document.getElementById(sectionId);
+    if (!targetSection) return;
+
+    // Remove any existing highlights
+    document.querySelectorAll('.evidence-highlight').forEach(el => {
+        el.classList.remove('evidence-highlight');
+    });
+
+    // Scroll to the section smoothly
+    targetSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    // Add highlight effect
+    targetSection.classList.add('evidence-highlight');
+
+    // If we have a quote, try to find and highlight the exact text
+    if (quote && quote.length > 10) {
+        const textToFind = quote.toLowerCase().substring(0, 50);
+        const walker = document.createTreeWalker(
+            targetSection,
+            NodeFilter.SHOW_TEXT,
+            null,
+            false
+        );
+
+        let node;
+        while (node = walker.nextNode()) {
+            if (node.textContent.toLowerCase().includes(textToFind)) {
+                const parent = node.parentElement;
+                if (parent) {
+                    parent.classList.add('evidence-highlight');
+                    parent.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+                break;
+            }
+        }
+    }
+
+    // Remove highlight after 3 seconds
+    setTimeout(() => {
+        document.querySelectorAll('.evidence-highlight').forEach(el => {
+            el.classList.remove('evidence-highlight');
+        });
+    }, 3000);
+}
+
 // Utility Functions
 function escapeHtml(str) {
     if (!str) return '';
@@ -6666,6 +7515,7 @@ function initPremiumUI() {
 document.addEventListener('DOMContentLoaded', () => {
     checkAuth();
     initPremiumUI();
+    setupEvidenceChipClickHandler();  // Initialize tooltip system for evidence chips
 });
 
 // Re-initialize after navigations

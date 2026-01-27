@@ -1,19 +1,19 @@
 """
 Smart Fit Scoring Engine for ShortList.ai
 ==========================================
-Multi-bucket scoring with hard filters, evidence assessment, and confidence calculation.
+Multi-bucket scoring with hard filters and completeness-based scoring.
+
+Score reflects data completeness directly:
+- Resume only: Max ~60% (missing interview + fit responses potential)
+- Resume + Fit Responses: Max ~75% (missing interview potential)
+- Resume + Fit Responses + Interview: Full 0-100 range
+
+No confidence labels - the score itself reflects completeness.
 """
 
 from dataclasses import dataclass, field, asdict
 from typing import Optional, Dict, List, Tuple, Any
-from enum import Enum
 import json
-
-
-class ConfidenceLevel(Enum):
-    HIGH = "high"
-    MEDIUM = "medium"
-    LOW = "low"
 
 
 @dataclass
@@ -39,21 +39,21 @@ class ScoreBucket:
 @dataclass
 class FitScoreResult:
     overall_score: int
-    confidence: str  # 'high', 'medium', 'low'
     hard_filters_passed: bool
     hard_filter_breakdown: Dict[str, bool]
     buckets: List[ScoreBucket]
     deductions: Dict[str, int]
+    completeness: Dict[str, bool]  # What data sources are present
     breakdown_explanation: Dict
 
     def to_dict(self):
         return {
             'overall_score': self.overall_score,
-            'confidence': self.confidence,
             'hard_filters_passed': self.hard_filters_passed,
             'hard_filter_breakdown': self.hard_filter_breakdown,
             'buckets': [b.to_dict() for b in self.buckets],
             'deductions': self.deductions,
+            'completeness': self.completeness,
             'breakdown_explanation': self.breakdown_explanation
         }
 
@@ -110,15 +110,26 @@ class ScoringEngine:
             job_data.get('hard_requirements', {})
         )
 
+        # Track what data we have for completeness
+        has_resume = bool(candidate_data.get('skills') or candidate_data.get('extracted_profile'))
+        has_fit_responses = bool(fit_responses and len(fit_responses) > 0)
+        has_interview = bool(interview_evaluation)
+
+        completeness = {
+            'resume': has_resume,
+            'fit_responses': has_fit_responses,
+            'interview': has_interview
+        }
+
         if not hard_filter_result['passed']:
             # Hard filter failed - cap score at 30
             return FitScoreResult(
                 overall_score=30,
-                confidence=ConfidenceLevel.HIGH.value,
                 hard_filters_passed=False,
                 hard_filter_breakdown=hard_filter_result['breakdown'],
                 buckets=[],
                 deductions={},
+                completeness=completeness,
                 breakdown_explanation={
                     'failed_hard_filter': hard_filter_result['failure_reason'],
                     'note': 'Score capped at 30 due to hard filter failure'
@@ -188,24 +199,38 @@ class ScoringEngine:
 
         # Apply deductions
         total_deductions = sum(deductions.values())
-        final_score = max(0, min(100, int(base_score - total_deductions)))
+        calculated_score = max(0, min(100, int(base_score - total_deductions)))
 
-        # Step 5: Calculate Confidence
-        confidence = self._calculate_confidence(
-            candidate_data,
-            interview_evaluation,
-            fit_responses,
-            buckets
-        )
+        # Step 5: Apply score cap based on completeness
+        # Missing data = missing potential. Score reflects what we can verify.
+        if has_interview and has_fit_responses:
+            # Full data - no cap
+            max_score = 100
+            missing_penalty = 0
+        elif has_fit_responses and not has_interview:
+            # Missing interview - cap at 75, they need to interview to prove more
+            max_score = 75
+            missing_penalty = 15  # Direct penalty for not interviewing
+        else:
+            # Resume only - cap at 60, very limited data
+            max_score = 60
+            missing_penalty = 25  # Significant penalty for minimal engagement
+
+        # Apply the penalty and cap
+        final_score = max(0, min(max_score, calculated_score - missing_penalty))
+
+        # Add completeness info to deductions for transparency
+        if missing_penalty > 0:
+            deductions['incomplete_profile'] = missing_penalty
 
         return FitScoreResult(
             overall_score=final_score,
-            confidence=confidence.value,
             hard_filters_passed=True,
             hard_filter_breakdown=hard_filter_result['breakdown'],
             buckets=buckets,
             deductions=deductions,
-            breakdown_explanation=self._build_explanation(buckets, deductions)
+            completeness=completeness,
+            breakdown_explanation=self._build_explanation(buckets, deductions, completeness)
         )
 
     def _evaluate_hard_filters(
@@ -586,43 +611,11 @@ class ScoringEngine:
 
         return deductions
 
-    def _calculate_confidence(
-        self,
-        candidate_data: Dict,
-        interview_evaluation: Optional[Dict],
-        fit_responses: Optional[List[Dict]],
-        buckets: List[ScoreBucket]
-    ) -> ConfidenceLevel:
-        """Calculate confidence level based on data completeness."""
-        confidence_score = 0
-
-        # Resume data
-        if candidate_data.get('skills'):
-            confidence_score += 20
-        if candidate_data.get('extracted_profile', {}).get('roles'):
-            confidence_score += 20
-
-        # Interview completed
-        if interview_evaluation:
-            confidence_score += 30
-            if interview_evaluation.get('confidence', {}).get('level') == 'high':
-                confidence_score += 10
-
-        # Fit responses
-        if fit_responses and len(fit_responses) >= 3:
-            confidence_score += 20
-
-        if confidence_score >= 70:
-            return ConfidenceLevel.HIGH
-        elif confidence_score >= 40:
-            return ConfidenceLevel.MEDIUM
-        else:
-            return ConfidenceLevel.LOW
-
     def _build_explanation(
         self,
         buckets: List[ScoreBucket],
-        deductions: Dict[str, int]
+        deductions: Dict[str, int],
+        completeness: Optional[Dict[str, bool]] = None
     ) -> Dict:
         """Build human-readable score breakdown."""
         explanation = {
@@ -646,9 +639,24 @@ class ScoringEngine:
                 explanation['deductions'][key] = f"-{value}"
                 total_deductions += value
 
-        # Build summary
+        # Build summary based on completeness and score
         top_bucket = max(buckets, key=lambda b: b.raw_score) if buckets else None
-        if top_bucket and top_bucket.raw_score >= 80:
+
+        # Add completeness info to explanation
+        if completeness:
+            explanation['completeness'] = completeness
+            missing = []
+            if not completeness.get('interview'):
+                missing.append('interview')
+            if not completeness.get('fit_responses'):
+                missing.append('fit responses')
+
+            if missing:
+                explanation['missing_data'] = missing
+
+        if completeness and not completeness.get('interview'):
+            explanation['summary'] = "Score limited - interview not completed"
+        elif top_bucket and top_bucket.raw_score >= 80:
             explanation['summary'] = f"Strong in {top_bucket.name.replace('_', ' ')}"
         elif total_deductions > 10:
             explanation['summary'] = "Some concerns identified"
@@ -733,14 +741,18 @@ def calculate_and_store_fit_score(conn, application_id: int) -> Optional[FitScor
 
     # Store results
     with conn.cursor() as cur:
-        # Update shortlist_applications
+        # Update shortlist_applications (keep confidence_level column but set to NULL)
         cur.execute("""
             UPDATE shortlist_applications
-            SET fit_score = %s, confidence_level = %s, hard_filter_failed = %s
+            SET fit_score = %s, confidence_level = NULL, hard_filter_failed = %s
             WHERE id = %s
-        """, (result.overall_score, result.confidence, not result.hard_filters_passed, application_id))
+        """, (result.overall_score, not result.hard_filters_passed, application_id))
 
         # Insert or update candidate_fit_scores
+        # Store completeness info in score_breakdown
+        breakdown_with_completeness = result.breakdown_explanation.copy()
+        breakdown_with_completeness['completeness'] = result.completeness
+
         cur.execute("""
             INSERT INTO candidate_fit_scores (
                 application_id, overall_fit_score, confidence_level,
@@ -765,7 +777,7 @@ def calculate_and_store_fit_score(conn, application_id: int) -> Optional[FitScor
         """, (
             application_id,
             result.overall_score,
-            result.confidence,
+            None,  # No longer using confidence_level
             result.hard_filters_passed,
             json.dumps(result.hard_filter_breakdown),
             next((b.raw_score for b in result.buckets if b.name == 'must_have_skills'), None),
@@ -774,7 +786,7 @@ def calculate_and_store_fit_score(conn, application_id: int) -> Optional[FitScor
             next((b.raw_score for b in result.buckets if b.name == 'fit_responses'), None),
             next((b.raw_score for b in result.buckets if b.name == 'nice_to_have_skills'), None),
             json.dumps(result.deductions),
-            json.dumps(result.breakdown_explanation)
+            json.dumps(breakdown_with_completeness)
         ))
 
         conn.commit()
