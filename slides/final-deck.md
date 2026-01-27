@@ -125,7 +125,7 @@ style: |
 
 ---
 
-## Hiring is Broken for Everyone
+## The Problem
 
 <div class="columns">
 <div>
