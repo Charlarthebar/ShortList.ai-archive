@@ -1,14 +1,12 @@
-# ShortList.ai — 6-Page Business Plan (Draft)
+# ShortList.ai — 6-Page Business Plan
 
 ## 1) Executive Summary
 
-**ShortList.ai** is a two-sided job marketplace designed to fix the inefficiency and distrust in modern hiring. Traditional job boards treat job search as a one-time transaction: a job opens, candidates apply, employers filter, and the job closes. This creates a volume-driven arms race where job seekers mass-apply and employers are overwhelmed with low-quality applications.
+**ShortList.ai** is a two-sided job marketplace designed to fix the inefficiency and distrust issues in modern hiring. Traditional job boards treat job search as a one-time transaction: a job opens, candidates apply, employers filter, and the job closes. This creates a volume-driven arms race where job seekers mass-apply and employers are overwhelmed with low-quality applications.
 
-ShortList.ai instead treats hiring as a **continuous process**. We index both **open and filled roles**, enabling candidates to “subscribe” to roles over time and receive alerts when roles reopen, when their match improves, or when similar opportunities emerge. We continuously refine candidate profiles using skills and intent signals rather than relying solely on static resumes and keyword matching.
+ShortList.ai instead treats hiring as a continuous process. We index both open and filled roles, enabling candidates to “subscribe” to roles over time and receive alerts when roles reopen, when their match improves, or when similar opportunities emerge. We continuously refine candidate profiles using skills and intent signals rather than relying solely on static resumes and keyword matching.
 
-For employers, ShortList.ai provides a new pipeline-building tool: employers can see candidates who have subscribed to their roles and proactively recruit qualified passive talent before formally opening requisitions. Our marketplace reduces noise, improves match quality, and creates a retention loop where users stay engaged because the platform keeps working for them.
-
-**Initial focus:** U.S. knowledge workers (software, data, product) and employers with recurring hiring needs.
+For employers, ShortList.ai provides a new pipeline-building tool: employers can see pre-filtered candidates who are qualified and have subscribed to their roles and proactively recruit qualified passive talent before formally opening requisitions. Our marketplace reduces noise, improves match quality, and creates a retention loop where users stay engaged because the platform keeps working for them.
 
 ---
 
@@ -24,7 +22,7 @@ Job seekers experience:
 - pressure to apply broadly rather than precisely
 - little feedback on why they were rejected or how to improve fit
 
-The result is frustration, wasted time, and declining trust in job boards.
+The results are frustration, wasted time, and declining trust in job boards.
 
 ### Employer pain
 Employers face the opposite side of the same system:
@@ -97,6 +95,7 @@ Unlike a resume, this profile updates continuously and improves matching quality
 #### (C) Matching + Subscriptions
 Candidates can:
 - subscribe to specific jobs even if currently filled
+  - automated AI interview to determine fit to that specific job
 - subscribe to “role archetypes” (e.g., New Grad SWE, ML Engineer)
 - receive alerts when:
   - a job reopens
