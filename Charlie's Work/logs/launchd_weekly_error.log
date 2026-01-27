@@ -1,0 +1,64 @@
+--- Logging error ---
+Traceback (most recent call last):
+  File "/Users/charleslai/anaconda3/lib/python3.11/logging/__init__.py", line 1114, in emit
+    self.flush()
+  File "/Users/charleslai/anaconda3/lib/python3.11/logging/__init__.py", line 1094, in flush
+    self.stream.flush()
+OSError: [Errno 11] Resource deadlock avoided
+Call stack:
+  File "/Users/charleslai/Library/CloudStorage/OneDrive-MassachusettsInstituteofTechnology/ShortList.ai/Charlie's Work/schedule_scraping.py", line 638, in <module>
+    main()
+  File "/Users/charleslai/Library/CloudStorage/OneDrive-MassachusettsInstituteofTechnology/ShortList.ai/Charlie's Work/schedule_scraping.py", line 629, in main
+    success = run_weekly_collector()
+  File "/Users/charleslai/Library/CloudStorage/OneDrive-MassachusettsInstituteofTechnology/ShortList.ai/Charlie's Work/schedule_scraping.py", line 200, in run_weekly_collector
+    logger.info("="*60)
+Message: '============================================================'
+Arguments: ()
+--- Logging error ---
+Traceback (most recent call last):
+  File "/Users/charleslai/anaconda3/lib/python3.11/logging/__init__.py", line 1114, in emit
+    self.flush()
+  File "/Users/charleslai/anaconda3/lib/python3.11/logging/__init__.py", line 1094, in flush
+    self.stream.flush()
+OSError: [Errno 11] Resource deadlock avoided
+Call stack:
+  File "/Users/charleslai/Library/CloudStorage/OneDrive-MassachusettsInstituteofTechnology/ShortList.ai/Charlie's Work/schedule_scraping.py", line 638, in <module>
+    main()
+  File "/Users/charleslai/Library/CloudStorage/OneDrive-MassachusettsInstituteofTechnology/ShortList.ai/Charlie's Work/schedule_scraping.py", line 629, in main
+    success = run_weekly_collector()
+  File "/Users/charleslai/Library/CloudStorage/OneDrive-MassachusettsInstituteofTechnology/ShortList.ai/Charlie's Work/schedule_scraping.py", line 201, in run_weekly_collector
+    logger.info("WEEKLY COLLECTOR - Collecting unlisted/filled jobs data")
+Message: 'WEEKLY COLLECTOR - Collecting unlisted/filled jobs data'
+Arguments: ()
+--- Logging error ---
+Traceback (most recent call last):
+  File "/Users/charleslai/anaconda3/lib/python3.11/logging/__init__.py", line 1114, in emit
+    self.flush()
+  File "/Users/charleslai/anaconda3/lib/python3.11/logging/__init__.py", line 1094, in flush
+    self.stream.flush()
+OSError: [Errno 11] Resource deadlock avoided
+Call stack:
+  File "/Users/charleslai/Library/CloudStorage/OneDrive-MassachusettsInstituteofTechnology/ShortList.ai/Charlie's Work/schedule_scraping.py", line 638, in <module>
+    main()
+  File "/Users/charleslai/Library/CloudStorage/OneDrive-MassachusettsInstituteofTechnology/ShortList.ai/Charlie's Work/schedule_scraping.py", line 629, in main
+    success = run_weekly_collector()
+  File "/Users/charleslai/Library/CloudStorage/OneDrive-MassachusettsInstituteofTechnology/ShortList.ai/Charlie's Work/schedule_scraping.py", line 202, in run_weekly_collector
+    logger.info("="*60)
+Message: '============================================================'
+Arguments: ()
+--- Logging error ---
+Traceback (most recent call last):
+  File "/Users/charleslai/anaconda3/lib/python3.11/logging/__init__.py", line 1114, in emit
+    self.flush()
+  File "/Users/charleslai/anaconda3/lib/python3.11/logging/__init__.py", line 1094, in flush
+    self.stream.flush()
+OSError: [Errno 11] Resource deadlock avoided
+Call stack:
+  File "/Users/charleslai/Library/CloudStorage/OneDrive-MassachusettsInstituteofTechnology/ShortList.ai/Charlie's Work/schedule_scraping.py", line 638, in <module>
+    main()
+  File "/Users/charleslai/Library/CloudStorage/OneDrive-MassachusettsInstituteofTechnology/ShortList.ai/Charlie's Work/schedule_scraping.py", line 629, in main
+    success = run_weekly_collector()
+  File "/Users/charleslai/Library/CloudStorage/OneDrive-MassachusettsInstituteofTechnology/ShortList.ai/Charlie's Work/schedule_scraping.py", line 228, in run_weekly_collector
+    logger.error(f"Weekly collector failed with code {result.returncode}")
+Message: 'Weekly collector failed with code 1'
+Arguments: ()

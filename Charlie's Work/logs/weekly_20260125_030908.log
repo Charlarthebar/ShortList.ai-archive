@@ -1,0 +1,18 @@
+=== Weekly Collector Run: 2026-01-25 03:09:08.876359 ===
+
+STDOUT:
+
+
+STDERR:
+Traceback (most recent call last):
+  File "/Users/charleslai/Library/CloudStorage/OneDrive-MassachusettsInstituteofTechnology/ShortList.ai/Charlie's Work/unlisted_jobs_collector.py", line 1706, in <module>
+    main()
+  File "/Users/charleslai/Library/CloudStorage/OneDrive-MassachusettsInstituteofTechnology/ShortList.ai/Charlie's Work/unlisted_jobs_collector.py", line 1691, in main
+    results = collector.run_all(
+              ^^^^^^^^^^^^^^^^^^
+  File "/Users/charleslai/Library/CloudStorage/OneDrive-MassachusettsInstituteofTechnology/ShortList.ai/Charlie's Work/unlisted_jobs_collector.py", line 1460, in run_all
+    self.db.connect()
+  File "/Users/charleslai/Library/CloudStorage/OneDrive-MassachusettsInstituteofTechnology/ShortList.ai/Charlie's Work/unlisted_jobs_collector.py", line 131, in connect
+    self.conn = sqlite3.connect(self.config.db_path)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: disk I/O error

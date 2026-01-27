@@ -1,0 +1,49 @@
+=== Daily Scraper Run: 2026-01-24 06:09:58.892611 ===
+
+
+============================================================
+STEP 1: CAMBRIDGE AREA JOBS COLLECTOR
+============================================================
+
+STDOUT:
+
+
+
+STDERR:
+
+Traceback (most recent call last):
+  File "/Users/charleslai/Library/CloudStorage/OneDrive-MassachusettsInstituteofTechnology/ShortList.ai/Charlie's Work/cambridge_jobs_collector.py", line 73, in <module>
+    load_dotenv()
+  File "/Users/charleslai/anaconda3/lib/python3.11/site-packages/dotenv/main.py", line 384, in load_dotenv
+    return dotenv.set_as_environment_variables()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/charleslai/anaconda3/lib/python3.11/site-packages/dotenv/main.py", line 104, in set_as_environment_variables
+    if not self.dict():
+           ^^^^^^^^^^^
+  File "/Users/charleslai/anaconda3/lib/python3.11/site-packages/dotenv/main.py", line 87, in dict
+    resolve_variables(raw_values, override=self.override)
+  File "/Users/charleslai/anaconda3/lib/python3.11/site-packages/dotenv/main.py", line 250, in resolve_variables
+    for name, value in values:
+  File "/Users/charleslai/anaconda3/lib/python3.11/site-packages/dotenv/main.py", line 96, in parse
+    for mapping in with_warn_for_invalid_lines(parse_stream(stream)):
+  File "/Users/charleslai/anaconda3/lib/python3.11/site-packages/dotenv/main.py", line 36, in with_warn_for_invalid_lines
+    for mapping in mappings:
+  File "/Users/charleslai/anaconda3/lib/python3.11/site-packages/dotenv/parser.py", line 180, in parse_stream
+    reader = Reader(stream)
+             ^^^^^^^^^^^^^^
+  File "/Users/charleslai/anaconda3/lib/python3.11/site-packages/dotenv/parser.py", line 71, in __init__
+    self.string = stream.read()
+                  ^^^^^^^^^^^^^
+OSError: [Errno 11] Resource deadlock avoided
+
+
+============================================================
+STEP 2: NATIONWIDE JOBS COLLECTOR
+============================================================
+
+STDOUT:
+
+
+
+STDERR:
+
