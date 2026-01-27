@@ -269,13 +269,14 @@ CREATE INDEX IF NOT EXISTS idx_seeker_embedding ON seeker_profiles USING GIN (re
 -- ============================================================================
 
 -- Candidate fit scores with multi-bucket breakdown
+-- Score reflects data completeness: resume-only caps at ~60, +fit responses ~75, +interview full range
 CREATE TABLE IF NOT EXISTS candidate_fit_scores (
     id SERIAL PRIMARY KEY,
     application_id INTEGER UNIQUE REFERENCES shortlist_applications(id) ON DELETE CASCADE,
 
     -- Final Scores
-    overall_fit_score INTEGER NOT NULL,  -- 0-100
-    confidence_level VARCHAR(10) NOT NULL,  -- 'high', 'medium', 'low'
+    overall_fit_score INTEGER NOT NULL,  -- 0-100 (capped based on data completeness)
+    confidence_level VARCHAR(10),  -- DEPRECATED: completeness now baked into score
 
     -- Hard Filter Results
     hard_filters_passed BOOLEAN NOT NULL,
@@ -307,6 +308,9 @@ CREATE TABLE IF NOT EXISTS candidate_insights (
     -- One-liner Summary
     why_this_person TEXT,  -- "5 years React + startup experience + strong system design"
 
+    -- Overview: 3-4 sentence fit score justification
+    overview TEXT,
+
     -- Strengths & Risks (AI-generated)
     strengths JSONB,  -- [{text: "", evidence_source: "resume|interview|fit_responses", confidence: "high|medium|low"}]
     risks JSONB,  -- [{text: "", evidence_source: "", confidence: ""}]
@@ -327,6 +331,14 @@ CREATE TABLE IF NOT EXISTS candidate_insights (
 );
 
 CREATE INDEX IF NOT EXISTS idx_insights_app ON candidate_insights(application_id);
+
+-- Add overview column to candidate_insights if it doesn't exist (migration)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'candidate_insights' AND column_name = 'overview') THEN
+        ALTER TABLE candidate_insights ADD COLUMN overview TEXT;
+    END IF;
+END $$;
 
 -- Add fit score columns to shortlist_applications for quick access
 DO $$

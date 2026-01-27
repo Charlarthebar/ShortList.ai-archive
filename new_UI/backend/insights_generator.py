@@ -1,451 +1,570 @@
+#!/usr/bin/env python3
 """
-AI Insights Generator for Candidate Profiles
-=============================================
-Generates employer-facing insights: summaries, strengths/risks, interview questions.
-Auto-triggered after interview completes.
+AI-Powered Candidate Insights Generator for ShortList.ai
+=========================================================
+Uses OpenAI (gpt-4o-mini) to analyze candidates against job requirements
+and generate meaningful insights for employers.
+
+Generates:
+- Overview: 3-4 sentence fit score justification
+- Strengths: 3-5 specific strengths with evidence
+- Gaps: 2+ gaps/risks based on role requirements
+- Follow-up Questions: Role-specific and candidate-specific questions
 """
 
-from typing import Dict, List, Optional, Any
-import json
 import os
+import json
+import psycopg2
+from psycopg2.extras import RealDictCursor
+from dotenv import load_dotenv
 from openai import OpenAI
+from datetime import datetime
+from typing import Dict, List, Optional, Any
+
+# Load environment variables
+load_dotenv()
+
+# Database connection - matches app.py config
+DB_CONFIG = {
+    'dbname': os.environ.get('DB_NAME', 'jobs_comprehensive'),
+    'user': os.environ.get('DB_USER', 'noahhopkins'),
+    'password': os.environ.get('DB_PASSWORD', ''),
+    'host': os.environ.get('DB_HOST', 'localhost'),
+    'port': int(os.environ.get('DB_PORT', 5432))
+}
 
 
-class InsightsGenerator:
+def get_db():
+    """Get database connection."""
+    return psycopg2.connect(**DB_CONFIG)
+
+
+def generate_candidate_insights(
+    application_id: int,
+    conn=None
+) -> Dict[str, Any]:
     """
-    Generate AI-powered insights for candidate profiles.
+    Generate AI-powered insights for a candidate application.
 
-    Generates:
-    1. why_this_person - 15-word max one-liner
-    2. strengths - Max 4, each with evidence source
-    3. risks - Max 3, each with evidence source
-    4. suggested_questions - 3 tailored follow-up questions
-    5. matched_skill_chips - Top 5 skills matching job requirements
-    6. interview_highlights - Key quotes from transcript
+    Args:
+        application_id: The shortlist_applications.id
+        conn: Optional database connection (will create one if not provided)
+
+    Returns:
+        Dict with why_this_person, strengths, risks, suggested_questions, etc.
     """
+    should_close_conn = False
+    if conn is None:
+        conn = get_db()
+        should_close_conn = True
 
-    def __init__(self, db_connection):
-        self.conn = db_connection
-        self.client = OpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
-
-    def generate_insights(self, application_id: int) -> Dict:
-        """
-        Generate all insights for a candidate application.
-        Called after interview completion.
-        """
-        # Gather all candidate data
-        candidate_data = self._gather_candidate_data(application_id)
-        job_data = self._get_job_data(candidate_data['position_id'])
-
-        # Generate each insight type
-        why_this_person = self._generate_one_liner(candidate_data, job_data)
-        strengths_risks = self._generate_strengths_risks(candidate_data, job_data)
-        suggested_questions = self._generate_interview_questions(candidate_data, job_data)
-        skill_chips = self._generate_skill_chips(candidate_data, job_data)
-        highlights = self._extract_highlights(candidate_data)
-
-        # Compile insights
-        insights = {
-            'why_this_person': why_this_person,
-            'strengths': strengths_risks.get('strengths', []),
-            'risks': strengths_risks.get('risks', []),
-            'suggested_questions': suggested_questions,
-            'matched_skill_chips': skill_chips,
-            'interview_highlights': highlights
-        }
-
-        # Store insights
-        self._store_insights(application_id, insights)
-
-        return insights
-
-    def _gather_candidate_data(self, application_id: int) -> Dict:
-        """Fetch all candidate data for the application."""
-        from psycopg2.extras import RealDictCursor
-
-        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
-            # Get application and profile data
-            cur.execute("""
-                SELECT
-                    sa.id as application_id, sa.user_id, sa.position_id,
-                    sa.eligibility_data, sa.interview_transcript, sa.interview_evaluation,
-                    sa.fit_score, sa.confidence_level,
-                    sp.extracted_profile, sp.resume_text,
-                    u.first_name, u.last_name, u.email
-                FROM shortlist_applications sa
-                JOIN seeker_profiles sp ON sp.user_id = sa.user_id
-                JOIN platform_users u ON u.id = sa.user_id
-                WHERE sa.id = %s
-            """, (application_id,))
-            app = cur.fetchone()
-
-            if not app:
-                raise ValueError(f"Application {application_id} not found")
-
-            # Get candidate skills
-            cur.execute("""
-                SELECT os.skill_name as name, cs.confidence
-                FROM candidate_skills cs
-                JOIN onet_skills os ON os.id = cs.skill_id
-                WHERE cs.user_id = %s
-                ORDER BY cs.confidence DESC
-            """, (app['user_id'],))
-            skills = [dict(s) for s in cur.fetchall()]
-
-            # Get fit responses
-            cur.execute("""
-                SELECT question_id, response_value, response_text
-                FROM application_fit_responses
-                WHERE application_id = %s
-            """, (application_id,))
-            fit_responses = [dict(r) for r in cur.fetchall()]
-
-        return {
-            'application_id': application_id,
-            'position_id': app['position_id'],
-            'user_id': app['user_id'],
-            'first_name': app['first_name'],
-            'last_name': app['last_name'],
-            'email': app['email'],
-            'extracted_profile': app.get('extracted_profile') or {},
-            'resume_text': app.get('resume_text', ''),
-            'interview_transcript': app.get('interview_transcript') or [],
-            'interview_evaluation': app.get('interview_evaluation') or {},
-            'eligibility_data': app.get('eligibility_data') or {},
-            'skills': skills,
-            'fit_responses': fit_responses,
-            'fit_score': app.get('fit_score'),
-            'confidence_level': app.get('confidence_level')
-        }
-
-    def _get_job_data(self, position_id: int) -> Dict:
-        """Fetch job data for context."""
-        from psycopg2.extras import RealDictCursor
-
-        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("""
-                SELECT id, title, company_name, description, role_type,
-                       experience_level, hard_requirements,
-                       must_have_skills, nice_to_have_skills
-                FROM watchable_positions
-                WHERE id = %s
-            """, (position_id,))
-            job = cur.fetchone()
-
-        return dict(job) if job else {}
-
-    def _generate_one_liner(self, candidate: Dict, job: Dict) -> str:
-        """
-        Generate a concise "why this person" summary.
-        Max 15 words, factual, no fluff.
-        """
-        # Build context
-        profile = candidate.get('extracted_profile', {})
-        skills = [s['name'] for s in candidate.get('skills', [])[:8]]
-        interview_eval = candidate.get('interview_evaluation', {})
-
-        prompt = f"""Based on this candidate profile and job, write ONE sentence (max 15 words)
-explaining why this person could be a good fit. Focus on concrete qualifications.
-
-Job: {job.get('title', 'Unknown')} at {job.get('company_name', 'Unknown')}
-Required skills: {', '.join((job.get('must_have_skills') or [])[:5])}
-
-Candidate:
-- Current/Recent title: {profile.get('current_title', 'Unknown')}
-- Skills: {', '.join(skills)}
-- Experience: {profile.get('years_experience', 'Unknown')} years
-- Interview category: {interview_eval.get('final_screening_category', 'N/A')}
-
-Write a direct, factual one-liner. No fluff. Example format:
-"5 years React/Node + startup experience + strong system design skills"
-"Senior backend engineer with AWS expertise and fintech background"
-"""
-
-        try:
-            response = self.client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=50,
-                temperature=0.3
-            )
-            return response.choices[0].message.content.strip().strip('"')
-        except Exception as e:
-            print(f"Error generating one-liner: {e}")
-            # Fallback to template-based
-            title = profile.get('current_title', '')
-            years = profile.get('years_experience', '')
-            if title and years:
-                return f"{years}+ years experience as {title}"
-            return "Candidate profile under review"
-
-    def _generate_strengths_risks(self, candidate: Dict, job: Dict) -> Dict:
-        """
-        Generate strengths and risks with evidence backing.
-        Max 4 strengths, max 3 risks.
-        """
-        interview_eval = candidate.get('interview_evaluation', {})
-        profile = candidate.get('extracted_profile', {})
-        skills = [s['name'] for s in candidate.get('skills', [])[:10]]
-
-        prompt = f"""Analyze this candidate for the {job.get('title', 'Unknown')} role and identify strengths and risks.
-
-JOB REQUIREMENTS:
-- Must-have skills: {', '.join(job.get('must_have_skills') or [])}
-- Nice-to-have: {', '.join(job.get('nice_to_have_skills') or [])}
-- Experience level: {job.get('experience_level', 'Not specified')}
-
-CANDIDATE DATA:
-- Title: {profile.get('current_title', 'Unknown')}
-- Years experience: {profile.get('years_experience', 'Unknown')}
-- Skills: {', '.join(skills)}
-- Interview category: {interview_eval.get('final_screening_category', 'N/A')}
-- Key strengths from interview: {json.dumps(interview_eval.get('candidate_summary', {}).get('key_strengths', []))}
-- Red flags from interview: {json.dumps(interview_eval.get('red_flags', []))}
-- Areas for growth: {json.dumps(interview_eval.get('candidate_summary', {}).get('areas_for_growth', []))}
-
-Return JSON with:
-{{
-    "strengths": [
-        {{"text": "specific strength in plain language", "evidence_source": "resume|interview|fit_responses", "confidence": "high|medium|low"}}
-    ],
-    "risks": [
-        {{"text": "specific concern or gap", "evidence_source": "resume|interview|fit_responses", "confidence": "high|medium|low"}}
-    ]
-}}
-
-Rules:
-- Max 4 strengths, max 3 risks
-- Be specific and factual
-- Every claim must have evidence source
-- Write in plain language employers understand
-- If interview data is missing, note limited confidence
-"""
-
-        try:
-            response = self.client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=600,
-                temperature=0.2,
-                response_format={"type": "json_object"}
-            )
-            result = json.loads(response.choices[0].message.content)
-            return {
-                'strengths': result.get('strengths', [])[:4],
-                'risks': result.get('risks', [])[:3]
-            }
-        except Exception as e:
-            print(f"Error generating strengths/risks: {e}")
-            # Fallback to interview data if available
-            strengths = []
-            risks = []
-
-            if interview_eval.get('candidate_summary', {}).get('key_strengths'):
-                for s in interview_eval['candidate_summary']['key_strengths'][:4]:
-                    strengths.append({
-                        'text': s,
-                        'evidence_source': 'interview',
-                        'confidence': 'medium'
-                    })
-
-            if interview_eval.get('red_flags'):
-                for flag in interview_eval['red_flags'][:3]:
-                    risks.append({
-                        'text': flag.get('flag', 'Concern identified'),
-                        'evidence_source': 'interview',
-                        'confidence': flag.get('severity', 'medium')
-                    })
-
-            return {'strengths': strengths, 'risks': risks}
-
-    def _generate_interview_questions(self, candidate: Dict, job: Dict) -> List[Dict]:
-        """
-        Generate 3 tailored interview questions for gaps.
-        """
-        interview_eval = candidate.get('interview_evaluation', {})
-        skills = [s['name'] for s in candidate.get('skills', [])]
-        must_have = job.get('must_have_skills') or []
-
-        # Find missing skills
-        candidate_skills_lower = set(s.lower() for s in skills)
-        missing_skills = [s for s in must_have if s.lower() not in candidate_skills_lower]
-
-        prompt = f"""Based on this candidate's profile for {job.get('title', 'the role')},
-suggest 3 specific interview questions for the hiring manager to ask.
-
-Focus on:
-1. Gaps or uncertainties in their background
-2. Areas where evidence is weak
-3. Red flags that need clarification
-
-Candidate gaps/concerns:
-- Interview red flags: {json.dumps(interview_eval.get('red_flags', []))}
-- Follow-up questions from AI interview: {json.dumps(interview_eval.get('follow_up_questions_for_human_interviewer', []))}
-- Potentially missing skills: {', '.join(missing_skills[:5])}
-- Areas for growth: {json.dumps(interview_eval.get('candidate_summary', {}).get('areas_for_growth', []))}
-
-Return a JSON object with a 'questions' array:
-{{
-    "questions": [
-        {{"question": "specific behavioral or technical question", "rationale": "why ask this", "gap_area": "skills|experience|culture|other"}}
-    ]
-}}
-
-Make questions specific and actionable, not generic.
-"""
-
-        try:
-            response = self.client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=500,
-                temperature=0.4,
-                response_format={"type": "json_object"}
-            )
-            result = json.loads(response.choices[0].message.content)
-            questions = result.get('questions', [])
-            if isinstance(questions, list):
-                return questions[:3]
-            return []
-        except Exception as e:
-            print(f"Error generating interview questions: {e}")
-            # Fallback to questions from interview if available
-            follow_ups = interview_eval.get('follow_up_questions_for_human_interviewer', [])
-            return [
-                {'question': q, 'rationale': 'From AI interview', 'gap_area': 'experience'}
-                for q in follow_ups[:3]
-            ]
-
-    def _generate_skill_chips(self, candidate: Dict, job: Dict) -> List[Dict]:
-        """
-        Generate skill chips for display (matched to job requirements).
-        Max 5 chips, must-haves first.
-        """
-        candidate_skills = set(s['name'].lower() for s in candidate.get('skills', []))
-        must_have = job.get('must_have_skills') or []
-        nice_to_have = job.get('nice_to_have_skills') or []
-
-        chips = []
-
-        # Must-have matches first
-        for skill in must_have:
-            if skill.lower() in candidate_skills:
-                chips.append({
-                    'skill': skill,
-                    'is_must_have': True,
-                    'matched': True,
-                    'source': 'resume'
-                })
-
-        # Nice-to-have matches
-        for skill in nice_to_have:
-            if skill.lower() in candidate_skills and len(chips) < 5:
-                chips.append({
-                    'skill': skill,
-                    'is_must_have': False,
-                    'matched': True,
-                    'source': 'resume'
-                })
-
-        # If still room, add top candidate skills
-        if len(chips) < 5:
-            for skill_data in candidate.get('skills', []):
-                skill = skill_data['name']
-                if skill.lower() not in [c['skill'].lower() for c in chips]:
-                    chips.append({
-                        'skill': skill,
-                        'is_must_have': False,
-                        'matched': False,
-                        'source': 'resume'
-                    })
-                    if len(chips) >= 5:
-                        break
-
-        return chips[:5]
-
-    def _extract_highlights(self, candidate: Dict) -> List[Dict]:
-        """Extract notable moments from interview transcript."""
-        highlights = []
-        interview_eval = candidate.get('interview_evaluation', {})
-        transcript = candidate.get('interview_transcript', [])
-
-        if not interview_eval:
-            return highlights
-
-        # Use competency evidence as highlights
-        for comp in interview_eval.get('competency_scores', []):
-            for evidence in comp.get('evidence', [])[:2]:
-                if evidence and len(evidence) > 20:  # Only substantial quotes
-                    highlights.append({
-                        'quote': evidence[:200] + ('...' if len(evidence) > 200 else ''),
-                        'competency': comp.get('competency_name'),
-                        'type': 'strength' if comp.get('score', 0) >= 4 else 'neutral'
-                    })
-
-        # Add red flags as highlights (concerns)
-        for flag in interview_eval.get('red_flags', []):
-            if flag.get('evidence'):
-                highlights.append({
-                    'quote': flag['evidence'][:200] + ('...' if len(flag.get('evidence', '')) > 200 else ''),
-                    'flag': flag.get('flag'),
-                    'type': 'concern',
-                    'severity': flag.get('severity', 'medium')
-                })
-
-        # Add key quotes from candidate summary
-        summary = interview_eval.get('candidate_summary', {})
-        for strength in summary.get('key_strengths', [])[:2]:
-            if strength and strength not in [h.get('quote', '') for h in highlights]:
-                highlights.append({
-                    'quote': strength,
-                    'type': 'strength',
-                    'context': 'Key strength identified'
-                })
-
-        return highlights[:10]
-
-    def _store_insights(self, application_id: int, insights: Dict):
-        """Store generated insights in database."""
-        with self.conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO candidate_insights
-                (application_id, why_this_person, strengths, risks,
-                 suggested_questions, matched_skill_chips, interview_highlights,
-                 llm_model, generation_version)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (application_id) DO UPDATE SET
-                    why_this_person = EXCLUDED.why_this_person,
-                    strengths = EXCLUDED.strengths,
-                    risks = EXCLUDED.risks,
-                    suggested_questions = EXCLUDED.suggested_questions,
-                    matched_skill_chips = EXCLUDED.matched_skill_chips,
-                    interview_highlights = EXCLUDED.interview_highlights,
-                    generated_at = NOW(),
-                    llm_model = EXCLUDED.llm_model,
-                    generation_version = EXCLUDED.generation_version
-            """, (
-                application_id,
-                insights['why_this_person'],
-                json.dumps(insights['strengths']),
-                json.dumps(insights['risks']),
-                json.dumps(insights['suggested_questions']),
-                json.dumps(insights['matched_skill_chips']),
-                json.dumps(insights['interview_highlights']),
-                'gpt-4o-mini',
-                '1.0'
-            ))
-            self.conn.commit()
-
-
-def generate_and_store_insights(conn, application_id: int) -> Optional[Dict]:
-    """
-    Convenience function to generate and store insights for an application.
-    Called after interview completion.
-    """
     try:
-        generator = InsightsGenerator(conn)
-        insights = generator.generate_insights(application_id)
+        # Gather all candidate data
+        candidate_data = _gather_candidate_data(conn, application_id)
+
+        if not candidate_data:
+            return {'error': 'Application not found'}
+
+        # Generate insights using OpenAI
+        insights = _generate_insights_with_ai(candidate_data)
+
+        # Store insights in database
+        _store_insights(conn, application_id, insights)
+
         return insights
+
+    finally:
+        if should_close_conn:
+            conn.close()
+
+
+def _gather_candidate_data(conn, application_id: int) -> Optional[Dict]:
+    """Gather all relevant data about the candidate and role."""
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        # Get application with user and role info
+        cur.execute("""
+            SELECT
+                sa.id as application_id,
+                sa.fit_score,
+                sa.interview_status,
+                sa.interview_transcript,
+                sa.interview_evaluation,
+                sa.resume_path,
+                sa.eligibility_data,
+                u.email,
+                u.first_name,
+                u.last_name,
+                sp.resume_text,
+                sp.extracted_profile,
+                sp.experience_level as candidate_experience_level,
+                wp.id as role_id,
+                wp.title as role_title,
+                wp.company_name,
+                wp.description as role_description,
+                wp.role_type,
+                wp.experience_level as required_experience_level,
+                wp.location,
+                wp.work_arrangement,
+                wp.must_have_skills,
+                wp.nice_to_have_skills,
+                wp.hard_requirements
+            FROM shortlist_applications sa
+            JOIN platform_users u ON u.id = sa.user_id
+            LEFT JOIN seeker_profiles sp ON sp.user_id = sa.user_id
+            JOIN watchable_positions wp ON wp.id = sa.position_id
+            WHERE sa.id = %s
+        """, (application_id,))
+
+        result = cur.fetchone()
+        if not result:
+            return None
+
+        data = dict(result)
+
+        # Parse JSON fields
+        for field in ['interview_transcript', 'interview_evaluation', 'eligibility_data',
+                      'extracted_profile', 'must_have_skills', 'nice_to_have_skills', 'hard_requirements']:
+            if data.get(field):
+                if isinstance(data[field], str):
+                    try:
+                        data[field] = json.loads(data[field])
+                    except:
+                        data[field] = None
+
+        # Get fit responses
+        cur.execute("""
+            SELECT
+                afr.question_id,
+                afr.response_value,
+                afr.response_text
+            FROM application_fit_responses afr
+            WHERE afr.application_id = %s
+        """, (application_id,))
+        data['fit_responses'] = [dict(r) for r in cur.fetchall()]
+
+        return data
+
+
+def _generate_insights_with_ai(candidate_data: Dict) -> Dict:
+    """Use OpenAI to generate candidate insights."""
+    api_key = os.getenv('OPENAI_API_KEY')
+    if not api_key:
+        # Return placeholder if no API key
+        return _generate_placeholder_insights(candidate_data)
+
+    client = OpenAI(api_key=api_key)
+
+    # Build context for the AI
+    context = _build_analysis_context(candidate_data)
+
+    prompt = f"""You are an expert recruiter analyzing a job candidate. Based on the information provided, generate insights to help the hiring manager understand this candidate's fit.
+
+ROLE INFORMATION:
+- Title: {candidate_data.get('role_title', 'Unknown')}
+- Company: {candidate_data.get('company_name', 'Unknown')}
+- Description: {candidate_data.get('role_description', 'No description')[:1500]}
+- Required Experience Level: {candidate_data.get('required_experience_level', 'Not specified')}
+- Location: {candidate_data.get('location', 'Not specified')}
+- Work Arrangement: {candidate_data.get('work_arrangement', 'Not specified')}
+- Must-Have Skills: {json.dumps(candidate_data.get('must_have_skills', []))}
+- Nice-to-Have Skills: {json.dumps(candidate_data.get('nice_to_have_skills', []))}
+
+CANDIDATE INFORMATION:
+- Name: {candidate_data.get('first_name', '')} {candidate_data.get('last_name', '')}
+- Email: {candidate_data.get('email', '')}
+- Current fit score: {candidate_data.get('fit_score', 'Not calculated')}%
+- Has Resume: {'Yes' if candidate_data.get('resume_path') else 'No'}
+- Interview Status: {candidate_data.get('interview_status', 'pending')}
+
+{context}
+
+Based on this information, provide your analysis in the following JSON format.
+
+CRITICAL: Every insight MUST include evidence_anchors - specific quotes or references that prove the claim. This allows employers to verify every statement.
+
+{{
+    "why_this_person": "A compelling 15-20 word summary of why this candidate might be a good fit",
+
+    "overview": "A 3-4 sentence justification of the fit score. Be specific and reference actual data.",
+
+    "overview_evidence": [
+        {{
+            "source": "resume|interview|fit_responses",
+            "quote": "Exact quote or paraphrase that supports the overview",
+            "section": "work_experience|education|skills|answer_to_X|transcript"
+        }}
+    ],
+
+    "strengths": [
+        {{
+            "text": "Specific strength based on evidence",
+            "evidence_anchors": [
+                {{
+                    "source": "resume",
+                    "quote": "Exact text from resume that proves this",
+                    "section": "work_experience|education|skills|projects|extracurriculars"
+                }},
+                {{
+                    "source": "interview",
+                    "quote": "What they said in interview",
+                    "section": "transcript"
+                }}
+            ]
+        }}
+    ],
+
+    "risks": [
+        {{
+            "text": "Specific gap or concern",
+            "evidence_anchors": [
+                {{
+                    "source": "resume|interview|fit_responses|application",
+                    "quote": "Evidence or lack thereof that indicates this risk",
+                    "section": "relevant section or 'missing'"
+                }}
+            ]
+        }}
+    ],
+
+    "suggested_questions": [
+        {{
+            "question": "Specific follow-up question",
+            "rationale": "Why this matters",
+            "related_gap": "Which risk/gap this addresses"
+        }}
+    ],
+
+    "interview_highlights": [
+        {{
+            "quote": "Notable quote from interview",
+            "type": "strength|concern",
+            "competency": "What this demonstrates",
+            "context": "Brief context of what question prompted this"
+        }}
+    ]
+}}
+
+IMPORTANT RULES FOR EVIDENCE ANCHORS:
+1. EVERY strength MUST have at least 1 evidence_anchor with a real quote from their materials
+2. EVERY risk MUST have an evidence_anchor explaining what's missing or concerning
+3. Quotes should be EXACT text from the resume/interview when possible
+4. For resume evidence, specify which section (work_experience, education, skills, projects, extracurriculars)
+5. For fit_responses evidence, reference which question they answered
+6. For interview evidence, include a brief snippet of what they actually said
+7. If evidence comes from absence of information, set quote to describe what's missing
+
+Return ONLY valid JSON, no other text."""
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are an expert technical recruiter who provides detailed, evidence-based candidate assessments. Always return valid JSON."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=3000  # Increased for detailed evidence anchors
+        )
+
+        response_text = response.choices[0].message.content.strip()
+
+        # Clean up response - remove markdown code blocks if present
+        if response_text.startswith('```'):
+            response_text = response_text.split('```')[1]
+            if response_text.startswith('json'):
+                response_text = response_text[4:]
+        if response_text.endswith('```'):
+            response_text = response_text[:-3]
+
+        insights = json.loads(response_text.strip())
+        return insights
+
+    except json.JSONDecodeError as e:
+        print(f"JSON parse error: {e}")
+        print(f"Response was: {response_text[:500] if 'response_text' in dir() else 'N/A'}")
+        return _generate_placeholder_insights(candidate_data)
     except Exception as e:
-        print(f"Error generating insights for application {application_id}: {e}")
-        return None
+        print(f"OpenAI API error: {e}")
+        return _generate_placeholder_insights(candidate_data)
+
+
+def _build_analysis_context(candidate_data: Dict) -> str:
+    """Build detailed context string for AI analysis."""
+    parts = []
+
+    # Resume/Profile info
+    profile = candidate_data.get('extracted_profile') or {}
+    if profile:
+        parts.append("PARSED RESUME DATA:")
+        if profile.get('current_title'):
+            parts.append(f"- Current Role: {profile.get('current_title')} at {profile.get('current_company', 'Unknown')}")
+        if profile.get('years_experience'):
+            parts.append(f"- Years of Experience: {profile.get('years_experience')}")
+        if profile.get('skills'):
+            skills = profile.get('skills', [])
+            if isinstance(skills, list):
+                parts.append(f"- Skills: {', '.join(skills[:15])}")
+            elif isinstance(skills, str):
+                parts.append(f"- Skills: {skills}")
+        if profile.get('education'):
+            edu = profile.get('education')
+            if isinstance(edu, list):
+                parts.append(f"- Education: {edu[0] if edu else 'Not specified'}")
+            else:
+                parts.append(f"- Education: {edu}")
+        if profile.get('summary'):
+            parts.append(f"- Summary: {profile.get('summary')[:500]}")
+
+    # Raw resume text (truncated)
+    if candidate_data.get('resume_text'):
+        resume_excerpt = candidate_data['resume_text'][:2000]
+        parts.append(f"\nRESUME TEXT EXCERPT:\n{resume_excerpt}")
+
+    # Fit responses
+    if candidate_data.get('fit_responses'):
+        parts.append("\nFIT QUESTION RESPONSES:")
+        for resp in candidate_data['fit_responses']:
+            if resp.get('response_text'):
+                parts.append(f"- Q: {resp.get('question_id', 'Unknown')}")
+                parts.append(f"  A: {resp['response_text'][:300]}")
+            elif resp.get('response_value'):
+                parts.append(f"- {resp.get('question_id', 'Unknown')}: {resp['response_value']}")
+
+    # Interview data
+    if candidate_data.get('interview_status') == 'completed':
+        parts.append("\nINTERVIEW STATUS: Completed")
+
+        if candidate_data.get('interview_evaluation'):
+            eval_data = candidate_data['interview_evaluation']
+            parts.append(f"Interview Evaluation:")
+            if isinstance(eval_data, dict):
+                if eval_data.get('overall_assessment'):
+                    parts.append(f"- Overall: {eval_data['overall_assessment'][:500]}")
+                if eval_data.get('competency_scores'):
+                    parts.append(f"- Competencies: {json.dumps(eval_data['competency_scores'])}")
+
+        if candidate_data.get('interview_transcript'):
+            transcript = candidate_data['interview_transcript']
+            if isinstance(transcript, list) and len(transcript) > 0:
+                parts.append("\nINTERVIEW TRANSCRIPT EXCERPTS:")
+                # Include first few and last few exchanges
+                for entry in transcript[:5]:
+                    speaker = entry.get('speaker', 'unknown')
+                    text = entry.get('text', entry.get('content', ''))[:200]
+                    parts.append(f"[{speaker}]: {text}")
+                if len(transcript) > 10:
+                    parts.append("... (truncated) ...")
+                    for entry in transcript[-3:]:
+                        speaker = entry.get('speaker', 'unknown')
+                        text = entry.get('text', entry.get('content', ''))[:200]
+                        parts.append(f"[{speaker}]: {text}")
+    else:
+        parts.append("\nINTERVIEW STATUS: Not completed")
+
+    return '\n'.join(parts)
+
+
+def _generate_placeholder_insights(candidate_data: Dict) -> Dict:
+    """Generate basic insights without AI (fallback)."""
+    profile = candidate_data.get('extracted_profile') or {}
+    fit_score = candidate_data.get('fit_score')
+    has_resume = bool(candidate_data.get('resume_path'))
+    has_interview = candidate_data.get('interview_status') == 'completed'
+    has_fit_responses = bool(candidate_data.get('fit_responses'))
+
+    # Build overview based on available data
+    overview_parts = []
+    if fit_score:
+        if fit_score >= 80:
+            overview_parts.append(f"Strong fit score of {fit_score}% indicates good alignment with role requirements.")
+        elif fit_score >= 60:
+            overview_parts.append(f"Moderate fit score of {fit_score}% suggests partial alignment with role requirements.")
+        else:
+            overview_parts.append(f"Fit score of {fit_score}% indicates some gaps between candidate and role requirements.")
+
+    if has_resume and profile:
+        if profile.get('current_title'):
+            overview_parts.append(f"Currently working as {profile.get('current_title')}.")
+        if profile.get('years_experience'):
+            overview_parts.append(f"Has {profile.get('years_experience')} years of experience.")
+
+    if not has_interview:
+        overview_parts.append("Interview not yet completed - score may increase after interview.")
+
+    overview = ' '.join(overview_parts) if overview_parts else "Limited data available for assessment."
+
+    # Build strengths
+    strengths = []
+    if profile.get('skills'):
+        strengths.append({
+            "text": f"Technical skills include: {', '.join(profile['skills'][:5])}",
+            "evidence_source": "resume"
+        })
+    if profile.get('years_experience') and int(profile.get('years_experience', 0)) >= 3:
+        strengths.append({
+            "text": f"{profile['years_experience']} years of professional experience",
+            "evidence_source": "resume"
+        })
+    if profile.get('current_title'):
+        strengths.append({
+            "text": f"Currently employed as {profile['current_title']}",
+            "evidence_source": "resume"
+        })
+    if has_fit_responses:
+        strengths.append({
+            "text": "Completed all fit assessment questions",
+            "evidence_source": "fit_responses"
+        })
+
+    # Ensure at least one strength
+    if not strengths:
+        strengths.append({
+            "text": "Applied and expressed interest in the role",
+            "evidence_source": "application"
+        })
+
+    # Build gaps (always at least 2)
+    risks = []
+    if not has_interview:
+        risks.append({
+            "text": "Interview not completed - unable to assess communication skills and cultural fit",
+            "evidence_source": "application"
+        })
+    if not has_resume:
+        risks.append({
+            "text": "No resume uploaded - limited visibility into background",
+            "evidence_source": "application"
+        })
+    if not has_fit_responses:
+        risks.append({
+            "text": "Fit questions not answered - unclear on role-specific preferences",
+            "evidence_source": "application"
+        })
+
+    # Add generic gaps if needed
+    if len(risks) < 2:
+        risks.append({
+            "text": "Experience level alignment with role requirements unclear",
+            "evidence_source": "application"
+        })
+    if len(risks) < 2:
+        risks.append({
+            "text": "Specific technical depth in required areas not yet verified",
+            "evidence_source": "application"
+        })
+
+    # Build follow-up questions
+    role_title = candidate_data.get('role_title', 'this role')
+    questions = [
+        {
+            "question": f"What specifically attracted you to the {role_title} position?",
+            "rationale": "Assess motivation and role understanding"
+        },
+        {
+            "question": "Walk me through a challenging project and how you approached it.",
+            "rationale": "Evaluate problem-solving and technical depth"
+        },
+        {
+            "question": "How do you prioritize when facing multiple competing deadlines?",
+            "rationale": "Understand work style and organizational skills"
+        }
+    ]
+
+    return {
+        "why_this_person": _build_why_summary(profile, fit_score),
+        "overview": overview,
+        "strengths": strengths[:5],
+        "risks": risks[:4],
+        "suggested_questions": questions,
+        "interview_highlights": []
+    }
+
+
+def _build_why_summary(profile: Dict, fit_score: Optional[int]) -> str:
+    """Build a short summary for why_this_person field."""
+    parts = []
+
+    if profile.get('years_experience'):
+        parts.append(f"{profile['years_experience']} years experience")
+
+    if profile.get('current_title'):
+        parts.append(profile['current_title'].split(' at ')[0])
+
+    if profile.get('skills') and len(profile['skills']) > 0:
+        parts.append(profile['skills'][0])
+
+    if fit_score and fit_score >= 70:
+        parts.append("strong initial fit")
+
+    if parts:
+        return ' + '.join(parts[:4])
+    else:
+        return "New applicant - review materials to assess fit"
+
+
+def _store_insights(conn, application_id: int, insights: Dict):
+    """Store generated insights in the database."""
+    # Combine overview with its evidence for storage
+    overview_with_evidence = {
+        'text': insights.get('overview', ''),
+        'evidence': insights.get('overview_evidence', [])
+    }
+
+    with conn.cursor() as cur:
+        cur.execute("""
+            INSERT INTO candidate_insights (
+                application_id,
+                why_this_person,
+                overview,
+                strengths,
+                risks,
+                suggested_questions,
+                interview_highlights,
+                llm_model,
+                generation_version
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (application_id) DO UPDATE SET
+                why_this_person = EXCLUDED.why_this_person,
+                overview = EXCLUDED.overview,
+                strengths = EXCLUDED.strengths,
+                risks = EXCLUDED.risks,
+                suggested_questions = EXCLUDED.suggested_questions,
+                interview_highlights = EXCLUDED.interview_highlights,
+                llm_model = EXCLUDED.llm_model,
+                generation_version = EXCLUDED.generation_version,
+                generated_at = NOW()
+        """, (
+            application_id,
+            insights.get('why_this_person', ''),
+            json.dumps(overview_with_evidence),  # Store as JSON with evidence
+            json.dumps(insights.get('strengths', [])),
+            json.dumps(insights.get('risks', [])),
+            json.dumps(insights.get('suggested_questions', [])),
+            json.dumps(insights.get('interview_highlights', [])),
+            'gpt-4o-mini',
+            '2.0'  # Version bump for evidence anchors
+        ))
+        conn.commit()
+
+
+def regenerate_insights_for_application(application_id: int) -> Dict:
+    """
+    Regenerate insights for an application (called when data changes).
+    Can be called after interview completion, resume upload, etc.
+    """
+    return generate_candidate_insights(application_id)
+
+
+# CLI for testing
+if __name__ == '__main__':
+    import sys
+
+    if len(sys.argv) < 2:
+        print("Usage: python insights_generator.py <application_id>")
+        sys.exit(1)
+
+    app_id = int(sys.argv[1])
+    print(f"Generating insights for application {app_id}...")
+
+    result = generate_candidate_insights(app_id)
+    print(json.dumps(result, indent=2))

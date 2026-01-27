@@ -125,6 +125,84 @@ def require_auth(f):
     return decorated
 
 
+def get_user_company_profile_id(user_id):
+    """Get the company_profile_id for an employer user. Returns None if not an employer."""
+    conn = get_db()
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT cp.id, cp.company_name
+            FROM company_team_members ctm
+            JOIN company_profiles cp ON cp.id = ctm.company_profile_id
+            WHERE ctm.user_id = %s
+        """, (user_id,))
+        result = cur.fetchone()
+        return result[0] if result else None
+
+
+def verify_employer_owns_role(user_id, role_id):
+    """
+    Verify that the employer's company owns the specified role.
+    Returns (is_authorized, company_profile_id, company_name) tuple.
+    """
+    conn = get_db()
+    with conn.cursor() as cur:
+        # Get employer's company info
+        cur.execute("""
+            SELECT cp.id, cp.company_name
+            FROM company_team_members ctm
+            JOIN company_profiles cp ON cp.id = ctm.company_profile_id
+            WHERE ctm.user_id = %s
+        """, (user_id,))
+        company_result = cur.fetchone()
+
+        if not company_result:
+            return (False, None, None)
+
+        company_profile_id, company_name = company_result
+
+        # Check if the role belongs to this company
+        cur.execute("""
+            SELECT id FROM watchable_positions
+            WHERE id = %s AND (company_profile_id = %s OR company_name = %s)
+        """, (role_id, company_profile_id, company_name))
+
+        role = cur.fetchone()
+        return (role is not None, company_profile_id, company_name)
+
+
+def verify_employer_owns_application(user_id, application_id):
+    """
+    Verify that the employer's company owns the application (via the role).
+    Returns (is_authorized, application_data) tuple.
+    """
+    conn = get_db()
+    with conn.cursor() as cur:
+        # Get employer's company info
+        cur.execute("""
+            SELECT cp.id, cp.company_name
+            FROM company_team_members ctm
+            JOIN company_profiles cp ON cp.id = ctm.company_profile_id
+            WHERE ctm.user_id = %s
+        """, (user_id,))
+        company_result = cur.fetchone()
+
+        if not company_result:
+            return (False, None)
+
+        company_profile_id, company_name = company_result
+
+        # Check if the application's role belongs to this company
+        cur.execute("""
+            SELECT sa.id, sa.position_id
+            FROM shortlist_applications sa
+            JOIN watchable_positions wp ON wp.id = sa.position_id
+            WHERE sa.id = %s AND (wp.company_profile_id = %s OR wp.company_name = %s)
+        """, (application_id, company_profile_id, company_name))
+
+        app = cur.fetchone()
+        return (app is not None, {'application_id': app[0], 'position_id': app[1]} if app else None)
+
+
 # ============================================================================
 # AUTH ENDPOINTS
 # ============================================================================
@@ -1471,26 +1549,91 @@ def process_resume_and_get_matches(user_id, pdf_bytes):
 
     client = OpenAIClient(api_key=os.environ.get('OPENAI_API_KEY'))
 
-    # Extract structured profile using LLM
-    profile_prompt = f"""Analyze this resume and extract a structured profile. Return JSON with these fields:
+    # Extract structured profile using LLM - comprehensive extraction
+    profile_prompt = f"""Analyze this resume and extract a COMPREHENSIVE structured profile. Include ALL information from the resume - almost nothing should be excluded. Return JSON with these fields:
 
 {{
     "current_title": "their most recent job title",
-    "years_experience": "total years of professional experience (number)",
+    "current_company": "their most recent employer",
+    "years_experience": 2,
     "experience_level": "intern/entry/mid/senior based on experience",
-    "education": {{
-        "highest_degree": "PhD/Masters/Bachelors/Associates/High School",
-        "field": "field of study",
-        "school": "school name if notable"
+    "summary": "2-3 sentence professional summary",
+
+    "work_experience": [
+        {{
+            "title": "Job Title",
+            "company": "Company Name",
+            "location": "City, State (if available)",
+            "start_date": "Month Year",
+            "end_date": "Month Year or Present",
+            "description": "Full description of role and responsibilities",
+            "achievements": ["Key achievement 1", "Key achievement 2"]
+        }}
+    ],
+
+    "education": [
+        {{
+            "degree": "Degree type (BS, MS, PhD, etc.)",
+            "field": "Field of study / Major",
+            "school": "School name",
+            "location": "City, State (if available)",
+            "graduation_date": "Month Year or Expected Month Year",
+            "gpa": "GPA if listed",
+            "honors": "Honors, Dean's List, etc.",
+            "relevant_coursework": ["Course 1", "Course 2"],
+            "activities": ["Club or organization at school"]
+        }}
+    ],
+
+    "skills": {{
+        "technical": ["Programming languages", "Frameworks", "Tools"],
+        "soft": ["Communication", "Leadership", etc.],
+        "languages": ["English (native)", "Spanish (conversational)"]
     }},
-    "skills": ["list", "of", "technical", "and", "soft", "skills"],
+
+    "certifications": [
+        {{
+            "name": "Certification name",
+            "issuer": "Issuing organization",
+            "date": "Date obtained"
+        }}
+    ],
+
+    "projects": [
+        {{
+            "name": "Project name",
+            "description": "What the project was/did",
+            "technologies": ["Tech used"],
+            "link": "URL if available"
+        }}
+    ],
+
+    "extracurriculars": [
+        {{
+            "name": "Organization or activity name",
+            "role": "Role/position held",
+            "dates": "Time period",
+            "description": "What they did"
+        }}
+    ],
+
+    "interests": ["Interest 1", "Interest 2"],
+
     "industries": ["industries they have experience in"],
-    "job_titles_held": ["previous job titles"],
-    "summary": "2-3 sentence summary of their background"
+    "job_titles_held": ["all previous job titles"],
+    "location": "Current location if mentioned"
 }}
 
+IMPORTANT:
+- Include ALL work experiences, not just the most recent
+- Include ALL education entries (multiple degrees, etc.)
+- Extract the FULL description for each role, not just a summary
+- Include specific achievements, metrics, and accomplishments
+- Don't skip extracurriculars, projects, or interests
+- If a field is not in the resume, use null or empty array
+
 Resume text:
-{resume_text[:8000]}
+{resume_text[:12000]}
 
 Return ONLY valid JSON, no markdown."""
 
@@ -1499,7 +1642,7 @@ Return ONLY valid JSON, no markdown."""
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": profile_prompt}],
             temperature=0.1,
-            max_tokens=1000
+            max_tokens=4000  # Increased for comprehensive profile extraction
         )
 
         result = response.choices[0].message.content.strip()
@@ -2430,30 +2573,58 @@ def get_my_applications():
 @app.route('/api/employer/roles', methods=['GET'])
 @require_auth
 def get_employer_roles():
-    """Get roles for employer (for now, return all roles they can see)."""
+    """Get roles for this employer's company only."""
+    # Get the employer's company profile
+    company_profile_id = get_user_company_profile_id(g.user_id)
+
     conn = get_db()
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
-        # For MVP, just show roles with applications
-        cur.execute("""
-            SELECT
-                wp.id, wp.title, wp.company_name, wp.status,
-                COUNT(sa.id) as applicant_count
-            FROM watchable_positions wp
-            LEFT JOIN shortlist_applications sa ON sa.position_id = wp.id
-            GROUP BY wp.id
-            HAVING COUNT(sa.id) > 0
-            ORDER BY COUNT(sa.id) DESC
-            LIMIT 50
-        """)
-        roles = cur.fetchall()
+        # Get company name for this employer
+        company_name = None
+        if company_profile_id:
+            cur.execute("SELECT company_name FROM company_profiles WHERE id = %s", (company_profile_id,))
+            result = cur.fetchone()
+            company_name = result['company_name'] if result else None
 
-        return jsonify({'roles': roles})
+        # Filter by company_profile_id OR company_name (for jobs imported before company accounts)
+        # Also include toggle for "only jobs with applicants"
+        only_with_applicants = request.args.get('only_with_applicants', 'false').lower() == 'true'
+
+        if company_profile_id or company_name:
+            query = """
+                SELECT
+                    wp.id, wp.title, wp.company_name, wp.status, wp.location,
+                    wp.work_arrangement, wp.experience_level,
+                    COUNT(sa.id) as applicant_count
+                FROM watchable_positions wp
+                LEFT JOIN shortlist_applications sa ON sa.position_id = wp.id
+                WHERE (wp.company_profile_id = %s OR wp.company_name = %s)
+                GROUP BY wp.id
+            """
+            params = [company_profile_id, company_name]
+
+            if only_with_applicants:
+                query += " HAVING COUNT(sa.id) > 0"
+
+            query += " ORDER BY COUNT(sa.id) DESC, wp.created_at DESC LIMIT 100"
+            cur.execute(query, params)
+        else:
+            # No company association - return empty for security
+            return jsonify({'roles': [], 'error': 'No company associated with this account'})
+
+        roles = [dict(r) for r in cur.fetchall()]
+        return jsonify({'roles': roles, 'company_name': company_name})
 
 
 @app.route('/api/employer/roles/<int:role_id>/applicants', methods=['GET'])
 @require_auth
 def get_role_applicants(role_id):
     """Get all applicants for a role, including their fit responses."""
+    # Security: Verify employer owns this role
+    is_authorized, _, _ = verify_employer_owns_role(g.user_id, role_id)
+    if not is_authorized:
+        return jsonify({'error': 'You do not have access to this role'}), 403
+
     conn = get_db()
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         # Get the role's role_type to include question definitions
@@ -2555,6 +2726,11 @@ def download_resume(application_id):
     if not user_id:
         return jsonify({'error': 'Authentication required'}), 401
 
+    # Security: Verify employer owns the application (via the role)
+    is_authorized, _ = verify_employer_owns_application(user_id, application_id)
+    if not is_authorized:
+        return jsonify({'error': 'You do not have access to this application'}), 403
+
     conn = get_db()
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute("""
@@ -2601,6 +2777,11 @@ def view_resume(application_id):
     if not user_id:
         return jsonify({'error': 'Authentication required'}), 401
 
+    # Security: Verify employer owns the application (via the role)
+    is_authorized, _ = verify_employer_owns_application(user_id, application_id)
+    if not is_authorized:
+        return jsonify({'error': 'You do not have access to this application'}), 403
+
     conn = get_db()
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute("""
@@ -2644,6 +2825,11 @@ def get_ranked_applicants(role_id):
     Get ranked applicants with full scoring breakdown.
     Supports filtering and pagination.
     """
+    # Security: Verify employer owns this role
+    is_authorized, _, _ = verify_employer_owns_role(g.user_id, role_id)
+    if not is_authorized:
+        return jsonify({'error': 'You do not have access to this role'}), 403
+
     # Query params
     min_score = request.args.get('min_score', 70, type=int)
     include_hidden = request.args.get('include_hidden', 'false').lower() == 'true'
@@ -2679,6 +2865,7 @@ def get_ranked_applicants(role_id):
                 TRIM(CONCAT(u.first_name, ' ', u.last_name)) as full_name,
                 sp.experience_level,
                 sp.work_preference,
+                sp.extracted_profile,
                 ci.why_this_person,
                 ci.matched_skill_chips,
                 ci.strengths,
@@ -2731,6 +2918,11 @@ def get_ranked_applicants(role_id):
                     applicant['hard_filter_breakdown'] = json.loads(applicant['hard_filter_breakdown']) if isinstance(applicant['hard_filter_breakdown'], str) else applicant['hard_filter_breakdown']
                 except:
                     applicant['hard_filter_breakdown'] = {}
+            if applicant.get('extracted_profile'):
+                try:
+                    applicant['extracted_profile'] = json.loads(applicant['extracted_profile']) if isinstance(applicant['extracted_profile'], str) else applicant['extracted_profile']
+                except:
+                    applicant['extracted_profile'] = {}
             applicants.append(applicant)
 
         # Get hidden count
@@ -2770,6 +2962,11 @@ def get_applicant_detail(application_id):
     Get full candidate detail for side drawer view.
     Includes profile package, insights, and materials.
     """
+    # Security: Verify employer owns the application (via the role)
+    is_authorized, _ = verify_employer_owns_application(g.user_id, application_id)
+    if not is_authorized:
+        return jsonify({'error': 'You do not have access to this application'}), 403
+
     conn = get_db()
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         # Get application with all related data
@@ -2809,6 +3006,27 @@ def get_applicant_detail(application_id):
             SELECT * FROM candidate_insights WHERE application_id = %s
         """, (application_id,))
         insights = cur.fetchone()
+
+        # Auto-generate insights if they don't exist
+        if not insights:
+            print(f"No insights found for application {application_id}, auto-generating...")
+            try:
+                from insights_generator import generate_candidate_insights
+                generated = generate_candidate_insights(application_id, conn)
+                if generated and 'error' not in generated:
+                    print(f"Successfully generated insights for application {application_id}")
+                    # Re-fetch from database to get proper format
+                    cur.execute("""
+                        SELECT * FROM candidate_insights WHERE application_id = %s
+                    """, (application_id,))
+                    insights = cur.fetchone()
+                else:
+                    print(f"Insights generation returned error: {generated.get('error') if generated else 'None'}")
+            except Exception as e:
+                print(f"Auto-generate insights failed: {e}")
+                import traceback
+                traceback.print_exc()
+                # Continue without insights
 
         # Get fit responses
         cur.execute("""
@@ -2885,7 +3103,8 @@ def get_applicant_detail(application_id):
             'job_title': application.get('job_title'),
             'company_name': application.get('company_name'),
             'experience_level': application.get('profile_experience_level'),
-            'work_preference': application.get('profile_work_preference')
+            'work_preference': application.get('profile_work_preference'),
+            'extracted_profile': json.loads(application['extracted_profile']) if application.get('extracted_profile') and isinstance(application['extracted_profile'], str) else application.get('extracted_profile')
         },
         'score_breakdown': score_data,
         'insights': insights,
@@ -2905,16 +3124,19 @@ def regenerate_applicant_insights(application_id):
     Regenerate AI insights for a candidate.
     Called after interview completion or on-demand.
     """
-    from insights_generator import generate_and_store_insights
+    # Security: Verify employer owns the application (via the role)
+    is_authorized, _ = verify_employer_owns_application(g.user_id, application_id)
+    if not is_authorized:
+        return jsonify({'error': 'You do not have access to this application'}), 403
 
-    conn = get_db()
+    from insights_generator import generate_candidate_insights
 
     try:
-        insights = generate_and_store_insights(conn, application_id)
-        if insights:
+        insights = generate_candidate_insights(application_id)
+        if insights and 'error' not in insights:
             return jsonify({'success': True, 'insights': insights})
         else:
-            return jsonify({'error': 'Failed to generate insights'}), 500
+            return jsonify({'error': insights.get('error', 'Failed to generate insights')}), 500
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -2926,6 +3148,11 @@ def recalculate_applicant_score(application_id):
     Recalculate fit score for a candidate.
     Useful after data updates.
     """
+    # Security: Verify employer owns the application (via the role)
+    is_authorized, _ = verify_employer_owns_application(g.user_id, application_id)
+    if not is_authorized:
+        return jsonify({'error': 'You do not have access to this application'}), 403
+
     from scoring_engine import calculate_and_store_fit_score
 
     conn = get_db()
