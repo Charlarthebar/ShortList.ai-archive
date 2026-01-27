@@ -253,22 +253,6 @@ We track **both open AND filled roles**, enabling a fundamentally different mode
 
 ---
 
-## The Continuous Matching Difference
-
-**Traditional Flow:**
-Role Opens → Mass Applications → Hire → Role Closed → *Restart from zero*
-
-**ShortList Flow:**
-Role Opens → Shortlist Ready → Fast Hire → Role "Filled" → Subscribers Stay → *Instant Pipeline*
-
-<div class="highlight-box">
-
-**Benefits:** Candidates build relationships with target companies • Employers maintain warm pipelines • Better matches happen faster • Data improves over time
-
-</div>
-
----
-
 ## Two-Sided Marketplace
 
 | **For Candidates** | **For Employers** |
