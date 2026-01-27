@@ -178,14 +178,9 @@ We track **both open AND filled roles**, enabling a fundamentally different mode
 | Volume-driven matching | Quality-driven matching |
 | Static resumes | Living candidate profiles |
 
-<div class="highlight-box">
-<strong>Key insight:</strong> Great hires often come from candidates who were "almost right" for previous roles.
-</div>
-
 ---
 
 ## How It Works — For Job Seekers
-
 **1. Create a Living Profile**
 - Skills, experience, and preferences that evolve over time
 - Upload resume for automatic parsing
@@ -203,7 +198,6 @@ We track **both open AND filled roles**, enabling a fundamentally different mode
 ---
 
 ## How It Works — For Hiring Teams
-
 **1. Build Talent Pipelines**
 - See who's interested before you post
 - Access candidates who subscribed to similar roles
