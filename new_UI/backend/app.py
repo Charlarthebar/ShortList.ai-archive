@@ -886,6 +886,90 @@ def has_any_preferences(user_prefs):
     )
 
 
+def evaluate_hard_filters(eligibility_data, job_requirements):
+    """
+    Evaluate hard pass/fail requirements for a candidate.
+
+    Returns:
+        {
+            'passed': bool,
+            'breakdown': {
+                'work_authorization': bool,
+                'location': bool,
+                'start_date': bool,
+                'seniority': bool
+            },
+            'failure_reason': str or None
+        }
+    """
+    breakdown = {
+        'work_authorization': True,
+        'location': True,
+        'start_date': True,
+        'seniority': True
+    }
+    failure_reason = None
+
+    # Work Authorization Check
+    if job_requirements.get('requires_authorization'):
+        authorized = eligibility_data.get('authorized_us')
+        needs_sponsorship = eligibility_data.get('needs_sponsorship')
+
+        # Fail if not authorized or needs sponsorship when not offered
+        if not authorized:
+            breakdown['work_authorization'] = False
+            failure_reason = 'Not authorized to work in US'
+        elif needs_sponsorship and not job_requirements.get('offers_sponsorship'):
+            breakdown['work_authorization'] = False
+            failure_reason = 'Needs visa sponsorship (not offered)'
+
+    # Location/Hybrid Check
+    if job_requirements.get('requires_hybrid'):
+        hybrid_onsite = eligibility_data.get('hybrid_onsite')
+        if hybrid_onsite == 'no' or hybrid_onsite == 'No, I need fully remote':
+            breakdown['location'] = False
+            failure_reason = failure_reason or 'Cannot meet hybrid/onsite requirement'
+
+    # Start Date Check
+    if job_requirements.get('latest_start_date'):
+        candidate_start = eligibility_data.get('start_date')
+        # Map start date options to weeks
+        start_weeks = {
+            'Immediately': 0,
+            'Within 2 weeks': 2,
+            'Within 1 month': 4,
+            '1-3 months': 12,
+            '3+ months': 16
+        }
+        candidate_weeks = start_weeks.get(candidate_start, 8)
+        required_weeks = job_requirements.get('max_start_weeks', 8)
+
+        if candidate_weeks > required_weeks:
+            breakdown['start_date'] = False
+            failure_reason = failure_reason or f'Start date too late ({candidate_start})'
+
+    # Seniority Check
+    if job_requirements.get('min_seniority') or job_requirements.get('max_seniority'):
+        candidate_seniority = eligibility_data.get('seniority_band')
+        seniority_levels = {'intern': 0, 'entry': 1, 'mid': 2, 'senior': 3, 'lead': 4, 'executive': 5}
+
+        candidate_level = seniority_levels.get(candidate_seniority, 2)
+        min_level = seniority_levels.get(job_requirements.get('min_seniority'), 0)
+        max_level = seniority_levels.get(job_requirements.get('max_seniority'), 5)
+
+        if candidate_level < min_level or candidate_level > max_level:
+            breakdown['seniority'] = False
+            failure_reason = failure_reason or f'Seniority level mismatch ({candidate_seniority})'
+
+    passed = all(breakdown.values())
+
+    return {
+        'passed': passed,
+        'breakdown': breakdown,
+        'failure_reason': failure_reason if not passed else None
+    }
+
+
 def calculate_preference_score(role, user_prefs):
     """
     Calculate how well a role matches user preferences.
@@ -2278,12 +2362,15 @@ def submit_eligibility(application_id):
 
     conn = get_db()
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
-        # Verify application belongs to user
+        # Verify application belongs to user and get job requirements
         cur.execute("""
-            SELECT id FROM shortlist_applications
-            WHERE id = %s AND user_id = %s
+            SELECT sa.id, sa.position_id, wp.hard_requirements
+            FROM shortlist_applications sa
+            JOIN watchable_positions wp ON wp.id = sa.position_id
+            WHERE sa.id = %s AND sa.user_id = %s
         """, (application_id, g.user_id))
-        if not cur.fetchone():
+        app = cur.fetchone()
+        if not app:
             return jsonify({'error': 'Application not found'}), 404
 
         # Store eligibility data as JSON in the application
@@ -2298,16 +2385,20 @@ def submit_eligibility(application_id):
             'portfolio_link': data.get('portfolio_link')
         }
 
+        # Evaluate hard filters
+        hard_filter_result = evaluate_hard_filters(eligibility_data, app.get('hard_requirements') or {})
+        hard_filter_failed = not hard_filter_result['passed']
+
         import json
         cur.execute("""
             UPDATE shortlist_applications
-            SET eligibility_data = %s
+            SET eligibility_data = %s, hard_filter_failed = %s
             WHERE id = %s
-        """, (json.dumps(eligibility_data), application_id))
+        """, (json.dumps(eligibility_data), hard_filter_failed, application_id))
 
         conn.commit()
 
-        return jsonify({'success': True})
+        return jsonify({'success': True, 'hard_filter_failed': hard_filter_failed})
 
 
 @app.route('/api/shortlist/my-applications', methods=['GET'])
@@ -2475,7 +2566,19 @@ def download_resume(application_id):
             return jsonify({'error': 'Resume not found'}), 404
 
         from flask import send_file
-        return send_file(app['resume_path'], as_attachment=True)
+        # Construct full path - resume_path may be just filename or include uploads/
+        resume_path = app['resume_path']
+        if not os.path.isabs(resume_path):
+            uploads_path = os.path.join(os.path.dirname(__file__), 'uploads', resume_path)
+            if os.path.exists(uploads_path):
+                resume_path = uploads_path
+            else:
+                resume_path = os.path.join(os.path.dirname(__file__), resume_path)
+
+        if not os.path.exists(resume_path):
+            return jsonify({'error': 'Resume file not found'}), 404
+
+        return send_file(resume_path, as_attachment=True)
 
 
 @app.route('/api/employer/view-resume/<int:application_id>', methods=['GET'])
@@ -2509,11 +2612,332 @@ def view_resume(application_id):
             return jsonify({'error': 'Resume not found'}), 404
 
         from flask import send_file
+        # Construct full path - resume_path may be just filename or include uploads/
+        resume_path = app['resume_path']
+        if not os.path.isabs(resume_path):
+            # Check if it's in uploads directory
+            uploads_path = os.path.join(os.path.dirname(__file__), 'uploads', resume_path)
+            if os.path.exists(uploads_path):
+                resume_path = uploads_path
+            else:
+                # Try as relative to backend directory
+                resume_path = os.path.join(os.path.dirname(__file__), resume_path)
+
+        if not os.path.exists(resume_path):
+            return jsonify({'error': 'Resume file not found'}), 404
+
         return send_file(
-            app['resume_path'],
+            resume_path,
             mimetype='application/pdf',
             as_attachment=False
         )
+
+
+# ============================================================================
+# PREMIUM EMPLOYER ENDPOINTS (Ranked Inbox & Candidate Detail)
+# ============================================================================
+
+@app.route('/api/employer/roles/<int:role_id>/applicants/ranked', methods=['GET'])
+@require_auth
+def get_ranked_applicants(role_id):
+    """
+    Get ranked applicants with full scoring breakdown.
+    Supports filtering and pagination.
+    """
+    # Query params
+    min_score = request.args.get('min_score', 70, type=int)
+    include_hidden = request.args.get('include_hidden', 'false').lower() == 'true'
+    seniority_filter = request.args.getlist('seniority')
+    limit = request.args.get('limit', 50, type=int)
+    offset = request.args.get('offset', 0, type=int)
+
+    conn = get_db()
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        # Get job details
+        cur.execute("""
+            SELECT id, title, company_name, role_type, hard_requirements,
+                   must_have_skills, nice_to_have_skills, experience_level
+            FROM watchable_positions WHERE id = %s
+        """, (role_id,))
+        job = cur.fetchone()
+
+        if not job:
+            return jsonify({'error': 'Role not found'}), 404
+
+        # Build query for applicants with scores and insights
+        query = """
+            SELECT
+                sa.id as application_id,
+                sa.status,
+                sa.applied_at,
+                sa.resume_path,
+                sa.fit_score,
+                sa.confidence_level,
+                sa.hard_filter_failed,
+                sa.interview_status,
+                u.email,
+                TRIM(CONCAT(u.first_name, ' ', u.last_name)) as full_name,
+                sp.experience_level,
+                sp.work_preference,
+                ci.why_this_person,
+                ci.matched_skill_chips,
+                ci.strengths,
+                ci.risks,
+                cfs.hard_filter_breakdown,
+                cfs.score_breakdown
+            FROM shortlist_applications sa
+            JOIN platform_users u ON u.id = sa.user_id
+            LEFT JOIN seeker_profiles sp ON sp.user_id = sa.user_id
+            LEFT JOIN candidate_insights ci ON ci.application_id = sa.id
+            LEFT JOIN candidate_fit_scores cfs ON cfs.application_id = sa.id
+            WHERE sa.position_id = %s AND sa.status != 'cancelled'
+        """
+        params = [role_id]
+
+        if not include_hidden:
+            query += " AND (sa.fit_score >= %s OR sa.fit_score IS NULL) AND sa.hard_filter_failed = FALSE"
+            params.append(min_score)
+
+        if seniority_filter:
+            query += " AND sp.experience_level = ANY(%s)"
+            params.append(seniority_filter)
+
+        query += " ORDER BY sa.fit_score DESC NULLS LAST, sa.applied_at DESC"
+        query += " LIMIT %s OFFSET %s"
+        params.extend([limit, offset])
+
+        cur.execute(query, params)
+        applicants = []
+        for row in cur.fetchall():
+            applicant = dict(row)
+            # Parse JSON fields
+            if applicant.get('matched_skill_chips'):
+                try:
+                    applicant['matched_skill_chips'] = json.loads(applicant['matched_skill_chips']) if isinstance(applicant['matched_skill_chips'], str) else applicant['matched_skill_chips']
+                except:
+                    applicant['matched_skill_chips'] = []
+            if applicant.get('strengths'):
+                try:
+                    applicant['strengths'] = json.loads(applicant['strengths']) if isinstance(applicant['strengths'], str) else applicant['strengths']
+                except:
+                    applicant['strengths'] = []
+            if applicant.get('risks'):
+                try:
+                    applicant['risks'] = json.loads(applicant['risks']) if isinstance(applicant['risks'], str) else applicant['risks']
+                except:
+                    applicant['risks'] = []
+            if applicant.get('hard_filter_breakdown'):
+                try:
+                    applicant['hard_filter_breakdown'] = json.loads(applicant['hard_filter_breakdown']) if isinstance(applicant['hard_filter_breakdown'], str) else applicant['hard_filter_breakdown']
+                except:
+                    applicant['hard_filter_breakdown'] = {}
+            applicants.append(applicant)
+
+        # Get hidden count
+        cur.execute("""
+            SELECT COUNT(*) as hidden_count
+            FROM shortlist_applications
+            WHERE position_id = %s AND (fit_score < %s OR hard_filter_failed = TRUE)
+            AND status != 'cancelled'
+        """, (role_id, min_score))
+        hidden_count = cur.fetchone()['hidden_count']
+
+        # Get total count
+        cur.execute("""
+            SELECT COUNT(*) as total_count
+            FROM shortlist_applications
+            WHERE position_id = %s AND status != 'cancelled'
+        """, (role_id,))
+        total_count = cur.fetchone()['total_count']
+
+    return jsonify({
+        'job': dict(job) if job else None,
+        'applicants': applicants,
+        'hidden_count': hidden_count,
+        'total_count': total_count,
+        'filters_applied': {
+            'min_score': min_score,
+            'seniority': seniority_filter,
+            'include_hidden': include_hidden
+        }
+    })
+
+
+@app.route('/api/employer/applicants/<int:application_id>/detail', methods=['GET'])
+@require_auth
+def get_applicant_detail(application_id):
+    """
+    Get full candidate detail for side drawer view.
+    Includes profile package, insights, and materials.
+    """
+    conn = get_db()
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        # Get application with all related data
+        cur.execute("""
+            SELECT
+                sa.*,
+                u.email,
+                u.first_name,
+                u.last_name,
+                TRIM(CONCAT(u.first_name, ' ', u.last_name)) as full_name,
+                sp.resume_text,
+                sp.extracted_profile,
+                sp.experience_level as profile_experience_level,
+                sp.work_preference as profile_work_preference,
+                wp.title as job_title,
+                wp.company_name,
+                wp.role_type
+            FROM shortlist_applications sa
+            JOIN platform_users u ON u.id = sa.user_id
+            LEFT JOIN seeker_profiles sp ON sp.user_id = sa.user_id
+            JOIN watchable_positions wp ON wp.id = sa.position_id
+            WHERE sa.id = %s
+        """, (application_id,))
+        application = cur.fetchone()
+
+        if not application:
+            return jsonify({'error': 'Application not found'}), 404
+
+        # Get fit score breakdown
+        cur.execute("""
+            SELECT * FROM candidate_fit_scores WHERE application_id = %s
+        """, (application_id,))
+        score_data = cur.fetchone()
+
+        # Get AI insights
+        cur.execute("""
+            SELECT * FROM candidate_insights WHERE application_id = %s
+        """, (application_id,))
+        insights = cur.fetchone()
+
+        # Get fit responses
+        cur.execute("""
+            SELECT question_id, response_value, response_text
+            FROM application_fit_responses
+            WHERE application_id = %s
+        """, (application_id,))
+        fit_responses = cur.fetchall()
+
+    # Enrich fit responses with question text
+    role_type = application.get('role_type')
+    questions = get_questions_for_role_type(role_type)
+    questions_by_id = {q['id']: q for q in questions}
+
+    enriched_responses = []
+    for r in fit_responses:
+        q = questions_by_id.get(r['question_id'], {})
+        enriched_responses.append({
+            'question_id': r['question_id'],
+            'question_text': q.get('question_text', ''),
+            'question_type': q.get('question_type', ''),
+            'response_value': r['response_value'],
+            'response_text': r['response_text'],
+            'response_label': next(
+                (opt['label'] for opt in (q.get('options') or [])
+                 if opt['value'] == r['response_value']),
+                None
+            )
+        })
+
+    # Parse JSON fields in insights
+    if insights:
+        insights = dict(insights)
+        for field in ['strengths', 'risks', 'suggested_questions', 'matched_skill_chips', 'interview_highlights']:
+            if insights.get(field):
+                try:
+                    insights[field] = json.loads(insights[field]) if isinstance(insights[field], str) else insights[field]
+                except:
+                    insights[field] = []
+
+    # Parse JSON fields in score_data
+    if score_data:
+        score_data = dict(score_data)
+        for field in ['hard_filter_breakdown', 'deductions', 'score_breakdown']:
+            if score_data.get(field):
+                try:
+                    score_data[field] = json.loads(score_data[field]) if isinstance(score_data[field], str) else score_data[field]
+                except:
+                    score_data[field] = {}
+
+    # Parse interview transcript
+    interview_transcript = application.get('interview_transcript')
+    if interview_transcript and isinstance(interview_transcript, str):
+        try:
+            interview_transcript = json.loads(interview_transcript)
+        except:
+            interview_transcript = []
+
+    return jsonify({
+        'application': {
+            'application_id': application['id'],
+            'status': application['status'],
+            'applied_at': application['applied_at'].isoformat() if application.get('applied_at') else None,
+            'resume_path': application.get('resume_path'),
+            'fit_score': application.get('fit_score'),
+            'confidence_level': application.get('confidence_level'),
+            'hard_filter_failed': application.get('hard_filter_failed'),
+            'interview_status': application.get('interview_status'),
+            'interview_transcript': interview_transcript,
+            'email': application['email'],
+            'first_name': application.get('first_name'),
+            'last_name': application.get('last_name'),
+            'full_name': application['full_name'],
+            'job_title': application.get('job_title'),
+            'company_name': application.get('company_name'),
+            'experience_level': application.get('profile_experience_level'),
+            'work_preference': application.get('profile_work_preference')
+        },
+        'score_breakdown': score_data,
+        'insights': insights,
+        'fit_responses': enriched_responses,
+        'materials': {
+            'has_resume': bool(application.get('resume_path')),
+            'has_interview': application.get('interview_status') == 'completed',
+            'interview_completed_at': application['interview_completed_at'].isoformat() if application.get('interview_completed_at') else None
+        }
+    })
+
+
+@app.route('/api/employer/applicants/<int:application_id>/regenerate-insights', methods=['POST'])
+@require_auth
+def regenerate_applicant_insights(application_id):
+    """
+    Regenerate AI insights for a candidate.
+    Called after interview completion or on-demand.
+    """
+    from insights_generator import generate_and_store_insights
+
+    conn = get_db()
+
+    try:
+        insights = generate_and_store_insights(conn, application_id)
+        if insights:
+            return jsonify({'success': True, 'insights': insights})
+        else:
+            return jsonify({'error': 'Failed to generate insights'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/employer/applicants/<int:application_id>/recalculate-score', methods=['POST'])
+@require_auth
+def recalculate_applicant_score(application_id):
+    """
+    Recalculate fit score for a candidate.
+    Useful after data updates.
+    """
+    from scoring_engine import calculate_and_store_fit_score
+
+    conn = get_db()
+
+    try:
+        result = calculate_and_store_fit_score(conn, application_id)
+        if result:
+            return jsonify({'success': True, 'score': result.overall_score, 'confidence': result.confidence})
+        else:
+            return jsonify({'error': 'Failed to calculate score'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 # ============================================================================

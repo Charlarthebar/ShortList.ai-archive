@@ -30,6 +30,15 @@ const state = {
     employerRoles: [],
     selectedEmployerRole: null,
     applicants: [],
+    hiddenApplicantsCount: 0,
+    totalApplicantsCount: 0,
+    showHiddenApplicants: false,
+    selectedApplicantDetail: null,
+    drawerOpen: false,
+    employerFilters: {
+        seniority: [],
+        minScore: 70
+    },
     // Signup state
     signupAsEmployer: false,
     // Profile state
@@ -2039,6 +2048,18 @@ async function startAIInterview(applicationId, onComplete, onClose) {
                 doneBtn.style.display = isProcessing ? 'none' : 'flex';
             }
         }
+
+        // Update progress indicator
+        const progressContainer = document.querySelector('.studio-progress');
+        if (progressContainer && totalQuestions > 0) {
+            const progressPercent = Math.max(((questionNumber || 1) / totalQuestions) * 100, 10);
+            progressContainer.innerHTML = `
+                <span class="progress-label">Question ${questionNumber || 1} of ${totalQuestions}</span>
+                <div class="progress-track">
+                    <div class="progress-fill" style="width: ${progressPercent}%"></div>
+                </div>
+            `;
+        }
     }
 
     function updateControlZoneState() {
@@ -2270,6 +2291,7 @@ async function startAIInterview(applicationId, onComplete, onClose) {
                     currentPhase = 'question';
                     questionNumber = data.question_number || 0;
                     totalQuestions = data.total_questions || totalQuestions;
+                    updateStatusIndicators(); // Update progress indicator
                     updateConversation(data.content, 'interviewer', true); // Enable streaming
                     if (data.audio_base64) {
                         audioQueue.push(data.audio_base64);
@@ -2420,13 +2442,34 @@ async function loadEmployerRoles() {
 
 async function loadApplicants(roleId) {
     try {
-        const data = await api(`/employer/roles/${roleId}/applicants`);
+        // Build query params for ranked endpoint
+        const params = new URLSearchParams();
+        params.set('min_score', state.employerFilters.minScore.toString());
+        params.set('include_hidden', state.showHiddenApplicants.toString());
+        if (state.employerFilters.seniority.length > 0) {
+            state.employerFilters.seniority.forEach(s => params.append('seniority', s));
+        }
+
+        const data = await api(`/employer/roles/${roleId}/applicants/ranked?${params.toString()}`);
         state.applicants = data.applicants || [];
-        state.selectedEmployerRole = state.employerRoles.find(r => r.id === roleId);
-        renderApplicantsList();
+        state.hiddenApplicantsCount = data.hidden_count || 0;
+        state.totalApplicantsCount = data.total_count || 0;
+        state.selectedEmployerRole = data.job || state.employerRoles.find(r => r.id === roleId);
+        state.selectedApplicantDetail = null;
+        state.drawerOpen = false;
+        renderPremiumApplicantsList();
     } catch (err) {
         console.error('Failed to load applicants:', err);
-        alert('Failed to load candidates. Please try again.');
+        // Fallback to old endpoint
+        try {
+            const data = await api(`/employer/roles/${roleId}/applicants`);
+            state.applicants = data.applicants || [];
+            state.selectedEmployerRole = state.employerRoles.find(r => r.id === roleId);
+            renderApplicantsList();
+        } catch (fallbackErr) {
+            console.error('Fallback also failed:', fallbackErr);
+            alert('Failed to load candidates. Please try again.');
+        }
     }
 }
 
@@ -4051,30 +4094,35 @@ function renderBrowse() {
 function renderForYou() {
     const app = document.getElementById('app');
 
-    // Show skeleton only if jobs haven't been loaded yet
-    const showSkeleton = !state.forYouLoaded;
+    // Determine initial content for the list
+    let listContent = '';
 
-    // Generate skeleton cards HTML
-    const skeletonCards = showSkeleton ? `
-        <div class="for-you-header" style="grid-column: 1/-1; margin-bottom: 16px;">
-            <div class="skeleton skeleton-text" style="width: 180px; height: 20px;"></div>
-        </div>
-        ${[1, 2, 3, 4, 5, 6].map(i => `
-            <div class="role-card skeleton-card" style="animation-delay: ${i * 50}ms">
-                <div class="role-card-header">
-                    <div class="skeleton skeleton-avatar"></div>
-                    <div class="skeleton skeleton-badge" style="width: 60px; height: 32px;"></div>
-                </div>
-                <div class="role-card-body">
-                    <div class="skeleton skeleton-text" style="width: 80%; height: 20px; margin-bottom: 8px;"></div>
-                    <div class="skeleton skeleton-text" style="width: 50%; height: 16px;"></div>
-                </div>
-                <div class="role-card-footer">
-                    <div class="skeleton skeleton-text" style="width: 100px; height: 24px;"></div>
-                </div>
+    if (state.forYouLoaded) {
+        // Data already cached - render jobs immediately inline
+        listContent = getForYouListContent();
+    } else {
+        // Show skeleton while loading
+        listContent = `
+            <div class="for-you-header" style="grid-column: 1/-1; margin-bottom: 16px;">
+                <div class="skeleton skeleton-text" style="width: 180px; height: 20px;"></div>
             </div>
-        `).join('')}
-    ` : '';
+            ${[1, 2, 3, 4, 5, 6].map(i => `
+                <div class="role-card skeleton-card" style="animation-delay: ${i * 50}ms">
+                    <div class="role-card-header">
+                        <div class="skeleton skeleton-avatar"></div>
+                        <div class="skeleton skeleton-badge" style="width: 60px; height: 32px;"></div>
+                    </div>
+                    <div class="role-card-body">
+                        <div class="skeleton skeleton-text" style="width: 80%; height: 20px; margin-bottom: 8px;"></div>
+                        <div class="skeleton skeleton-text" style="width: 50%; height: 16px;"></div>
+                    </div>
+                    <div class="role-card-footer">
+                        <div class="skeleton skeleton-text" style="width: 100px; height: 24px;"></div>
+                    </div>
+                </div>
+            `).join('')}
+        `;
+    }
 
     app.innerHTML = `
         <div class="browse-layout">
@@ -4088,7 +4136,7 @@ function renderForYou() {
             <div class="browse-content">
                 <div class="container">
                     <div id="for-you-list" class="roles-grid">
-                        ${skeletonCards}
+                        ${listContent}
                     </div>
                 </div>
             </div>
@@ -4097,18 +4145,16 @@ function renderForYou() {
 
     setupNavListeners();
 
-    // If already loaded, render immediately
+    // Setup click listeners for job cards if already loaded
     if (state.forYouLoaded) {
-        renderForYouList();
+        setupForYouListeners();
     }
 }
 
-function renderForYouList() {
-    const container = document.getElementById('for-you-list');
-    if (!container) return;
-
+// Helper to generate For You list content HTML
+function getForYouListContent() {
     if (!state.forYouJobs.length) {
-        container.innerHTML = `
+        return `
             <div class="empty-state" style="grid-column: 1/-1;">
                 <div class="empty-icon">
                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -4121,11 +4167,9 @@ function renderForYouList() {
                 <button class="btn btn-primary" style="margin-top:16px;" id="go-explore-btn">Explore All Jobs</button>
             </div>
         `;
-        document.getElementById('go-explore-btn')?.addEventListener('click', () => navigate('explore'));
-        return;
     }
 
-    container.innerHTML = `
+    return `
         <div class="for-you-header" style="grid-column: 1/-1; margin-bottom: 16px;">
             <div class="for-you-count">${state.forYouJobs.length} jobs with 60%+ match</div>
         </div>
@@ -4163,8 +4207,17 @@ function renderForYouList() {
             `;
         }).join('')}
     `;
+}
 
-    // Add click listeners - track that we came from For You page and pass match score
+// Setup click listeners for For You job cards
+function setupForYouListeners() {
+    const container = document.getElementById('for-you-list');
+    if (!container) return;
+
+    // Handle empty state explore button
+    document.getElementById('go-explore-btn')?.addEventListener('click', () => navigate('explore'));
+
+    // Add click listeners for job cards
     container.querySelectorAll('.role-card').forEach(card => {
         card.addEventListener('click', (e) => {
             if (!e.target.classList.contains('view-role-btn')) {
@@ -4189,6 +4242,14 @@ function renderForYouList() {
             state.currentPage = 'role';
         });
     });
+}
+
+function renderForYouList() {
+    const container = document.getElementById('for-you-list');
+    if (!container) return;
+
+    container.innerHTML = getForYouListContent();
+    setupForYouListeners();
 }
 
 function renderForYouNeedsResume() {
@@ -5494,6 +5555,534 @@ function renderApplicantsList() {
             // Update resume panel with the card
             const resumePanel = document.getElementById('resume-panel');
             resumePanel.innerHTML = renderResumeCard(applicant);
+        });
+    });
+}
+
+// ============================================================================
+// PREMIUM EMPLOYER VIEW - Ranked Inbox with Side Drawer
+// ============================================================================
+
+function renderPremiumApplicantsList() {
+    const role = state.selectedEmployerRole;
+    const app = document.getElementById('app');
+
+    // Separate visible and hidden candidates
+    const visibleCandidates = state.applicants.filter(a =>
+        (a.fit_score >= 70 || a.fit_score === null) && !a.hard_filter_failed
+    );
+
+    // Helper functions
+    const getScoreClass = (score) => {
+        if (score >= 85) return 'excellent';
+        if (score >= 70) return 'good';
+        if (score >= 50) return 'fair';
+        return 'low';
+    };
+
+    const renderSkillChips = (chips) => {
+        if (!chips || chips.length === 0) return '';
+        return chips.slice(0, 5).map(chip => `
+            <span class="premium-skill-chip ${chip.is_must_have ? 'must-have' : ''}">${escapeHtml(chip.skill)}</span>
+        `).join('');
+    };
+
+    const renderHardFilterIcon = (type, passed, tooltip) => {
+        const icons = {
+            work_authorization: passed ? '✓' : '✗',
+            location: passed ? '📍' : '⚠',
+            start_date: passed ? '📅' : '⏳',
+            seniority: passed ? '👤' : '⚠'
+        };
+        const statusClass = passed === true ? 'passed' : passed === false ? 'failed' : 'unknown';
+        return `<span class="filter-icon ${statusClass}" title="${tooltip}">${icons[type] || '?'}</span>`;
+    };
+
+    const renderCandidateCard = (applicant) => {
+        const scoreClass = getScoreClass(applicant.fit_score);
+        const skillChips = applicant.matched_skill_chips || [];
+        const hardFilters = applicant.hard_filter_breakdown || {};
+        const strengths = applicant.strengths || [];
+        const risks = applicant.risks || [];
+
+        return `
+            <div class="premium-candidate-card ${state.selectedApplicantDetail?.application_id === applicant.application_id ? 'selected' : ''}"
+                 data-application-id="${applicant.application_id}">
+                <div class="card-main">
+                    <div class="card-left">
+                        <div class="fit-score-badge ${scoreClass}">
+                            <span class="score-value">${applicant.fit_score ?? '—'}</span>
+                            ${applicant.confidence_level ? `
+                                <span class="confidence-dot ${applicant.confidence_level}"
+                                      title="${applicant.confidence_level} confidence"></span>
+                            ` : ''}
+                        </div>
+                    </div>
+                    <div class="card-center">
+                        <div class="candidate-name">${escapeHtml(applicant.full_name || applicant.email.split('@')[0])}</div>
+                        <div class="why-this-person">${escapeHtml(applicant.why_this_person || '')}</div>
+                        <div class="skill-chips">
+                            ${renderSkillChips(skillChips)}
+                        </div>
+                    </div>
+                    <div class="card-right">
+                        <div class="hard-filter-icons">
+                            ${renderHardFilterIcon('work_authorization', hardFilters.work_authorization, 'Work Authorization')}
+                            ${renderHardFilterIcon('location', hardFilters.location, 'Location/Hybrid')}
+                            ${renderHardFilterIcon('start_date', hardFilters.start_date, 'Availability')}
+                        </div>
+                        <div class="card-interview-status">
+                            ${applicant.interview_status === 'completed'
+                                ? '<span class="interview-done">✓ Interviewed</span>'
+                                : '<span class="interview-pending">Pending</span>'}
+                        </div>
+                    </div>
+                </div>
+                ${(strengths.length > 0 || risks.length > 0) ? `
+                    <div class="card-preview">
+                        ${strengths.slice(0, 1).map(s => `
+                            <span class="strength-preview">✓ ${escapeHtml(s.text)}</span>
+                        `).join('')}
+                        ${risks.slice(0, 1).map(r => `
+                            <span class="risk-preview">⚠ ${escapeHtml(r.text)}</span>
+                        `).join('')}
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    };
+
+    const renderFilterPills = () => {
+        const seniorityOptions = ['entry', 'mid', 'senior'];
+        return `
+            <div class="filter-pills-container">
+                <div class="filter-group">
+                    <label>Seniority:</label>
+                    ${seniorityOptions.map(level => `
+                        <button class="filter-pill ${state.employerFilters.seniority.includes(level) ? 'active' : ''}"
+                                data-filter="seniority" data-value="${level}">
+                            ${level.charAt(0).toUpperCase() + level.slice(1)}
+                        </button>
+                    `).join('')}
+                </div>
+                ${state.employerFilters.seniority.length > 0 ? `
+                    <button class="clear-filters-btn" id="clear-filters">Clear</button>
+                ` : ''}
+            </div>
+        `;
+    };
+
+    app.innerHTML = `
+        <div class="main-layout">
+            ${renderEmployerHeader()}
+            <div class="premium-applicants-view">
+                <!-- Left: Ranked Inbox -->
+                <div class="ranked-inbox">
+                    <div class="inbox-header">
+                        <button class="btn btn-secondary btn-small" id="back-to-employer">← Back</button>
+                        <div class="inbox-title">
+                            <h2>${escapeHtml(role?.title || 'Candidates')}</h2>
+                            <span class="inbox-company">${escapeHtml(role?.company_name || '')}</span>
+                        </div>
+                    </div>
+
+                    <!-- Filter Pills -->
+                    <div class="filter-pills">
+                        ${renderFilterPills()}
+                    </div>
+
+                    <!-- Candidates Count -->
+                    <div class="candidates-summary">
+                        <span class="visible-count">${visibleCandidates.length} candidate${visibleCandidates.length !== 1 ? 's' : ''}</span>
+                        ${state.hiddenApplicantsCount > 0 ? `
+                            <button class="hidden-toggle" id="toggle-hidden">
+                                ${state.showHiddenApplicants ? 'Hide' : 'Show'} ${state.hiddenApplicantsCount} below 70%
+                            </button>
+                        ` : ''}
+                    </div>
+
+                    <!-- Candidate Cards -->
+                    <div class="candidate-cards-list" id="candidate-cards">
+                        ${state.applicants.length === 0 ? `
+                            <div class="empty-state" style="padding:40px 20px;">
+                                <h3>No candidates yet</h3>
+                                <p>Candidates who join the shortlist will appear here.</p>
+                            </div>
+                        ` : state.applicants.map(a => renderCandidateCard(a)).join('')}
+
+                        ${!state.showHiddenApplicants && state.hiddenApplicantsCount > 0 ? `
+                            <div class="hidden-candidates-divider">
+                                <span>Hidden: ${state.hiddenApplicantsCount} candidates under 70%</span>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+
+                <!-- Right: Detail Drawer -->
+                <div class="detail-drawer ${state.drawerOpen ? 'open' : ''}" id="detail-drawer">
+                    ${state.selectedApplicantDetail ?
+                        renderCandidateDrawer(state.selectedApplicantDetail) :
+                        renderEmptyDrawer()
+                    }
+                </div>
+            </div>
+        </div>
+    `;
+
+    setupPremiumApplicantsListeners();
+}
+
+function renderEmptyDrawer() {
+    return `
+        <div class="drawer-empty">
+            <div class="drawer-empty-content">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                    <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                </svg>
+                <h3>Select a candidate</h3>
+                <p>Click on a candidate to view their details</p>
+            </div>
+        </div>
+    `;
+}
+
+function renderCandidateDrawer(detail) {
+    const { application, score_breakdown, insights, fit_responses, materials } = detail;
+
+    const scoreClass = application.fit_score >= 85 ? 'excellent' :
+                       application.fit_score >= 70 ? 'good' :
+                       application.fit_score >= 50 ? 'fair' : 'low';
+
+    const renderStrengthsSection = () => {
+        const strengths = insights?.strengths || [];
+        if (strengths.length === 0) return '<p class="no-data">No strengths data available</p>';
+        return `<ul class="strengths-list">
+            ${strengths.map(s => `
+                <li class="strength-item">
+                    <span class="strength-text">${escapeHtml(s.text)}</span>
+                    <span class="evidence-source">(${s.evidence_source})</span>
+                </li>
+            `).join('')}
+        </ul>`;
+    };
+
+    const renderRisksSection = () => {
+        const risks = insights?.risks || [];
+        if (risks.length === 0) return '<p class="no-data">No concerns identified</p>';
+        return `<ul class="risks-list">
+            ${risks.map(r => `
+                <li class="risk-item">
+                    <span class="risk-text">${escapeHtml(r.text)}</span>
+                    <span class="evidence-source">(${r.evidence_source})</span>
+                </li>
+            `).join('')}
+        </ul>`;
+    };
+
+    const renderSuggestedQuestions = () => {
+        const questions = insights?.suggested_questions || [];
+        if (questions.length === 0) return '<p class="no-data">Complete interview for suggestions</p>';
+        return `<ol class="interview-questions-list">
+            ${questions.map(q => `
+                <li class="interview-question">
+                    <span class="question-text">"${escapeHtml(q.question)}"</span>
+                    <span class="question-rationale">${escapeHtml(q.rationale || '')}</span>
+                </li>
+            `).join('')}
+        </ol>`;
+    };
+
+    const renderFitResponsesDetailed = () => {
+        if (!fit_responses || fit_responses.length === 0) return '<p class="no-data">No responses</p>';
+
+        const mcResponses = fit_responses.filter(r => r.question_type === 'multiple_choice');
+        const frResponses = fit_responses.filter(r => r.question_type === 'free_response');
+
+        return `
+            ${mcResponses.length > 0 ? `
+                <div class="fit-responses-drawer-mc">
+                    ${mcResponses.map(r => `
+                        <div class="fit-response-drawer-item">
+                            <div class="fit-response-q-drawer">${escapeHtml(r.question_text)}</div>
+                            <div class="fit-response-a-drawer">
+                                <span class="fit-response-badge-drawer">${r.response_value}</span>
+                                ${escapeHtml(r.response_label || '')}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            ` : ''}
+            ${frResponses.length > 0 ? `
+                <div class="fit-responses-drawer-fr">
+                    ${frResponses.map(r => `
+                        <div class="fit-response-drawer-item">
+                            <div class="fit-response-q-drawer">${escapeHtml(r.question_text)}</div>
+                            <div class="fit-response-text-drawer">"${escapeHtml(r.response_text || '')}"</div>
+                        </div>
+                    `).join('')}
+                </div>
+            ` : ''}
+        `;
+    };
+
+    const renderTranscriptSection = () => {
+        const highlights = insights?.interview_highlights || [];
+        const transcript = application.interview_transcript || [];
+
+        if (!materials?.has_interview) {
+            return '<p class="no-data">Interview not completed</p>';
+        }
+
+        return `
+            ${highlights.length > 0 ? `
+                <div class="transcript-highlights">
+                    <h4>Key Moments</h4>
+                    ${highlights.slice(0, 3).map(h => `
+                        <div class="highlight-item ${h.type || 'neutral'}">
+                            <span class="highlight-quote">"${escapeHtml(h.quote)}"</span>
+                            ${h.competency ? `<span class="highlight-context">Re: ${escapeHtml(h.competency)}</span>` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            ` : ''}
+            ${transcript.length > 0 ? `
+                <div class="full-transcript-toggle">
+                    <button class="btn btn-small btn-secondary" id="expand-transcript">
+                        Show Full Transcript (${transcript.length} exchanges)
+                    </button>
+                </div>
+                <div class="full-transcript" id="full-transcript" style="display:none;">
+                    <input type="text" class="transcript-search" placeholder="Search transcript..." id="transcript-search">
+                    <div class="transcript-messages">
+                        ${transcript.map(entry => `
+                            <div class="transcript-entry ${entry.speaker || 'unknown'}">
+                                <span class="speaker-label">${entry.speaker === 'interviewer' ? 'AI' : 'Candidate'}:</span>
+                                <span class="message-text">${escapeHtml(entry.text || entry.content || '')}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            ` : ''}
+        `;
+    };
+
+    return `
+        <div class="drawer-content">
+            <!-- Header with Score -->
+            <div class="drawer-header">
+                <button class="drawer-close" id="close-drawer">×</button>
+                <div class="drawer-score-section">
+                    <div class="big-score ${scoreClass}">
+                        <span class="score-number">${application.fit_score ?? '—'}</span>
+                        <span class="score-label">Fit Score</span>
+                    </div>
+                    ${application.confidence_level ? `
+                        <span class="confidence-badge ${application.confidence_level}">
+                            ${application.confidence_level.charAt(0).toUpperCase() + application.confidence_level.slice(1)} Confidence
+                        </span>
+                    ` : ''}
+                </div>
+                <div class="drawer-candidate-info">
+                    <h2>${escapeHtml(application.full_name || application.email)}</h2>
+                    <p>${escapeHtml(application.email)}</p>
+                </div>
+            </div>
+
+            <!-- Strengths Section -->
+            <div class="drawer-section">
+                <h3 class="section-title">Strengths</h3>
+                ${renderStrengthsSection()}
+            </div>
+
+            <!-- Risks Section -->
+            <div class="drawer-section">
+                <h3 class="section-title">Risks / Gaps</h3>
+                ${renderRisksSection()}
+            </div>
+
+            <!-- Suggested Interview Focus -->
+            <div class="drawer-section">
+                <h3 class="section-title">Suggested Interview Focus</h3>
+                ${renderSuggestedQuestions()}
+            </div>
+
+            <!-- Materials Section (Collapsible) -->
+            <div class="drawer-section materials-section">
+                <h3 class="section-title">Materials</h3>
+
+                <!-- Resume -->
+                <div class="material-item collapsible ${materials?.has_resume ? '' : 'disabled'}">
+                    <div class="material-header" data-material="resume">
+                        <span class="material-icon">📄</span>
+                        <span class="material-label">Resume</span>
+                        <span class="material-toggle">▼</span>
+                    </div>
+                    <div class="material-content" id="resume-content" style="display:none;">
+                        ${materials?.has_resume ? `
+                            <iframe src="${API_BASE}/employer/view-resume/${application.application_id}?token=${state.token}"
+                                    class="resume-iframe" title="Resume"></iframe>
+                            <a href="${API_BASE}/employer/download-resume/${application.application_id}?token=${state.token}"
+                               class="btn btn-small btn-secondary" download style="margin-top:8px;">
+                                Download Resume
+                            </a>
+                        ` : '<p>No resume uploaded</p>'}
+                    </div>
+                </div>
+
+                <!-- Short Answers -->
+                <div class="material-item collapsible">
+                    <div class="material-header" data-material="answers">
+                        <span class="material-icon">✍️</span>
+                        <span class="material-label">Short Answers (${fit_responses?.length || 0})</span>
+                        <span class="material-toggle">▼</span>
+                    </div>
+                    <div class="material-content" id="answers-content" style="display:none;">
+                        ${renderFitResponsesDetailed()}
+                    </div>
+                </div>
+
+                <!-- Interview Transcript -->
+                <div class="material-item collapsible ${materials?.has_interview ? '' : 'disabled'}">
+                    <div class="material-header" data-material="transcript">
+                        <span class="material-icon">🎙️</span>
+                        <span class="material-label">Interview Transcript</span>
+                        <span class="material-toggle">▼</span>
+                    </div>
+                    <div class="material-content" id="transcript-content" style="display:none;">
+                        ${renderTranscriptSection()}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+async function loadApplicantDetail(applicationId) {
+    try {
+        const data = await api(`/employer/applicants/${applicationId}/detail`);
+        state.selectedApplicantDetail = data;
+        state.drawerOpen = true;
+
+        // Update drawer content
+        const drawer = document.getElementById('detail-drawer');
+        if (drawer) {
+            drawer.innerHTML = renderCandidateDrawer(data);
+            drawer.classList.add('open');
+        }
+
+        // Update card selection
+        document.querySelectorAll('.premium-candidate-card').forEach(c => {
+            c.classList.toggle('selected',
+                parseInt(c.dataset.applicationId) === applicationId);
+        });
+
+        // Re-setup drawer listeners
+        setupDrawerListeners();
+
+    } catch (error) {
+        console.error('Error loading applicant detail:', error);
+        alert('Failed to load candidate details');
+    }
+}
+
+function setupPremiumApplicantsListeners() {
+    setupEmployerNavListeners();
+
+    // Back button
+    document.getElementById('back-to-employer')?.addEventListener('click', () => {
+        state.drawerOpen = false;
+        state.selectedApplicantDetail = null;
+        navigate('employer');
+    });
+
+    // Hidden toggle
+    document.getElementById('toggle-hidden')?.addEventListener('click', async () => {
+        state.showHiddenApplicants = !state.showHiddenApplicants;
+        await loadApplicants(state.selectedEmployerRole?.id);
+    });
+
+    // Candidate card clicks
+    document.querySelectorAll('.premium-candidate-card').forEach(card => {
+        card.addEventListener('click', async () => {
+            const appId = parseInt(card.dataset.applicationId);
+            await loadApplicantDetail(appId);
+        });
+    });
+
+    // Filter pills
+    document.querySelectorAll('.filter-pill').forEach(pill => {
+        pill.addEventListener('click', async () => {
+            const filterType = pill.dataset.filter;
+            const value = pill.dataset.value;
+
+            if (filterType === 'seniority') {
+                const idx = state.employerFilters.seniority.indexOf(value);
+                if (idx > -1) {
+                    state.employerFilters.seniority.splice(idx, 1);
+                } else {
+                    state.employerFilters.seniority.push(value);
+                }
+                await loadApplicants(state.selectedEmployerRole?.id);
+            }
+        });
+    });
+
+    // Clear filters
+    document.getElementById('clear-filters')?.addEventListener('click', async () => {
+        state.employerFilters = { seniority: [], minScore: 70 };
+        await loadApplicants(state.selectedEmployerRole?.id);
+    });
+
+    setupDrawerListeners();
+}
+
+function setupDrawerListeners() {
+    // Drawer close
+    document.getElementById('close-drawer')?.addEventListener('click', () => {
+        state.drawerOpen = false;
+        state.selectedApplicantDetail = null;
+        const drawer = document.getElementById('detail-drawer');
+        if (drawer) {
+            drawer.classList.remove('open');
+            drawer.innerHTML = renderEmptyDrawer();
+        }
+        document.querySelectorAll('.premium-candidate-card').forEach(c => c.classList.remove('selected'));
+    });
+
+    // Material collapsibles
+    document.querySelectorAll('.material-header').forEach(header => {
+        header.addEventListener('click', () => {
+            const material = header.dataset.material;
+            const content = document.getElementById(`${material}-content`);
+            if (content) {
+                const isExpanded = content.style.display !== 'none';
+                content.style.display = isExpanded ? 'none' : 'block';
+                const toggle = header.querySelector('.material-toggle');
+                if (toggle) toggle.textContent = isExpanded ? '▼' : '▲';
+            }
+        });
+    });
+
+    // Expand full transcript
+    document.getElementById('expand-transcript')?.addEventListener('click', () => {
+        const full = document.getElementById('full-transcript');
+        const toggle = document.getElementById('expand-transcript');
+        if (full && toggle) {
+            const isExpanded = full.style.display !== 'none';
+            full.style.display = isExpanded ? 'none' : 'block';
+            toggle.textContent = isExpanded ? `Show Full Transcript` : 'Hide Full Transcript';
+        }
+    });
+
+    // Transcript search
+    document.getElementById('transcript-search')?.addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase();
+        document.querySelectorAll('.transcript-entry').forEach(entry => {
+            const text = entry.textContent.toLowerCase();
+            entry.style.display = text.includes(query) || query === '' ? 'block' : 'none';
         });
     });
 }

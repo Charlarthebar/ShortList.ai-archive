@@ -263,3 +263,101 @@ END $$;
 -- Create index for faster embedding lookups (using GIN for JSONB)
 CREATE INDEX IF NOT EXISTS idx_jobs_embedding ON watchable_positions USING GIN (description_embedding);
 CREATE INDEX IF NOT EXISTS idx_seeker_embedding ON seeker_profiles USING GIN (resume_embedding);
+
+-- ============================================================================
+-- FIT SCORING & CANDIDATE INSIGHTS (Premium Employer Experience)
+-- ============================================================================
+
+-- Candidate fit scores with multi-bucket breakdown
+CREATE TABLE IF NOT EXISTS candidate_fit_scores (
+    id SERIAL PRIMARY KEY,
+    application_id INTEGER UNIQUE REFERENCES shortlist_applications(id) ON DELETE CASCADE,
+
+    -- Final Scores
+    overall_fit_score INTEGER NOT NULL,  -- 0-100
+    confidence_level VARCHAR(10) NOT NULL,  -- 'high', 'medium', 'low'
+
+    -- Hard Filter Results
+    hard_filters_passed BOOLEAN NOT NULL,
+    hard_filter_breakdown JSONB,  -- {work_auth: true, location: true, start_date: true, seniority: true}
+
+    -- Score Buckets (each 0-100)
+    must_have_skills_score INTEGER,
+    experience_alignment_score INTEGER,
+    interview_performance_score INTEGER,
+    fit_responses_score INTEGER,
+    nice_to_have_skills_score INTEGER,
+
+    -- Deductions
+    deductions JSONB,  -- {weak_evidence: -5, inconsistencies: 0, unclear_answers: 0}
+    score_breakdown JSONB,  -- Full explanation for transparency
+
+    scored_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_fit_scores_app ON candidate_fit_scores(application_id);
+CREATE INDEX IF NOT EXISTS idx_fit_scores_overall ON candidate_fit_scores(overall_fit_score DESC);
+
+-- AI-generated insights for employer view
+CREATE TABLE IF NOT EXISTS candidate_insights (
+    id SERIAL PRIMARY KEY,
+    application_id INTEGER UNIQUE REFERENCES shortlist_applications(id) ON DELETE CASCADE,
+
+    -- One-liner Summary
+    why_this_person TEXT,  -- "5 years React + startup experience + strong system design"
+
+    -- Strengths & Risks (AI-generated)
+    strengths JSONB,  -- [{text: "", evidence_source: "resume|interview|fit_responses", confidence: "high|medium|low"}]
+    risks JSONB,  -- [{text: "", evidence_source: "", confidence: ""}]
+
+    -- Suggested Interview Focus
+    suggested_questions JSONB,  -- [{question: "", rationale: "", gap_area: "skills|experience|culture"}]
+
+    -- Skill Chips for Display
+    matched_skill_chips JSONB,  -- [{skill: "", is_must_have: true, source: "resume"}]
+
+    -- Transcript Highlights
+    interview_highlights JSONB,  -- [{quote: "", context: "", type: "strength|concern"}]
+
+    -- Generation Metadata
+    generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    llm_model VARCHAR(50),
+    generation_version VARCHAR(10)
+);
+
+CREATE INDEX IF NOT EXISTS idx_insights_app ON candidate_insights(application_id);
+
+-- Add fit score columns to shortlist_applications for quick access
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'shortlist_applications' AND column_name = 'fit_score') THEN
+        ALTER TABLE shortlist_applications ADD COLUMN fit_score INTEGER;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'shortlist_applications' AND column_name = 'confidence_level') THEN
+        ALTER TABLE shortlist_applications ADD COLUMN confidence_level VARCHAR(10);
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'shortlist_applications' AND column_name = 'hard_filter_failed') THEN
+        ALTER TABLE shortlist_applications ADD COLUMN hard_filter_failed BOOLEAN DEFAULT FALSE;
+    END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_applications_fit_score ON shortlist_applications(position_id, fit_score DESC);
+
+-- Add job requirements columns to watchable_positions
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'watchable_positions' AND column_name = 'hard_requirements') THEN
+        ALTER TABLE watchable_positions ADD COLUMN hard_requirements JSONB DEFAULT '{}';
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'watchable_positions' AND column_name = 'must_have_skills') THEN
+        ALTER TABLE watchable_positions ADD COLUMN must_have_skills JSONB DEFAULT '[]';
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'watchable_positions' AND column_name = 'nice_to_have_skills') THEN
+        ALTER TABLE watchable_positions ADD COLUMN nice_to_have_skills JSONB DEFAULT '[]';
+    END IF;
+END $$;

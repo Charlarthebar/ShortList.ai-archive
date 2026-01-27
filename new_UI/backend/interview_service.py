@@ -1143,6 +1143,34 @@ async def interview_websocket(websocket: WebSocket, application_id: int):
                 # Generate evaluation in background thread
                 evaluation = await loop.run_in_executor(None, lambda: session.generate_evaluation_sync())
                 print(f"[INTERVIEW] Evaluation complete for {application_id}: {evaluation.get('final_screening_category', 'Unknown')}")
+
+                # Now generate scoring and insights
+                try:
+                    from scoring_engine import calculate_and_store_fit_score
+                    from insights_generator import generate_and_store_insights
+
+                    conn = get_db_connection()
+
+                    # Calculate fit score (includes interview performance bucket)
+                    score_result = await loop.run_in_executor(
+                        None,
+                        lambda: calculate_and_store_fit_score(conn, application_id)
+                    )
+                    if score_result:
+                        print(f"[INTERVIEW] Fit score calculated for {application_id}: {score_result.overall_score}% ({score_result.confidence})")
+
+                    # Generate AI insights
+                    insights = await loop.run_in_executor(
+                        None,
+                        lambda: generate_and_store_insights(conn, application_id)
+                    )
+                    if insights:
+                        print(f"[INTERVIEW] Insights generated for {application_id}")
+                except Exception as e:
+                    print(f"[INTERVIEW] Scoring/insights error for {application_id}: {e}")
+                    import traceback
+                    traceback.print_exc()
+
             except Exception as e:
                 print(f"[INTERVIEW] Evaluation error: {e}")
 
