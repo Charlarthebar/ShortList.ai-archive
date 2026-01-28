@@ -24,7 +24,8 @@ const state = {
         role_type: '',
         experience_level: '',
         location: '',
-        work_arrangement: ''
+        work_arrangement: '',
+        bench_status: ''  // '' = both, 'filled' = Future Openings, 'open' = Actively Hiring
     },
     // Employer state
     employerRoles: [],
@@ -201,6 +202,7 @@ async function loadRoles() {
         if (state.filters.experience_level) params.append('experience_level', state.filters.experience_level);
         if (state.filters.location) params.append('location', state.filters.location);
         if (state.filters.work_arrangement) params.append('work_arrangement', state.filters.work_arrangement);
+        if (state.filters.bench_status) params.append('bench_status', state.filters.bench_status);
 
         const data = await api(`/roles?${params}`);
         state.roles = data.roles || [];
@@ -4229,6 +4231,9 @@ function getForYouListContent() {
                     <div class="role-card-header">
                         <div class="company-badge">${escapeHtml(job.company_name?.charAt(0) || 'C')}</div>
                         <div class="role-header-right">
+                            <div class="role-status-badge ${job.bench_status === 'filled' ? 'status-bench-open' : 'status-hiring'}">
+                                ${job.bench_status === 'filled' ? 'Currently Filled' : 'Actively Hiring'}
+                            </div>
                             <div class="match-score ${scoreClass}">
                                 <span class="match-percent">${Math.round(job.match_score)}%</span>
                                 <span class="match-label">match</span>
@@ -4380,6 +4385,11 @@ function renderExplore() {
                                 <option value="remote">Remote</option>
                                 <option value="hybrid">Hybrid</option>
                             </select>
+                            <select id="filter-bench-status" class="filter-select">
+                                <option value="">Any status</option>
+                                <option value="open">Actively Hiring</option>
+                                <option value="filled">Future Openings</option>
+                            </select>
                         </div>
                     </div>
                     <div class="roles-count" id="roles-count"></div>
@@ -4395,6 +4405,7 @@ function renderExplore() {
     document.getElementById('filter-role-type').value = state.filters.role_type;
     document.getElementById('filter-exp-level').value = state.filters.experience_level;
     document.getElementById('filter-work-arrangement').value = state.filters.work_arrangement;
+    document.getElementById('filter-bench-status').value = state.filters.bench_status;
 
     // Event listeners
     document.getElementById('search-input').addEventListener('keypress', (e) => {
@@ -4416,6 +4427,11 @@ function renderExplore() {
 
     document.getElementById('filter-work-arrangement').addEventListener('change', (e) => {
         state.filters.work_arrangement = e.target.value;
+        loadRoles();
+    });
+
+    document.getElementById('filter-bench-status').addEventListener('change', (e) => {
+        state.filters.bench_status = e.target.value;
         loadRoles();
     });
 
@@ -4528,8 +4544,8 @@ function renderRolesList() {
                 <div class="role-card-header">
                     <div class="company-badge">${escapeHtml(role.company_name?.charAt(0) || 'C')}</div>
                     <div class="role-header-right">
-                        <div class="role-status-badge ${role.status === 'open' ? 'status-open' : 'status-closed'}">
-                            ${role.status === 'open' ? 'Actively hiring' : 'Closed'}
+                        <div class="role-status-badge ${role.bench_status === 'filled' ? 'status-bench-open' : 'status-hiring'}">
+                            ${role.bench_status === 'filled' ? 'Currently Filled' : 'Actively Hiring'}
                         </div>
                     </div>
                 </div>
@@ -4626,8 +4642,8 @@ async function renderRoleDetail() {
                         <div>
                             <strong>Status</strong><br>
                             <span class="role-status">
-                                <span class="status-dot ${role.status === 'open' ? 'open' : 'closed'}"></span>
-                                ${role.status === 'open' ? 'Open' : 'Closed'}
+                                <span class="status-dot ${role.bench_status === 'filled' ? 'bench-open' : 'open'}"></span>
+                                ${role.bench_status === 'filled' ? 'Currently Filled' : 'Open'}
                             </span>
                         </div>
                         <div>
@@ -5447,7 +5463,7 @@ function renderCandidatesGrid() {
                         <polyline points="16 6 12 2 8 6"></polyline>
                         <line x1="12" y1="2" x2="12" y2="15"></line>
                     </svg>
-                    Share Bench
+                    Share Shortlist
                 </button>
             </div>
         ` : ''}
@@ -6540,7 +6556,7 @@ function renderPremiumApplicantsList() {
                                 <polyline points="16 6 12 2 8 6"></polyline>
                                 <line x1="12" y1="2" x2="12" y2="15"></line>
                             </svg>
-                            Share Bench
+                            Share Shortlist
                         </button>
                     </div>
 
@@ -7638,7 +7654,7 @@ async function showShareBenchModal() {
     modal.innerHTML = `
         <div class="share-modal">
             <div class="share-modal-header">
-                <h2>Share Bench</h2>
+                <h2>Share Shortlist</h2>
                 <button class="close-modal-btn">&times;</button>
             </div>
             <div class="share-modal-body">

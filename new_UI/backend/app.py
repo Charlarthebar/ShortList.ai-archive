@@ -1848,7 +1848,7 @@ def get_for_you_jobs():
         cur.execute("""
             SELECT id, title, company_name, location, description,
                    role_type, experience_level, salary_range, salary_min, salary_max,
-                   work_arrangement, description_embedding
+                   work_arrangement, bench_status, description_embedding
             FROM watchable_positions
             WHERE description_embedding IS NOT NULL
         """)
@@ -1934,6 +1934,7 @@ def get_for_you_jobs():
                 'experience_level': job['experience_level'],
                 'salary_range': job['salary_range'],
                 'work_arrangement': job['work_arrangement'],
+                'bench_status': job.get('bench_status', 'open'),
                 'match_score': round(combined_score, 0),
                 'semantic_score': round(semantic_score, 0),
                 'preference_score': round(pref_score, 0) if pref_score is not None else None,
@@ -2068,6 +2069,7 @@ def get_roles():
     salary_max_filter = request.args.get('salary_max', type=int)
     exp_level_filter = request.args.get('experience_level', '').strip()
     work_arrangement_filter = request.args.get('work_arrangement', '').strip()
+    bench_status_filter = request.args.get('bench_status', '').strip()
 
     # Get user preferences and skills if authenticated
     user_prefs = None
@@ -2102,7 +2104,7 @@ def get_roles():
         query = """
             SELECT
                 wp.id, wp.title, wp.company_name, wp.location, wp.department,
-                wp.status, wp.salary_range, wp.role_type,
+                wp.status, wp.bench_status, wp.salary_range, wp.role_type,
                 (SELECT COUNT(*) FROM shortlist_applications sa WHERE sa.position_id = wp.id) as applicant_count
             FROM watchable_positions wp
             WHERE (wp.location ILIKE '%%boston%%' OR wp.location ILIKE '%%cambridge%%' OR wp.location ILIKE '%%massachusetts%%' OR wp.location ILIKE '%%, MA%%')
@@ -2129,6 +2131,10 @@ def get_roles():
         if work_arrangement_filter:
             query += " AND wp.work_arrangement = %s"
             params.append(work_arrangement_filter)
+
+        if bench_status_filter:
+            query += " AND wp.bench_status = %s"
+            params.append(bench_status_filter)
 
         query += " ORDER BY wp.salary_range IS NOT NULL DESC, wp.status = 'open' DESC, wp.company_name ASC LIMIT 200"
 
@@ -2214,7 +2220,7 @@ def get_role(role_id):
         cur.execute("""
             SELECT
                 wp.id, wp.title, wp.company_name, wp.location, wp.department,
-                wp.status, wp.salary_range, wp.salary_min, wp.salary_max,
+                wp.status, wp.bench_status, wp.salary_range, wp.salary_min, wp.salary_max,
                 wp.description, wp.role_type, wp.experience_level,
                 wp.description_embedding as embedding,
                 (SELECT COUNT(*) FROM shortlist_applications sa WHERE sa.position_id = wp.id) as applicant_count
