@@ -18,3 +18,9 @@
 2026-01-22 09:36:18,230 - __main__ - INFO - Step 2/2: Running Nationwide Jobs Collector...
 2026-01-22 11:00:50,851 - __main__ - ERROR - Nationwide collector timed out after 60 minutes
 2026-01-22 11:00:50,861 - __main__ - ERROR - Daily scraper completed with errors. Log: /Users/charleslai/Library/CloudStorage/OneDrive-MassachusettsInstituteofTechnology/ShortList.ai/Charlie's Work/logs/daily_20260122_060156.log
+2026-01-28 06:04:30,892 - __main__ - INFO - ============================================================
+2026-01-28 06:04:30,895 - __main__ - INFO - DAILY SCRAPER - Collecting active job listings
+2026-01-28 06:04:30,895 - __main__ - INFO - ============================================================
+2026-01-28 06:04:30,896 - __main__ - INFO - Step 1/2: Running Cambridge Area Jobs Collector...
+2026-01-28 10:17:25,264 - __main__ - INFO - Cambridge collector completed successfully
+2026-01-28 10:17:25,270 - __main__ - INFO - Step 2/2: Running Nationwide Jobs Collector...

@@ -59,25 +59,33 @@ style: |
     justify-content: center;
     align-items: center;
     text-align: center;
-    background: #1a365d;
+    background: linear-gradient(145deg, #0f2744 0%, #1a365d 50%, #2c5282 100%);
     color: white;
+    padding: 60px;
   }
   section.title h1 {
     color: white;
-    font-size: 3.5em;
-    margin-bottom: 0.3em;
+    font-size: 4em;
+    margin-bottom: 0.2em;
+    letter-spacing: -0.02em;
+    text-shadow: 0 4px 12px rgba(0,0,0,0.3);
   }
   section.title h3 {
-    color: #e2e8f0;
-    font-size: 1.4em;
+    color: #90cdf4;
+    font-size: 1.6em;
     font-weight: 400;
-    margin-top: 10px;
+    margin-top: 15px;
+    letter-spacing: 0.02em;
   }
   section.title p {
-    color: #a0aec0;
+    color: white;
     font-style: italic;
-    font-size: 1.1em;
-    margin-top: 30px;
+    font-size: 1.2em;
+    margin-top: 40px;
+    padding: 15px 30px;
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 30px;
+    background: rgba(255,255,255,0.1);
   }
   section.closing {
     display: flex;
@@ -85,18 +93,25 @@ style: |
     justify-content: center;
     align-items: center;
     text-align: center;
-    background: #1a365d;
+    background: linear-gradient(145deg, #0f2744 0%, #1a365d 50%, #2c5282 100%);
     color: white;
+    padding: 60px;
   }
   section.closing p {
-    color: #e2e8f0;
-    font-size: 1.4em;
+    color: white;
+    font-size: 1.6em;
     font-style: italic;
-    margin-bottom: 40px;
+    margin-bottom: 50px;
+    padding: 20px 40px;
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 30px;
+    background: rgba(255,255,255,0.1);
   }
   section.closing strong {
     color: white;
-    font-size: 2.2em;
+    font-size: 2.8em;
+    letter-spacing: -0.02em;
+    text-shadow: 0 4px 12px rgba(0,0,0,0.3);
   }
   .columns {
     display: grid;
@@ -274,6 +289,52 @@ We track **both open AND filled roles**, enabling a fundamentally different mode
 </div>
 </div>
 
+
+---
+
+## Next Steps
+
+<div class="columns">
+<div>
+
+**Expand the Database**
+- Historical job tracking
+- Partner with LinkedIn, Indeed, company career pages
+
+
+</div>
+<div>
+
+**Grow the Network**
+- Launch in specific location and industry
+- Launch iOS & Android apps
+
+</div>
+</div>
+
+---
+
+## How We Used AI
+
+<div class="columns">
+<div>
+
+**In Our Product**
+- **GPT-4** powers AI screening interviews and ranks candidates 0-100 with strengths & concerns
+- **NLP** extracts skills from resumes automatically
+- **Matching algorithms** score candidate-role fit in real-time
+
+</div>
+<div>
+
+**In Development**
+- **Claude Code** accelerated full-stack development
+- Rapid prototyping of UI components
+- Database design & optimization
+- API architecture & debugging
+
+</div>
+</div>
 
 ---
 
