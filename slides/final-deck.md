@@ -188,7 +188,7 @@ We track **both open AND filled roles**, enabling a fundamentally different mode
 
 | Traditional Platforms | ShortList.ai |
 |----------------------|--------------|
-| Apply when job is posted | Subscribe before job opens |
+| Apply when job is posted | Apply before job opens |
 | One-time transaction | Continuous relationship |
 | Volume-driven matching | Quality-driven matching |
 | Static resumes | Living candidate profiles |
