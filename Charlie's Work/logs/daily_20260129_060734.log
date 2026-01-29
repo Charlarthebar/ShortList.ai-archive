@@ -1,0 +1,194 @@
+=== Daily Scraper Run: 2026-01-29 06:07:34.251603 ===
+
+
+============================================================
+STEP 1: CAMBRIDGE AREA JOBS COLLECTOR
+============================================================
+
+STDOUT:
+
+======================================================================
+     CAMBRIDGE AREA JOBS COLLECTOR (MULTI-SOURCE)
+======================================================================
+
+Started: 2026-01-29 06:07:34
+
+Target: Cambridge, MA (02139) - 10.0 mile radius
+Sources: Adzuna, USAJOBS, The Muse, Coresignal, RemoteOK, Remotive, Arbeitnow, Jobicy, WWR
+Note: Remote jobs included (Cambridge residents can work them)
+
+API Status:
+  Adzuna: Configured
+  USAJOBS: Configured
+  Coresignal: Configured
+  The Muse: Available (no key needed)
+  RemoteOK: Available (no key needed)
+  Remotive: Available (no key needed)
+  Arbeitnow: Available (no key needed)
+  Jobicy: Available (no key needed)
+  We Work Remotely: Available (no key needed)
+
+======================================================================
+1. ADZUNA - Job Listings (filtered to Cambridge area)
+======================================================================
+  Fetching up to 5,000 jobs from Adzuna (MA)...
+    Error on page 1: HTTPSConnectionPool(host='api.adzuna.com', port=443): Read timed out. (read timeout=30)
+    Total available in MA: 160,560 jobs
+    Error on page 11: HTTPSConnectionPool(host='api.adzuna.com', port=443): Read timed out. (read timeout=30)
+    Error on page 33: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+    Page 50: 2,500 jobs fetched...
+    Error on page 52: HTTPSConnectionPool(host='api.adzuna.com', port=443): Read timed out. (read timeout=30)
+    Page 100: 5,000 jobs fetched...
+    Filtering 5,000 MA jobs to Cambridge area...
+  Adzuna: 1,879 jobs in Cambridge area (from 5,000 MA jobs)
+  Saved: +1,416 new, 463 updated
+
+======================================================================
+2. USAJOBS - Federal Government Jobs
+======================================================================
+  Fetching federal jobs within 10 miles of 02139...
+    Total available: 188 federal jobs
+  USAJOBS: 188 federal jobs in Cambridge area
+  Saved: +11 new, 177 updated
+
+======================================================================
+3. THE MUSE - Career Platform Jobs
+======================================================================
+  Fetching jobs from The Muse (will filter to Cambridge area)...
+    Total in Boston area: 12,315 jobs across 616 pages
+    Page 50/616: 1,020 jobs fetched...
+    Filtering 2,000 jobs to Cambridge area...
+  The Muse: 428 jobs in Cambridge area
+  Saved: +37 new, 391 updated
+
+======================================================================
+4. CORESIGNAL - LinkedIn & Other Sources
+======================================================================
+  Fetching job IDs from Coresignal (Boston/Cambridge area)...
+    Retrieved 1,000 job IDs...
+    Retrieved 2,000 job IDs...
+    Retrieved 3,000 job IDs...
+    Retrieved 4,000 job IDs...
+    Retrieved 5,000 job IDs...
+  Found 5,000 job IDs, now collecting details...
+    API quota exceeded at job 0
+    Filtering 0 jobs to Cambridge area...
+  Coresignal: 0 jobs in Cambridge area
+  Saved: +0 new, 0 updated
+
+======================================================================
+5. REMOTEOK - Remote Jobs (all included)
+======================================================================
+  Fetching remote jobs from RemoteOK...
+  RemoteOK: 100 remote jobs (all available to Cambridge residents)
+  Saved: +99 new, 1 updated
+
+======================================================================
+6. REMOTIVE - Remote Jobs (all included)
+======================================================================
+  Fetching remote jobs from Remotive...
+  Remotive: 24 remote jobs (all available to Cambridge residents)
+  Saved: +4 new, 20 updated
+
+======================================================================
+7. ARBEITNOW - Remote Tech Jobs (all included)
+======================================================================
+  Fetching jobs from Arbeitnow...
+  Arbeitnow: 151 remote jobs (from 1000 total)
+  Saved: +115 new, 36 updated
+
+======================================================================
+8. JOBICY - Remote Jobs (all included)
+======================================================================
+  Fetching jobs from Jobicy...
+  Jobicy error: 403 Client Error: Forbidden for url: https://jobicy.com/api/v2/remote-jobs?count=50&geo=usa
+  Saved: +0 new, 0 updated
+
+======================================================================
+9. WE WORK REMOTELY - Remote Jobs (all included)
+======================================================================
+  Fetching jobs from We Work Remotely...
+  We Work Remotely: 162 remote jobs
+  Saved: +23 new, 139 updated
+
+======================================================================
+EXTRACTING SKILLS FROM JOB DESCRIPTIONS
+======================================================================
+
+Extracting skills for all jobs...
+  Skills taxonomy: 8942 skills (35 core)
+    Processed 5,000 jobs...
+    Processed 10,000 jobs...
+    Processed 15,000 jobs...
+    Processed 20,000 jobs...
+    Processed 25,000 jobs...
+  Skills extracted: 14,609 of 28,582 jobs have skills
+Exported 28,698 jobs to cambridge_jobs.csv
+
+======================================================================
+COLLECTION COMPLETE
+======================================================================
+
+This run by source:
+  adzuna: +1,416 new, 463 updated
+  usajobs: +11 new, 177 updated
+  themuse: +37 new, 391 updated
+  coresignal: +0 new, 0 updated
+  remoteok: +99 new, 1 updated
+  remotive: +4 new, 20 updated
+  arbeitnow: +115 new, 36 updated
+  jobicy: +0 new, 0 updated
+  weworkremotely: +23 new, 139 updated
+
+Total this run:
+  New jobs inserted: 1,705
+  Existing jobs updated: 1,227
+
+Database totals:
+  Total jobs: 28,698
+  Active jobs: 28,666
+  Remote jobs: 700
+  Unique employers: 5,976
+
+Jobs by source:
+  adzuna: 24,936
+  themuse: 1,923
+  usajobs: 618
+  arbeitnow: 325
+  remoteok: 221
+  harvard_careers: 206
+  weworkremotely: 197
+  coresignal: 195
+  remotive: 25
+  cambridge_city: 22
+  himalayas: 20
+  ma_payroll: 10
+
+Top cities:
+  US: 24,316
+  Boston: 2,158
+  Cambridge: 257
+  Salt Lake City, Utah: 79
+  Arlington: 49
+  Anywhere in the U.S. (remote job), United States: 37
+  South Boston: 35
+  Waltham: 29
+  Somerville: 26
+  Pentagon, Arlington, Virginia: 25
+
+Output files:
+  Database: cambridge_jobs.db
+  CSV: cambridge_jobs.csv
+
+Finished: 2026-01-29 09:57:35
+
+
+STDERR:
+
+
+
+============================================================
+STEP 2: NATIONWIDE JOBS COLLECTOR
+============================================================
+
+ERROR: Nationwide collector timed out after 60 minutes

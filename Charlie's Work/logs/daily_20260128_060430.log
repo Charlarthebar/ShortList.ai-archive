@@ -1,0 +1,209 @@
+=== Daily Scraper Run: 2026-01-28 06:04:30.896017 ===
+
+
+============================================================
+STEP 1: CAMBRIDGE AREA JOBS COLLECTOR
+============================================================
+
+STDOUT:
+
+======================================================================
+     CAMBRIDGE AREA JOBS COLLECTOR (MULTI-SOURCE)
+======================================================================
+
+Started: 2026-01-28 06:04:31
+
+Target: Cambridge, MA (02139) - 10.0 mile radius
+Sources: Adzuna, USAJOBS, The Muse, Coresignal, RemoteOK, Remotive, Arbeitnow, Jobicy, WWR
+Note: Remote jobs included (Cambridge residents can work them)
+
+API Status:
+  Adzuna: Configured
+  USAJOBS: Configured
+  Coresignal: Configured
+  The Muse: Available (no key needed)
+  RemoteOK: Available (no key needed)
+  Remotive: Available (no key needed)
+  Arbeitnow: Available (no key needed)
+  Jobicy: Available (no key needed)
+  We Work Remotely: Available (no key needed)
+
+======================================================================
+1. ADZUNA - Job Listings (filtered to Cambridge area)
+======================================================================
+  Fetching up to 5,000 jobs from Adzuna (MA)...
+    Total available in MA: 165,967 jobs
+    Error on page 7: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+    Error on page 8: HTTPSConnectionPool(host='api.adzuna.com', port=443): Read timed out.
+    Error on page 30: HTTPSConnectionPool(host='api.adzuna.com', port=443): Read timed out. (read timeout=30)
+    Error on page 40: HTTPSConnectionPool(host='api.adzuna.com', port=443): Read timed out. (read timeout=30)
+    Page 50: 2,500 jobs fetched...
+    Error on page 66: HTTPSConnectionPool(host='api.adzuna.com', port=443): Read timed out. (read timeout=30)
+    Error on page 83: HTTPSConnectionPool(host='api.adzuna.com', port=443): Read timed out. (read timeout=30)
+    Error on page 83: HTTPSConnectionPool(host='api.adzuna.com', port=443): Max retries exceeded with url: /v1/api/jobs/us/search/83?app_id=516145e7&app_key=34e6f3959d58461538354d674d48b881&results_per_page=50&where=massachusetts&sort_by=date (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10be88610>: Failed to resolve 'api.adzuna.com' ([Errno 8] nodename nor servname provided, or not known)"))
+    Error on page 83: HTTPSConnectionPool(host='api.adzuna.com', port=443): Max retries exceeded with url: /v1/api/jobs/us/search/83?app_id=516145e7&app_key=34e6f3959d58461538354d674d48b881&results_per_page=50&where=massachusetts&sort_by=date (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10bebc5d0>: Failed to resolve 'api.adzuna.com' ([Errno 8] nodename nor servname provided, or not known)"))
+    Error on page 83: HTTPSConnectionPool(host='api.adzuna.com', port=443): Max retries exceeded with url: /v1/api/jobs/us/search/83?app_id=516145e7&app_key=34e6f3959d58461538354d674d48b881&results_per_page=50&where=massachusetts&sort_by=date (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10becfe90>: Failed to resolve 'api.adzuna.com' ([Errno 8] nodename nor servname provided, or not known)"))
+    Error on page 83: HTTPSConnectionPool(host='api.adzuna.com', port=443): Max retries exceeded with url: /v1/api/jobs/us/search/83?app_id=516145e7&app_key=34e6f3959d58461538354d674d48b881&results_per_page=50&where=massachusetts&sort_by=date (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10bebeed0>: Failed to resolve 'api.adzuna.com' ([Errno 8] nodename nor servname provided, or not known)"))
+    Filtering 4,100 MA jobs to Cambridge area...
+  Adzuna: 974 jobs in Cambridge area (from 4,100 MA jobs)
+  Saved: +573 new, 401 updated
+
+======================================================================
+2. USAJOBS - Federal Government Jobs
+======================================================================
+  Fetching federal jobs within 10 miles of 02139...
+    USAJOBS error on page 1: HTTPSConnectionPool(host='data.usajobs.gov', port=443): Max retries exceeded with url: /api/search?LocationName=02139&Radius=10&Page=1&ResultsPerPage=500&SortField=DatePosted&SortDirection=Desc (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10be9e550>: Failed to resolve 'data.usajobs.gov' ([Errno 8] nodename nor servname provided, or not known)"))
+    USAJOBS error on page 1: HTTPSConnectionPool(host='data.usajobs.gov', port=443): Max retries exceeded with url: /api/search?LocationName=02139&Radius=10&Page=1&ResultsPerPage=500&SortField=DatePosted&SortDirection=Desc (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10be88310>: Failed to resolve 'data.usajobs.gov' ([Errno 8] nodename nor servname provided, or not known)"))
+    USAJOBS error on page 1: ("Connection broken: InvalidChunkLength(got length b'', 0 bytes read)", InvalidChunkLength(got length b'', 0 bytes read))
+    Total available: 190 federal jobs
+  USAJOBS: 190 federal jobs in Cambridge area
+  Saved: +40 new, 150 updated
+
+======================================================================
+3. THE MUSE - Career Platform Jobs
+======================================================================
+  Fetching jobs from The Muse (will filter to Cambridge area)...
+    Total in Boston area: 12,410 jobs across 621 pages
+    Page 50/621: 1,020 jobs fetched...
+    Error on page 68: HTTPSConnectionPool(host='www.themuse.com', port=443): Read timed out. (read timeout=30)
+    Error on page 68: HTTPSConnectionPool(host='www.themuse.com', port=443): Max retries exceeded with url: /api/public/jobs?page=68&location=Boston%2C+MA (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10bc481d0>: Failed to resolve 'www.themuse.com' ([Errno 8] nodename nor servname provided, or not known)"))
+    Error on page 68: HTTPSConnectionPool(host='www.themuse.com', port=443): Max retries exceeded with url: /api/public/jobs?page=68&location=Boston%2C+MA (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10bc487d0>: Failed to resolve 'www.themuse.com' ([Errno 8] nodename nor servname provided, or not known)"))
+    Error on page 68: HTTPSConnectionPool(host='www.themuse.com', port=443): Max retries exceeded with url: /api/public/jobs?page=68&location=Boston%2C+MA (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10ba24b90>: Failed to resolve 'www.themuse.com' ([Errno 8] nodename nor servname provided, or not known)"))
+    Error on page 68: HTTPSConnectionPool(host='www.themuse.com', port=443): Max retries exceeded with url: /api/public/jobs?page=68&location=Boston%2C+MA (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10bc71010>: Failed to resolve 'www.themuse.com' ([Errno 8] nodename nor servname provided, or not known)"))
+    Filtering 1,360 jobs to Cambridge area...
+  The Muse: 306 jobs in Cambridge area
+  Saved: +46 new, 260 updated
+
+======================================================================
+4. CORESIGNAL - LinkedIn & Other Sources
+======================================================================
+  Fetching job IDs from Coresignal (Boston/Cambridge area)...
+    Search error: HTTPSConnectionPool(host='api.coresignal.com', port=443): Max retries exceeded with url: /cdapi/v2/job_base/search/es_dsl (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10bc481d0>: Failed to resolve 'api.coresignal.com' ([Errno 8] nodename nor servname provided, or not known)"))
+  Found 0 job IDs, now collecting details...
+    Filtering 0 jobs to Cambridge area...
+  Coresignal: 0 jobs in Cambridge area
+  Saved: +0 new, 0 updated
+
+======================================================================
+5. REMOTEOK - Remote Jobs (all included)
+======================================================================
+  Fetching remote jobs from RemoteOK...
+  RemoteOK error: HTTPSConnectionPool(host='remoteok.com', port=443): Max retries exceeded with url: /api (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10bc3bd90>: Failed to resolve 'remoteok.com' ([Errno 8] nodename nor servname provided, or not known)"))
+  Saved: +0 new, 0 updated
+
+======================================================================
+6. REMOTIVE - Remote Jobs (all included)
+======================================================================
+  Fetching remote jobs from Remotive...
+  Remotive error: HTTPSConnectionPool(host='remotive.com', port=443): Max retries exceeded with url: /api/remote-jobs (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10bdaaa50>: Failed to resolve 'remotive.com' ([Errno 8] nodename nor servname provided, or not known)"))
+  Saved: +0 new, 0 updated
+
+======================================================================
+7. ARBEITNOW - Remote Tech Jobs (all included)
+======================================================================
+  Fetching jobs from Arbeitnow...
+  Arbeitnow error: HTTPSConnectionPool(host='www.arbeitnow.com', port=443): Max retries exceeded with url: /api/job-board-api?page=1 (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10bdaab10>: Failed to resolve 'www.arbeitnow.com' ([Errno 8] nodename nor servname provided, or not known)"))
+  Saved: +0 new, 0 updated
+
+======================================================================
+8. JOBICY - Remote Jobs (all included)
+======================================================================
+  Fetching jobs from Jobicy...
+  Jobicy error: HTTPSConnectionPool(host='jobicy.com', port=443): Max retries exceeded with url: /api/v2/remote-jobs?count=50&geo=usa (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10bc3bf90>: Failed to resolve 'jobicy.com' ([Errno 8] nodename nor servname provided, or not known)"))
+  Saved: +0 new, 0 updated
+
+======================================================================
+9. WE WORK REMOTELY - Remote Jobs (all included)
+======================================================================
+  Fetching jobs from We Work Remotely...
+    Error fetching https://weworkremotely.com/categories/remote-programming-jobs.rss: HTTPSConnectionPool(host='weworkremotely.com', port=443): Max retries exceeded with url: /categories/remote-programming-jobs.rss (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10bb88d50>: Failed to resolve 'weworkremotely.com' ([Errno 8] nodename nor servname provided, or not known)"))
+    Error fetching https://weworkremotely.com/categories/remote-design-jobs.rss: HTTPSConnectionPool(host='weworkremotely.com', port=443): Max retries exceeded with url: /categories/remote-design-jobs.rss (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10bc7d6d0>: Failed to resolve 'weworkremotely.com' ([Errno 8] nodename nor servname provided, or not known)"))
+    Error fetching https://weworkremotely.com/categories/remote-sales-and-marketing-jobs.rss: HTTPSConnectionPool(host='weworkremotely.com', port=443): Max retries exceeded with url: /categories/remote-sales-and-marketing-jobs.rss (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10b882490>: Failed to resolve 'weworkremotely.com' ([Errno 8] nodename nor servname provided, or not known)"))
+    Error fetching https://weworkremotely.com/categories/remote-product-jobs.rss: HTTPSConnectionPool(host='weworkremotely.com', port=443): Max retries exceeded with url: /categories/remote-product-jobs.rss (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10b85c7d0>: Failed to resolve 'weworkremotely.com' ([Errno 8] nodename nor servname provided, or not known)"))
+    Error fetching https://weworkremotely.com/categories/remote-customer-support-jobs.rss: HTTPSConnectionPool(host='weworkremotely.com', port=443): Max retries exceeded with url: /categories/remote-customer-support-jobs.rss (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10b85cd50>: Failed to resolve 'weworkremotely.com' ([Errno 8] nodename nor servname provided, or not known)"))
+    Error fetching https://weworkremotely.com/categories/remote-finance-and-legal-jobs.rss: HTTPSConnectionPool(host='weworkremotely.com', port=443): Max retries exceeded with url: /categories/remote-finance-and-legal-jobs.rss (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10b85ce10>: Failed to resolve 'weworkremotely.com' ([Errno 8] nodename nor servname provided, or not known)"))
+    Error fetching https://weworkremotely.com/categories/remote-devops-and-sysadmin-jobs.rss: HTTPSConnectionPool(host='weworkremotely.com', port=443): Max retries exceeded with url: /categories/remote-devops-and-sysadmin-jobs.rss (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10b881b10>: Failed to resolve 'weworkremotely.com' ([Errno 8] nodename nor servname provided, or not known)"))
+  We Work Remotely: 0 remote jobs
+  Saved: +0 new, 0 updated
+
+======================================================================
+EXTRACTING SKILLS FROM JOB DESCRIPTIONS
+======================================================================
+
+Extracting skills for all jobs...
+  Skills taxonomy: 8942 skills (35 core)
+    Processed 5,000 jobs...
+    Processed 10,000 jobs...
+    Processed 15,000 jobs...
+    Processed 20,000 jobs...
+    Processed 25,000 jobs...
+  Skills extracted: 13,776 of 26,877 jobs have skills
+Exported 26,993 jobs to cambridge_jobs.csv
+
+======================================================================
+COLLECTION COMPLETE
+======================================================================
+
+This run by source:
+  adzuna: +573 new, 401 updated
+  usajobs: +40 new, 150 updated
+  themuse: +46 new, 260 updated
+  coresignal: +0 new, 0 updated
+  remoteok: +0 new, 0 updated
+  remotive: +0 new, 0 updated
+  arbeitnow: +0 new, 0 updated
+  jobicy: +0 new, 0 updated
+  weworkremotely: +0 new, 0 updated
+
+Total this run:
+  New jobs inserted: 659
+  Existing jobs updated: 811
+
+Database totals:
+  Total jobs: 26,993
+  Active jobs: 26,961
+  Remote jobs: 459
+  Unique employers: 5,609
+
+Jobs by source:
+  adzuna: 23,520
+  themuse: 1,886
+  usajobs: 607
+  arbeitnow: 210
+  harvard_careers: 206
+  coresignal: 195
+  weworkremotely: 174
+  remoteok: 122
+  cambridge_city: 22
+  remotive: 21
+  himalayas: 20
+  ma_payroll: 10
+
+Top cities:
+  US: 22,900
+  Boston: 2,126
+  Cambridge: 257
+  Salt Lake City, Utah: 73
+  Arlington: 46
+  Anywhere in the U.S. (remote job), United States: 35
+  South Boston: 35
+  Waltham: 29
+  Somerville: 26
+  Pentagon, Arlington, Virginia: 25
+
+Output files:
+  Database: cambridge_jobs.db
+  CSV: cambridge_jobs.csv
+
+Finished: 2026-01-28 10:17:25
+
+
+STDERR:
+
+
+
+============================================================
+STEP 2: NATIONWIDE JOBS COLLECTOR
+============================================================
+
+ERROR: Nationwide collector timed out after 60 minutes
