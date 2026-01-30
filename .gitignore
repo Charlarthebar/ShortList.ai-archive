@@ -1,41 +1,44 @@
+# OS files
 .DS_Store
-<<<<<<< HEAD
-.DS_Store
-.DS_Store
-=======
 Thumbs.db
+
+# Environment files
 .env
 .env.local
-
-# Large data files (can be regenerated)
-data/ma_jobs/ma_jobs_comprehensive.csv
-data/ma_jobs/npi_healthcare_ma.csv
-data/ma_jobs/all_ma_jobs.csv
-data/ma_jobs/all_ma_jobs_final.csv
-data/ma_jobs/all_ma_jobs_unified.csv
-data/ma_jobs/ma_state_payroll.csv
-data/ma_jobs/inferred_jobs_expanded.csv
-mvp/unlisted_jobs/data/npi_bulk_national.csv
-data/ma_jobs/all_ma_jobs.json
->>>>>>> a04b5c8ffd92ae6d9109d4199d14291ae54ffed1
 
 # Python cache
 **/__pycache__/
 *.pyc
-
-# Large data files in mvp/unlisted_jobs/data
-mvp/unlisted_jobs/data/npi_ma_healthcare.csv
-mvp/unlisted_jobs/data/npi_bulk_national.csv
-mvp/unlisted_jobs/data/*.csv
+*.pyo
 
 # Virtual environments
 venv/
 .venv/
 
-# Model/data files
+# Model/data files (can be regenerated)
 *.pkl
 *.db
+
+# Large data files
+*.xlsx
+*.csv
+*.zip
+
+# Keep specific small CSVs if needed by uncommenting:
+# !mvp/unlisted_jobs/requirements.txt
 
 # API keys
 apikeys.txt
 **/apikeys.txt
+
+# Node modules
+**/node_modules/
+
+# Logs
+*.log
+logs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
