@@ -15,7 +15,7 @@ data/ma_jobs/all_ma_jobs_final.csv
 data/ma_jobs/all_ma_jobs_unified.csv
 data/ma_jobs/ma_state_payroll.csv
 data/ma_jobs/inferred_jobs_expanded.csv
-unlisted_jobs/data/npi_bulk_national.csv
+mvp/unlisted_jobs/data/npi_bulk_national.csv
 data/ma_jobs/all_ma_jobs.json
 >>>>>>> a04b5c8ffd92ae6d9109d4199d14291ae54ffed1
 
@@ -23,10 +23,10 @@ data/ma_jobs/all_ma_jobs.json
 **/__pycache__/
 *.pyc
 
-# Large data files in unlisted_jobs/data
-unlisted_jobs/data/npi_ma_healthcare.csv
-unlisted_jobs/data/npi_bulk_national.csv
-unlisted_jobs/data/*.csv
+# Large data files in mvp/unlisted_jobs/data
+mvp/unlisted_jobs/data/npi_ma_healthcare.csv
+mvp/unlisted_jobs/data/npi_bulk_national.csv
+mvp/unlisted_jobs/data/*.csv
 
 # Virtual environments
 venv/
