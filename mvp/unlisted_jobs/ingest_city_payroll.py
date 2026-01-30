@@ -32,7 +32,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-DATA_DIR = '/Users/noahhopkins/ShortList.ai/unlisted_jobs/data/city_payroll'
+DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'city_payroll')
 
 
 def parse_salary(value) -> Optional[float]:

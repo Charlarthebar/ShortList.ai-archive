@@ -30,7 +30,7 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 BASE_URL = 'https://www.mackinac.org/salaries'
-OUTPUT_DIR = '/Users/noahhopkins/ShortList.ai/unlisted_jobs/data/michigan'
+OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'michigan')
 
 
 def fetch_page(report: str, page: int, retries: int = 5) -> Optional[List[Dict]]:

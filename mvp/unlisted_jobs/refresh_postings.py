@@ -19,7 +19,7 @@ Usage:
     python refresh_postings.py --dry-run
 
 Cron example (run every 6 hours):
-    0 */6 * * * cd /Users/noahhopkins/ShortList.ai/unlisted_jobs && python3 refresh_postings.py >> /var/log/posting_refresh.log 2>&1
+    0 */6 * * * cd /path/to/mvp/unlisted_jobs && python3 refresh_postings.py >> /var/log/posting_refresh.log 2>&1
 
 Author: ShortList.ai
 Date: 2026-01-15

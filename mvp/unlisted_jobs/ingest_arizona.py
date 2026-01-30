@@ -102,7 +102,7 @@ def main():
     source_id = get_or_create_source(cursor, 'Phoenix AZ City Payroll')
     location_id = get_or_create_location(cursor, 'Phoenix', 'AZ')
 
-    filepath = '/Users/noahhopkins/ShortList.ai/unlisted_jobs/data/state_payroll_new/employee-compensation-report-2025.csv'
+    filepath = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'state_payroll_new', 'employee-compensation-report-2025.csv')
 
     count = 0
     skipped = 0

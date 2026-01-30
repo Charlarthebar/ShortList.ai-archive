@@ -104,7 +104,7 @@ def main():
     source_id = get_or_create_source(cursor, 'Georgia State Payroll')
     location_id = get_or_create_location(cursor, 'GA')
 
-    filepath = '/Users/noahhopkins/ShortList.ai/unlisted_jobs/data/state_payroll_new/SalaryTravelDataExport2025.txt'
+    filepath = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'state_payroll_new', 'SalaryTravelDataExport2025.txt')
 
     count = 0
     skipped = 0

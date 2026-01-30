@@ -34,7 +34,7 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Add the ai_screening_interview module to path (now inside mvp folder)
+# Add the ai_screening_interview module to path (sibling folder inside mvp/)
 AI_INTERVIEW_PATH = os.path.join(os.path.dirname(__file__), '..', '..', 'ai_screening_interview')
 sys.path.insert(0, AI_INTERVIEW_PATH)
 

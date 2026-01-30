@@ -46,7 +46,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-DATA_DIR = '/Users/noahhopkins/ShortList.ai/unlisted_jobs/data/kaggle/indeed'
+DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'kaggle', 'indeed')
 
 
 def find_csv_files() -> List[str]:

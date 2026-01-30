@@ -106,7 +106,7 @@ def main():
     source_id = get_or_create_source(cursor, 'Vermont State Payroll')
     location_id = get_or_create_location(cursor, 'VT')
 
-    filepath = '/Users/noahhopkins/ShortList.ai/unlisted_jobs/data/state_payroll_new/vermont.csv'
+    filepath = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'state_payroll_new', 'vermont.csv')
 
     count = 0
     skipped = 0

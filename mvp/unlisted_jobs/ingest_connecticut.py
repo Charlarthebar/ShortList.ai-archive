@@ -118,7 +118,7 @@ def main():
     source_id = get_or_create_source(cursor, 'Connecticut State Payroll')
     default_location_id = get_or_create_location(cursor, 'CT')
 
-    filepath = '/Users/noahhopkins/ShortList.ai/unlisted_jobs/data/state_payroll_new/connecticut.csv'
+    filepath = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'state_payroll_new', 'connecticut.csv')
 
     # Deduplicate by employee ID - keep first occurrence per employee
     # (they all have same Annual Rate anyway)

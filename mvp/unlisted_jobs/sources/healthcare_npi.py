@@ -165,8 +165,8 @@ class NPIRegistryConnector(LicensedProfessionalConnector):
         possible_paths = [
             os.path.join(base_dir, "data", f"npi_{state.lower()}_healthcare.csv"),
             os.path.join(base_dir, "data", f"npi_ma_healthcare.csv"),
-            f"./mvp/unlisted_jobs/data/npi_{state.lower()}_healthcare.csv",
-            f"./mvp/unlisted_jobs/data/npi_ma_healthcare.csv",
+            os.path.join(base_dir, "data", f"npi_{state.lower()}_healthcare.csv"),
+            os.path.join(base_dir, "data", "npi_ma_healthcare.csv"),
         ]
 
         for path in possible_paths:

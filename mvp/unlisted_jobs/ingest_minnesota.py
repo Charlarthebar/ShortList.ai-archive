@@ -97,7 +97,7 @@ def main():
     source_id = get_or_create_source(cursor, 'Minnesota State Payroll')
     default_location_id = get_or_create_location(cursor, 'MN')
 
-    filepath = '/Users/noahhopkins/ShortList.ai/unlisted_jobs/data/state_payroll_new/fiscal-year-2025.xlsx'
+    filepath = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'state_payroll_new', 'fiscal-year-2025.xlsx')
 
     log.info("Loading Excel file...")
     xl = pd.ExcelFile(filepath)

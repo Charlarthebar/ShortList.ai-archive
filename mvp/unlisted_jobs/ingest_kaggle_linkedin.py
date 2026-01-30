@@ -48,7 +48,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-DATA_DIR = '/Users/noahhopkins/ShortList.ai/unlisted_jobs/data/kaggle/linkedin'
+DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'kaggle', 'linkedin')
 
 
 def check_files_exist() -> bool:

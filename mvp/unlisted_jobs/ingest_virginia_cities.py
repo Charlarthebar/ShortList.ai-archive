@@ -95,7 +95,7 @@ def ingest_file1(db, cursor, normalizer):
     source_id = get_or_create_source(cursor, 'Virginia State Payroll')
     location_id = get_or_create_location(cursor, 'Richmond', 'VA')
 
-    filepath = '/Users/noahhopkins/ShortList.ai/unlisted_jobs/data/state_payroll_new/Employee_Salaries.csv'
+    filepath = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'state_payroll_new', 'Employee_Salaries.csv')
 
     count = 0
     skipped = 0
@@ -161,7 +161,7 @@ def ingest_file2(db, cursor, normalizer):
     source_id = get_or_create_source(cursor, 'Norfolk VA City Payroll')
     location_id = get_or_create_location(cursor, 'Norfolk', 'VA')
 
-    filepath = '/Users/noahhopkins/ShortList.ai/unlisted_jobs/data/state_payroll_new/Employee_Salaries_20260115.csv'
+    filepath = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'state_payroll_new', 'Employee_Salaries_20260115.csv')
 
     count = 0
     skipped = 0

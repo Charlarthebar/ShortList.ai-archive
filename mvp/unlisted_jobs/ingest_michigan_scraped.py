@@ -83,7 +83,7 @@ def main():
     source_id = get_or_create_source(cursor, 'Michigan State Payroll (Mackinac)')
     location_id = get_or_create_location(cursor, 'MI')
 
-    filepath = '/Users/noahhopkins/ShortList.ai/unlisted_jobs/data/michigan/michigan_state.csv'
+    filepath = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'michigan', 'michigan_state.csv')
 
     if not os.path.exists(filepath):
         log.error(f"File not found: {filepath}")

@@ -100,7 +100,7 @@ def main():
     source_id = get_or_create_source(cursor, 'North Carolina State Payroll')
     location_id = get_or_create_location(cursor, 'NC')
 
-    filepath = '/Users/noahhopkins/ShortList.ai/unlisted_jobs/data/state_payroll_new/State Of NC Salary Lookup.csv'
+    filepath = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'state_payroll_new', 'State Of NC Salary Lookup.csv')
 
     count = 0
     skipped = 0

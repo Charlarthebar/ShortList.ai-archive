@@ -33,7 +33,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-DATA_FILE = '/Users/noahhopkins/ShortList.ai/unlisted_jobs/data/university_payroll/ny_state_authorities_salary.csv'
+DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'university_payroll', 'ny_state_authorities_salary.csv')
 
 
 def parse_salary(value) -> Optional[float]:

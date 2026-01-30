@@ -40,7 +40,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-DATA_DIR = '/Users/noahhopkins/ShortList.ai/unlisted_jobs/data/visa/historical'
+DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'visa', 'historical')
 
 
 def normalize_salary(wage_from, wage_to, wage_unit: str) -> Optional[float]:

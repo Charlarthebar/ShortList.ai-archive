@@ -47,7 +47,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-OES_DATA_DIR = '/Users/noahhopkins/ShortList.ai/unlisted_jobs/data/oes'
+OES_DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'oes')
 
 
 def create_oes_tables(cursor):

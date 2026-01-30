@@ -36,7 +36,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-ONET_DATA_DIR = '/Users/noahhopkins/ShortList.ai/unlisted_jobs/data/onet/db_30_1_text'
+ONET_DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'onet', 'db_30_1_text')
 
 
 def read_tsv(filename: str) -> List[Dict]:

@@ -336,10 +336,13 @@ class EmployerDatabase:
         }
 
 
-def build_employer_database(data_dir: str = './mvp/unlisted_jobs/data') -> EmployerDatabase:
+def build_employer_database(data_dir: str = None) -> EmployerDatabase:
     """
     Build comprehensive employer database from all available sources.
     """
+    if data_dir is None:
+        data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
+
     db = EmployerDatabase()
 
     # Add from H-1B data

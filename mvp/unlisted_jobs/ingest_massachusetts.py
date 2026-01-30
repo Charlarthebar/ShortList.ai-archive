@@ -103,7 +103,7 @@ def main():
     source_id = get_or_create_source(cursor, 'Massachusetts State Payroll')
     location_id = get_or_create_location(cursor, 'MA')
 
-    filepath = '/Users/noahhopkins/ShortList.ai/unlisted_jobs/data/state_payroll_new/massachusetts_v3.csv'
+    filepath = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'state_payroll_new', 'massachusetts_v3.csv')
 
     # Use 2025 as most recent complete year (2026 is partial)
     target_year = 2025

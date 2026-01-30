@@ -366,7 +366,7 @@ class JobInferenceEngine:
         return pd.DataFrame(individual_records)
 
 
-def run_inference(data_dir: str = './mvp/unlisted_jobs/data',
+def run_inference(data_dir: str = None,
                   output_dir: str = './data/ma_jobs') -> Tuple[pd.DataFrame, Dict]:
     """
     Run the full inference pipeline.
@@ -374,6 +374,9 @@ def run_inference(data_dir: str = './mvp/unlisted_jobs/data',
     Returns:
         Tuple of (inferred jobs DataFrame, statistics dict)
     """
+    if data_dir is None:
+        data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
+
     logging.basicConfig(level=logging.INFO)
 
     print("=" * 70)
